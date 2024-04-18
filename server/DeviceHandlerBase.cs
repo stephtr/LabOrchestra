@@ -8,7 +8,7 @@ public interface IDeviceHandler
     void SubscribeToStreamEvents(Action<object> onStreamEvent);
 }
 
-public abstract class DeviceHandlerBase<TState> : IDeviceHandler where TState : new()
+public abstract class DeviceHandlerBase<TState> : IDeviceHandler where TState : class, new()
 {
     private readonly Dictionary<string, MethodInfo> _methodCache = new();
     protected TState _state = new TState();
@@ -41,7 +41,7 @@ public abstract class DeviceHandlerBase<TState> : IDeviceHandler where TState : 
             {
                 // Check if method parameters match expected action parameters
                 // and adjust as needed before invoking
-                return method.Invoke(this, action.Parameters);
+                return method.Invoke(this, action.Parameters) ?? new object();
             }
             catch (Exception ex)
             {

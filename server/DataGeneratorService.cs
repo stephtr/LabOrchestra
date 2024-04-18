@@ -13,7 +13,7 @@ public class DataGeneratorService: IHostedService
         _timer?.Change(Timeout.Infinite, 0);
     }
 
-    private async void DoWork(object? state)
+    private void DoWork(object? state)
     {
         var rand = new Random();
         var data = new float[500];

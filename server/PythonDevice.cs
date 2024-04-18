@@ -49,7 +49,7 @@ public class PythonDevice : IDeviceHandler, IDisposable
         using (Py.GIL())
         {
             string stateJson = _methodCache["_get_state"].Invoke().As<string>();
-            return JsonSerializer.Deserialize<dynamic>(stateJson);
+            return JsonSerializer.Deserialize<dynamic>(stateJson) ?? new object();
         }
     }
 
