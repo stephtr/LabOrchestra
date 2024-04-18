@@ -1,4 +1,5 @@
 using ExperimentControl.Hubs;
+using Python.Runtime;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSignalR()
@@ -12,10 +13,18 @@ builder.Services.AddCors(options =>
             .AllowCredentials()
     )
 );
-builder.Services.AddHostedService<DataGeneratorService>();
+builder.Services.AddSingleton<DeviceManager>();
+
+Runtime.PythonDLL = "/Library/Frameworks/Python.framework/Versions/3.12/lib/libpython3.12.dylib";
+PythonEngine.Initialize();
+PythonEngine.BeginAllowThreads();
 
 var app = builder.Build();
 app.UseCors();
-app.MapHub<OscilloscopeHub>("/hub/oscilloscope");
+app.MapHub<StreamingHub>("/hub/streaming");
+app.MapHub<ControlHub>("/hub/control");
+
+// Start up the DeviceManager
+app.Services.GetRequiredService<DeviceManager>();
 
 app.Run();
