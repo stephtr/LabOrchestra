@@ -83,11 +83,11 @@ export function useSignalRHub({ url, useBinaryProtocol, onDataReceived }: Prop):
     }, [connection, onDataReceived]);
 
     const result = useMemo<SignalRHubResult>(() => isConnected ? {
-        isConnected: true,
+        isConnected: true as const,
         invoke: connection.invoke.bind(connection),
         send: connection.send.bind(connection),
     } : {
-        isConnected: false,
+        isConnected: false as const,
         invoke: null,
         send: null,
     }, [isConnected, connection]);
