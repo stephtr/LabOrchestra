@@ -1,0 +1,19 @@
+{
+    "root": true,
+    "extends": "tonalio",
+    "parserOptions": {
+        "project": [
+            "./tsconfig.json",
+            "*/tsconfig.json"
+        ]
+    },
+    "ignorePatterns": [],
+    "rules": {
+        "eslint-comments/disable-enable-pair": [
+            "error",
+            {
+                "allowWholeFile": true
+            }
+        ]
+    }
+}

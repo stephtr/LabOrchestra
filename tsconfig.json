@@ -1,0 +1,21 @@
+{
+	"compilerOptions": {
+		"baseUrl": ".",
+		"experimentalDecorators": true,
+		"emitDecoratorMetadata": true,
+		"forceConsistentCasingInFileNames": true,
+		"isolatedModules": true,
+		"module": "esnext",
+		"esModuleInterop": true,
+		"moduleResolution": "node",
+		"noImplicitReturns": true,
+		"noUnusedLocals": true,
+		"sourceMap": true,
+		"strict": true,
+		"skipLibCheck": true,
+		"target": "es2019",
+		"jsx": "preserve",
+		"lib": ["DOM", "ESNext"],
+		"composite": true
+	}
+}

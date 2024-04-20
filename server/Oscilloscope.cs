@@ -1,39 +1,61 @@
+public class OscilloscopeChannel
+{
+	public bool ChannelActive { get; set; } = false;
+	public int RangeInMillivolts { get; set; } = 1000;
+}
+
 public class OscilloscopeState
 {
-    public bool Running { get; set; } = true;
-    public string Mode { get; set; } = "time"; // Default mode is "time"
+	public bool Running { get; set; } = true;
+	public string Mode { get; set; } = "time"; // Default mode is "time"
 
-    public int RangeInMillivolts { get; set; } = 1000;
+	public OscilloscopeChannel[] Channels { get; set; } =
+	{
+		new OscilloscopeChannel(),
+		new OscilloscopeChannel(),
+		new OscilloscopeChannel(),
+		new OscilloscopeChannel(),
+	};
 }
 
 public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>
 {
-    public OscilloscopeHandler()
-    {
-        new Timer(DoWork, null, TimeSpan.Zero, TimeSpan.FromSeconds(0.1));
-    }
+	public OscilloscopeHandler()
+	{
+		new Timer(DoWork, null, TimeSpan.Zero, TimeSpan.FromSeconds(0.1));
+	}
 
-    public void Start()
-    {
-        _state.Running = true;
-    }
-    public void Stop()
-    {
-        _state.Running = false;
-    }
+	public void Start()
+	{
+		_state.Running = true;
+	}
+	public void Stop()
+	{
+		_state.Running = false;
+	}
 
-    public void UpdateRange(int rangeInMillivolts)
-    {
-        _state.RangeInMillivolts = rangeInMillivolts;
-    }
+	public void ChannelActive(int channel, bool active)
+	{
+		_state.Channels[channel].ChannelActive = active;
+	}
 
-    private void DoWork(object? _)
-    {
-        if (!_state.Running) return;
-        var rand = new Random();
-        var data = new float[500];
-        for (int i = 0; i < data.Length; i++)
-            data[i] = (rand.NextSingle() * 2 - 1) * _state.RangeInMillivolts / 1000f;
-        SendStreamData(data);
-    }
+	public void UpdateRange(int channel, int rangeInMillivolts)
+	{
+		_state.Channels[channel].RangeInMillivolts = rangeInMillivolts;
+	}
+
+	private void DoWork(object? _)
+	{
+		if (!_state.Running) return;
+		var rand = new Random();
+		var channelData = new float[_state.Channels.Length][];
+		var dataLength = 500;
+		for (var ch = 0; ch < channelData.Length; ch++)
+		{
+			channelData[ch] = new float[dataLength];
+			for (int i = 0; i < dataLength; i++)
+				channelData[ch][i] = (rand.NextSingle() * 2 - 1) * _state.Channels[ch].RangeInMillivolts / 1000f;
+		}
+		SendStreamData(channelData);
+	}
 }
