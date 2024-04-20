@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.Json;
 
 public interface IDeviceHandler
 {
@@ -39,9 +40,30 @@ public abstract class DeviceHandlerBase<TState> : IDeviceHandler where TState : 
         {
             try
             {
+                ParameterInfo[] parametersInfo = method.GetParameters();
+                object[] parameters = new object[action.Parameters?.Length ?? 0];
+                if (parametersInfo.Length != parameters.Length)
+                {
+                    throw new InvalidOperationException($"Action method {action.ActionName} expects {parametersInfo.Length} parameters, but {parameters.Length} were provided.");
+                }
+                for (int i = 0; i < parametersInfo.Length; i++)
+                {
+                    Type parameterType = parametersInfo[i].ParameterType;
+                    object parameterValue = action.Parameters![i];
+
+                    // Convert JsonElement to appropriate type if necessary
+                    if (parameterValue is JsonElement jsonElement)
+                    {
+                        parameters[i] = ConvertJsonElement(jsonElement, parameterType);
+                    }
+                    else
+                    {
+                        parameters[i] = Convert.ChangeType(parameterValue, parameterType);
+                    }
+                }
                 // Check if method parameters match expected action parameters
                 // and adjust as needed before invoking
-                return method.Invoke(this, action.Parameters) ?? new object();
+                return method.Invoke(this, parameters) ?? new object();
             }
             catch (Exception ex)
             {
@@ -73,5 +95,22 @@ public abstract class DeviceHandlerBase<TState> : IDeviceHandler where TState : 
     public void SendStreamData(object data)
     {
         _onStreamEvent?.Invoke(data);
+    }
+
+    private static object ConvertJsonElement(JsonElement element, Type targetType)
+    {
+        // Add checks and conversions based on the targetType
+        return (targetType switch
+        {
+            Type t when t == typeof(string) => element.GetString(),
+            Type t when t == typeof(int) => element.GetInt32(),
+            Type t when t == typeof(long) => element.GetInt64(),
+            Type t when t == typeof(bool) => element.GetBoolean(),
+            Type t when t == typeof(double) => element.GetDouble(),
+            Type t when t == typeof(DateTime) => element.GetDateTime(),
+            // Add other types as needed
+            //_ => JsonSerializer.DeserializeObject(element.GetRawText(), targetType)
+            _ => throw new Exception("Unsupported type")
+        })!;
     }
 }

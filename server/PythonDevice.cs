@@ -14,7 +14,7 @@ public class PythonDevice : IDeviceHandler, IDisposable
             _pyModule = Py.CreateScope();
             _pyModule.Import("json", "_json");
             _pyModule.Set("_send_status_update", new Action<string>(SendStateUpdate));
-            _pyModule.Exec("def send_status_update(partial_state): _send_status_update(_json.dumps(partial_state))");
+            _pyModule.Exec("def send_status_update(partial_state=None): _send_status_update(_json.dumps(partial_state if partial_state else state))");
             _pyModule.Exec("def _get_state(): return _json.dumps(state)");
 
             var script = File.ReadAllText(filename);
@@ -88,7 +88,7 @@ public class PythonDevice : IDeviceHandler, IDisposable
 
     public void SendStateUpdate(string serializedPartialState)
     {
-        _onStateUpdate?.Invoke(JsonSerializer.Deserialize<dynamic>(serializedPartialState));
+        _onStateUpdate?.Invoke(JsonSerializer.Deserialize<dynamic>(serializedPartialState)!);
     }
 
     public void SendStreamData(object data)

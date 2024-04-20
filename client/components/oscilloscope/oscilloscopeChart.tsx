@@ -6,12 +6,12 @@ import "chart.js/auto";
 import { useStream } from '@/lib/controlHub';
 
 const labels = new Array(5000).fill(0).map((_, i) => i);
-export default function Oscilloscope() {
+export function OscilloscopeChart() {
     const [data, setData] = useState<number[]>([]);
 
     const { isConnected } = useStream('myOsci', useCallback((data: number[]) => setData(data), []))
 
-    return <div className="h-full bg-white rounded-lg p-2">
+    return <div className="h-full bg-white dark:bg-black dark:bg-opacity-50 rounded-lg p-2">
         <div className="relative h-full">
             <Chart
                 type="line"

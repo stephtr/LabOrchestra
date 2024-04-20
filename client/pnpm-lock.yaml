@@ -186,7 +186,7 @@ packages:
     dev: false
 
   /@fortawesome/fontawesome-common-types@6.5.2:
-    resolution: {integrity: sha512-gBxPg3aVO6J0kpfHNILc+NMhXnqHumFxOmjYCFfOiLZfwhnnfhtsdA2hfJlDnj+8PjAs6kKQPenOTKj3Rf7zHw==}
+    resolution: {integrity: sha512-gBxPg3aVO6J0kpfHNILc+NMhXnqHumFxOmjYCFfOiLZfwhnnfhtsdA2hfJlDnj+8PjAs6kKQPenOTKj3Rf7zHw==, tarball: https://npm.fontawesome.com/@fortawesome/fontawesome-common-types/-/6.5.2/fontawesome-common-types-6.5.2.tgz}
     engines: {node: '>=6'}
     requiresBuild: true
     dev: false

@@ -32,7 +32,7 @@ function useSignalRHubConnection({ url, useBinaryProtocol }: ProviderProps, open
 
         const connectionBuilder = new HubConnectionBuilder()
             .withUrl(url)
-            .withAutomaticReconnect();
+            .withAutomaticReconnect({ nextRetryDelayInMilliseconds: () => 1000 });
         if (useBinaryProtocol) {
             connectionBuilder.withHubProtocol(new MessagePackHubProtocol());
         }

@@ -1,14 +1,15 @@
 import time
 
-state = {"pressure": 1}
+state = {"channels": [{"pressure": 1}]}
 
 
 def test():
-    state["pressure"] += 1
-    send_status_update({"pressure": state["pressure"]})
+    print("Hello world from Python!")
+    state["channels"][0]["pressure"] = 0
 
 
 def main():
     while True:
-        test()
+        state["channels"][0]["pressure"] += 1
+        send_status_update()
         time.sleep(1)
