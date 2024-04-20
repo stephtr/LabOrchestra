@@ -7,11 +7,11 @@ import { useStream } from '@/lib/controlHub';
 
 const labels = new Array(5000).fill(0).map((_, i) => i);
 export function OscilloscopeChart() {
-	const [data, setData] = useState<number[]>([]);
+	const [data, setData] = useState<number[][]>([]);
 
 	const { isConnected } = useStream(
 		'myOsci',
-		useCallback((newData: number[][]) => setData(newData[0]), []),
+		useCallback((newData: number[][]) => setData(newData), []),
 	);
 
 	return (
@@ -41,13 +41,16 @@ export function OscilloscopeChart() {
 						},
 					}}
 					data={{
-						datasets: [
-							{
-								data: isConnected ? data : [],
+						datasets:
+							data?.map((d, i) => ({
+								label: i.toString(),
+								data: isConnected ? d : [],
 								pointRadius: 0,
 								borderWidth: 2,
-							},
-						],
+								borderColor: ['blue', 'red', 'green', 'yellow'][
+									i
+								],
+							})) ?? [],
 						labels,
 					}}
 				/>

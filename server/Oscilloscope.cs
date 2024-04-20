@@ -1,6 +1,6 @@
 public class OscilloscopeChannel
 {
-	public bool ChannelActive { get; set; } = false;
+	public bool ChannelActive { get; set; } = true;
 	public int RangeInMillivolts { get; set; } = 1000;
 }
 
@@ -52,9 +52,16 @@ public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>
 		var dataLength = 500;
 		for (var ch = 0; ch < channelData.Length; ch++)
 		{
-			channelData[ch] = new float[dataLength];
-			for (int i = 0; i < dataLength; i++)
-				channelData[ch][i] = (rand.NextSingle() * 2 - 1) * _state.Channels[ch].RangeInMillivolts / 1000f;
+			if (_state.Channels[ch].ChannelActive)
+			{
+				channelData[ch] = new float[dataLength];
+				for (int i = 0; i < dataLength; i++)
+					channelData[ch][i] = (rand.NextSingle() * 2 - 1) * _state.Channels[ch].RangeInMillivolts / 1000f;
+			}
+			else
+			{
+				channelData[ch] = Array.Empty<float>();
+			}
 		}
 		SendStreamData(channelData);
 	}

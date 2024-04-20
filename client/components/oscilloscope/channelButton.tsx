@@ -58,22 +58,22 @@ export function ChannelButton({
 	let borderSClass = '';
 	let fillerClass = '';
 	switch (channelIndex) {
-		case 1:
+		case 0:
 			borderClass = 'border-blue-600';
 			borderSClass = 'border-s-blue-600';
 			fillerClass = 'bg-blue-600';
 			break;
-		case 2:
+		case 1:
 			borderClass = 'border-red-600';
 			borderSClass = 'border-s-red-600';
 			fillerClass = 'bg-red-600';
 			break;
-		case 3:
+		case 2:
 			borderClass = 'border-green-600';
 			borderSClass = 'border-s-green-600';
 			fillerClass = 'bg-green-600';
 			break;
-		case 4:
+		case 3:
 			borderClass = 'border-yellow-600';
 			borderSClass = 'border-s-yellow-600';
 			fillerClass = 'bg-yellow-600';
@@ -85,7 +85,10 @@ export function ChannelButton({
 	}
 	return (
 		<ButtonGroup variant="flat" className="w-full mt-2">
-			<Button className={`w-full h-12 flex-1 border-l-8 ${borderClass}`}>
+			<Button
+				className={`w-full h-12 flex-1 border-l-8 ${borderClass} ${state.channelActive ? '' : 'border-opacity-20'}`}
+				onPress={() => action('channelActive', !state.channelActive)}
+			>
 				{label}
 			</Button>
 			<Popover placement="right-start">
@@ -111,9 +114,7 @@ export function ChannelButton({
 							setCurrentRange(ranges.indexOf(ranges[v as number]))
 						}
 						onChangeEnd={(v) => {
-							action('updateRange', undefined, [
-								ranges[v as number],
-							]);
+							action('updateRange', ranges[v as number]);
 							if (state)
 								setCurrentRange(
 									ranges.indexOf(state.rangeInMillivolts),

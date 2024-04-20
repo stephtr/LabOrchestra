@@ -6,7 +6,7 @@ export interface OscilloscopeState {
 	running: boolean;
 	mode: 'time' | 'fft';
 	channels: Array<{
-		active: boolean;
+		channelActive: boolean;
 		rangeInMillivolts: number;
 	}>;
 }

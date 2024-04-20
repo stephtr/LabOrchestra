@@ -25,25 +25,25 @@ export function VerticalControlBar() {
 			<div className="flex flex-col gap-1 items-center">
 				<ChannelButton
 					label="C1"
-					channelIndex={1}
+					channelIndex={0}
 					state={state}
 					action={action}
 				/>
 				<ChannelButton
 					label="C2"
-					channelIndex={2}
+					channelIndex={1}
 					state={state}
 					action={action}
 				/>
 				<ChannelButton
 					label="C3"
-					channelIndex={3}
+					channelIndex={2}
 					state={state}
 					action={action}
 				/>
 				<ChannelButton
 					label="C4"
-					channelIndex={4}
+					channelIndex={3}
 					state={state}
 					action={action}
 				/>
