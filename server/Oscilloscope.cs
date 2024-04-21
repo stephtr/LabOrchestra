@@ -1,5 +1,4 @@
 using MathNet.Numerics.IntegralTransforms;
-using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 
 public class OscilloscopeChannel
 {
@@ -23,7 +22,18 @@ public class OscilloscopeState
 	};
 }
 
-public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>
+interface IOscilloscope
+{
+	void Start();
+	void Stop();
+	void SetTimeMode(string mode);
+	void SetFFTBinCount(int length);
+	void SetAveragingMode(string mode);
+	void ChannelActive(int channel, bool active);
+	void UpdateRange(int channel, int rangeInMillivolts);
+}
+
+public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>, IOscilloscope
 {
 	private double[][] _fftStorage = [[], [], [], []];
 	private int[] _acquiredFFTs = { 0, 0, 0, 0 };
