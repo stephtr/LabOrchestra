@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 using MathNet.Numerics.IntegralTransforms;
 using PS5000AImports;

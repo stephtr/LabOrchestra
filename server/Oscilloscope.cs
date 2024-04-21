@@ -122,7 +122,7 @@ public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>, IOscill
 			{
 				var signal = new float[_state.FFTLength];
 				for (int i = 0; i < _state.FFTLength; i++)
-					signal[i] = (rand.NextSingle() * 2 - 1) * _state.Channels[ch].RangeInMillivolts / 1000f;
+					signal[i] = rand.NextSingle() * 2 - 1;
 
 				var fft = new float[_state.FFTLength + 2];
 				Array.Copy(signal, fft, _state.FFTLength);
