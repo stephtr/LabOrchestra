@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { faChevronDown } from '@/lib/fortawesome/pro-solid-svg-icons';
+import { faChevronRight } from '@/lib/fortawesome/pro-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
 	Button,
@@ -86,15 +86,16 @@ export function ChannelButton({
 	return (
 		<ButtonGroup variant="flat" className="w-full mt-2">
 			<Button
-				className={`w-full h-12 flex-1 border-l-8 ${borderClass} ${state.channelActive ? '' : 'border-opacity-20'}`}
+				className={`w-full h-12 flex-1 border-l-8 ${borderClass} ${state?.channelActive ? '' : 'border-opacity-20'}`}
 				onPress={() => action('channelActive', !state.channelActive)}
+				isDisabled={!state}
 			>
 				{label}
 			</Button>
 			<Popover placement="right-start">
 				<PopoverTrigger>
-					<Button isIconOnly className="h-12">
-						<FontAwesomeIcon icon={faChevronDown} />
+					<Button isIconOnly className="h-12" isDisabled={!state}>
+						<FontAwesomeIcon icon={faChevronRight} />
 					</Button>
 				</PopoverTrigger>
 				<PopoverContent
@@ -110,9 +111,7 @@ export function ChannelButton({
 							`± ${formatRange(ranges[i as number])}`
 						}
 						value={currentRange}
-						onChange={(v) =>
-							setCurrentRange(ranges.indexOf(ranges[v as number]))
-						}
+						onChange={(v) => setCurrentRange(v as number)}
 						onChangeEnd={(v) => {
 							action('updateRange', ranges[v as number]);
 							if (state)

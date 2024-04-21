@@ -53,13 +53,14 @@ export function ControlStateProvider({ children }: PropsWithChildren) {
 export function useControl<T = any>(deviceId: string) {
 	const { isConnected, invoke } = useSignalRHub({ url: controlHubUrl });
 	function action(actionName: string, ...parameters: any[]): Promise<void> {
+		if (!invoke) return Promise.resolve();
 		if (!invoke) throw Error('Not connected');
 		return invoke('action', { deviceId, actionName, parameters });
 	}
 	return {
 		isConnected,
 		action,
-		state: useContext(StateContext)[deviceId] as T,
+		state: useContext(StateContext)[deviceId] as T | undefined,
 	};
 }
 
@@ -81,7 +82,7 @@ export function useStream(deviceId: string, callback: (data: any) => void) {
 }
 
 export function useChannelControl<TState extends { channels: any[] }>(
-	state: TState,
+	state: TState | undefined,
 	action: (actionName: string, ...args: any[]) => void,
 	channelIndex: number,
 ) {

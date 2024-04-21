@@ -70,28 +70,28 @@ namespace PS5000AImports
 
 		public enum ThresholdDirection : uint
 		{
-            // Values for level threshold mode
-            //
-            Above,              //using upper threshold
-            Below,
-            Rising,             // using upper threshold
-            Falling,            // using upper threshold
-            RisingOrFalling,    // using both thresholds
-            AboveLower,         // using lower threshold
-            BelowLower,         // using lower threshold
-            RisingLower,        // using upper threshold
-            FallingLower,       // using upper threshold
+			// Values for level threshold mode
+			//
+			Above,              //using upper threshold
+			Below,
+			Rising,             // using upper threshold
+			Falling,            // using upper threshold
+			RisingOrFalling,    // using both thresholds
+			AboveLower,         // using lower threshold
+			BelowLower,         // using lower threshold
+			RisingLower,        // using upper threshold
+			FallingLower,       // using upper threshold
 
-            // Values for window threshold mode
-            //
-            Inside = Above,
-            Outside = Below,
-            Enter = Rising,
-            Exit = Falling,
-            EnterOrExit = RisingOrFalling,
-            PositiveRunt = 9,
-            NegativeRunt,
-            None = Rising
+			// Values for window threshold mode
+			//
+			Inside = Above,
+			Outside = Below,
+			Enter = Rising,
+			Exit = Falling,
+			EnterOrExit = RisingOrFalling,
+			PositiveRunt = 9,
+			NegativeRunt,
+			None = Rising
 		}
 
 		public enum PulseWidthType : uint
@@ -197,7 +197,7 @@ namespace PS5000AImports
 
 		#endregion
 
-		# region Driver Structs
+		#region Driver Structs
 
 		[StructLayout(LayoutKind.Sequential, Pack = 1)]
 		public struct TriggerChannelProperties
@@ -267,7 +267,7 @@ namespace PS5000AImports
 			public TriggerState External;
 			public TriggerState Aux;
 			public TriggerState Pwq;
-			 public TriggerState Digital;
+			public TriggerState Digital;
 
 			public TriggerConditionsV2(
 				TriggerState channelA,
@@ -318,7 +318,7 @@ namespace PS5000AImports
 		}
 
 		#endregion
-		
+
 		#region Driver Imports
 		#region Callback delegates
 		public delegate void ps5000aBlockReady(short handle, short status, IntPtr pVoid);
@@ -388,7 +388,7 @@ namespace PS5000AImports
 													short[] buffer,
 													int bufferLth,
 													uint segmentIndex,
-													RatioMode  ratioMode);
+													RatioMode ratioMode);
 
 		[DllImport(_DRIVER_FILENAME, EntryPoint = "ps5000aSetDataBuffers")]
 		public static extern uint SetDataBuffers(
@@ -400,9 +400,9 @@ namespace PS5000AImports
 													uint segmentIndex,
 													RatioMode ratioMode);
 
-        [DllImport(_DRIVER_FILENAME, EntryPoint = "ps5000aSetAutoTriggerMicroSeconds")]   
-        public static extern uint SetAutoTriggerMicroSeconds( short handle,
-                                                              uint autoTriggerMicroseconds);
+		[DllImport(_DRIVER_FILENAME, EntryPoint = "ps5000aSetAutoTriggerMicroSeconds")]
+		public static extern uint SetAutoTriggerMicroSeconds(short handle,
+															  uint autoTriggerMicroseconds);
 
 		[DllImport(_DRIVER_FILENAME, EntryPoint = "ps5000aSetTriggerChannelDirections")]
 		public static extern uint SetTriggerChannelDirections(
@@ -473,10 +473,10 @@ namespace PS5000AImports
 
 		[DllImport(_DRIVER_FILENAME, EntryPoint = "ps5000aGetUnitInfo")]
 		public static extern uint GetUnitInfo(
-													short handle, 
-													StringBuilder infoString, 
-													short stringLength, 
-													out short requiredSize, 
+													short handle,
+													StringBuilder infoString,
+													short stringLength,
+													out short requiredSize,
 													uint info);
 
 		[DllImport(_DRIVER_FILENAME, EntryPoint = "ps5000aRunStreaming")]

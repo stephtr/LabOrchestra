@@ -16,6 +16,7 @@
     "@microsoft/signalr-protocol-msgpack": "^8.0.0",
     "@nextui-org/react": "^2.2.10",
     "chart.js": "^4.4.2",
+    "chartjs-plugin-zoom": "^2.0.1",
     "framer-motion": "^11.0.25",
     "lodash": "^4.17.21",
     "next": "14.2.1",
