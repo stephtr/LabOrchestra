@@ -113,7 +113,7 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 				{
 					if (_state.Channels[ch].ChannelActive)
 					{
-						var conversionFactor = _state.Channels[ch].RangeInMillivolts / (float)maxValue;
+						var conversionFactor = _state.Channels[ch].RangeInMillivolts / (maxValue * 1000f);
 						var values = new float[noOfSamples];
 						for (long i = 0; i < noOfSamples; i++)
 						{
