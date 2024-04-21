@@ -124,6 +124,7 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 				}
 			}
 		}
+		_state.Running = true;
 
 		Task.Run(() =>
 		{
@@ -173,7 +174,7 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 			DateTime lastTransmission = DateTime.MinValue;
 			while (_state.Running)
 			{
-				if (DateTime.UtcNow - lastTransmission > TimeSpan.FromSeconds(1.0 / 30))
+				if (DateTime.UtcNow - lastTransmission < TimeSpan.FromSeconds(1.0 / 30))
 				{
 					Thread.Sleep(5);
 					continue;
