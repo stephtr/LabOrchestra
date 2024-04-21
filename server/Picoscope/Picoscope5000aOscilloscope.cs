@@ -210,6 +210,7 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 						SendStreamData(new { XMin = 0, XMax = 1 / (2 * dt), Data = channelData, Mode = "fft", Length = _state.FFTLength / 2 + 1 });
 						break;
 				}
+				lastTransmission = DateTime.UtcNow;
 			}
 		});
 	}
