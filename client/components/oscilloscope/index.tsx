@@ -149,7 +149,7 @@ export function Oscilloscope({ topContent }: { topContent?: React.ReactNode }) {
 				{topContent}
 			</div>
 			<main className="col-start-2 row-start-2 overflow-hidden">
-				<OscilloscopeChart />
+				<OscilloscopeChart state={state} />
 			</main>
 		</div>
 	);

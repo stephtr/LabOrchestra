@@ -6,8 +6,10 @@ import 'chart.js/auto';
 import { useStream } from '@/lib/controlHub';
 
 import { ChartOptions, Chart as RawChart } from 'chart.js';
+import { OscilloscopeState } from '.';
 
 if (typeof window !== 'undefined') {
+	// eslint-disable-next-line global-require
 	const zoomPlugin = require('chartjs-plugin-zoom').default;
 	RawChart.register(zoomPlugin);
 }
@@ -48,7 +50,9 @@ type OscilloscopeStreamData = {
 	Length: number;
 };
 
-export function OscilloscopeChart() {
+const colors = ['blue', 'red', 'green', 'yellow'];
+
+export function OscilloscopeChart({ state }: { state?: OscilloscopeState }) {
 	const [data, setData] = useState<OscilloscopeStreamData>({
 		XMin: 0,
 		XMax: 0,
@@ -73,8 +77,45 @@ export function OscilloscopeChart() {
 				),
 		[data.Length, data.XMin, data.XMax],
 	);
-	const options = useMemo<ChartOptions<'line'>>(
-		() => ({
+	const channelHash = state?.channels
+		.map((c) => c.channelActive + c.rangeInMillivolts.toString())
+		.join('.');
+	const options = useMemo<ChartOptions<'line'>>(() => {
+		const yFFT = {
+			yFFT: {
+				type: 'linear',
+				min: -90,
+				max: 0,
+				grid: { color: '#555' },
+			},
+		};
+		let axisCountLeft = 0;
+		const yTime = Object.fromEntries(
+			state?.channels
+				.map((c, ch) => ({
+					id: ch,
+					range: c.rangeInMillivolts,
+					active: c.channelActive,
+				}))
+				.filter((c) => c.active)
+				.map((c) => {
+					axisCountLeft++;
+					return [
+						`y${c.id}`,
+						{
+							type: 'linear',
+							position: axisCountLeft > 2 ? 'right' : 'left',
+							min: data.Mode === 'fft' ? -90 : -c.range / 1000,
+							max: data.Mode === 'fft' ? 0 : +c.range / 1000,
+							grid: { color: '#555', tickColor: colors[c.id] },
+							ticks: {
+								color: colors[c.id],
+							},
+						},
+					];
+				}) ?? [],
+		);
+		return {
 			animation: false,
 			scales: {
 				x: {
@@ -88,12 +129,7 @@ export function OscilloscopeChart() {
 					min: data.XMin,
 					max: data.XMax,
 				},
-				y: {
-					type: 'linear',
-					min: data.Mode === 'fft' ? -90 : -1,
-					max: data.Mode === 'fft' ? 0 : +1,
-					grid: { color: '#555' },
-				},
+				...(data.Mode === 'fft' ? yFFT : yTime),
 			},
 			resizeDelay: 10,
 			maintainAspectRatio: false,
@@ -101,7 +137,7 @@ export function OscilloscopeChart() {
 				tooltip: { enabled: false },
 				legend: { display: false },
 				zoom: {
-					pan: { enabled: true },
+					pan: { enabled: true, mode: 'x' },
 					zoom: {
 						wheel: {
 							enabled: true,
@@ -113,12 +149,16 @@ export function OscilloscopeChart() {
 							min: data.XMin,
 							max: data.XMax,
 						},
+						y: {
+							min: -1,
+							max: 1,
+						},
 					},
 				},
 			},
-		}),
-		[data.Mode, data.XMin, data.XMax],
-	);
+		} as ChartOptions<'line'>;
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [data.Mode, data.XMin, data.XMax, channelHash]);
 	return (
 		<div className="h-full bg-white dark:bg-black dark:bg-opacity-50 rounded-lg p-2">
 			<div className="relative h-full">
@@ -127,15 +167,19 @@ export function OscilloscopeChart() {
 					options={options}
 					data={{
 						datasets:
-							data.Data.map((d, i) => ({
-								label: i.toString(),
-								data: isStreamConnected ? d : [],
-								pointRadius: 0,
-								borderWidth: 2,
-								borderColor: ['blue', 'red', 'green', 'yellow'][
-									i
-								],
-							})) ?? [],
+							data.Data.map((d, i) => [i, d] as const)
+								.filter((d) => d[1]?.length > 0)
+								.map((d) => ({
+									label: d[0].toString(),
+									yAxisID:
+										data.Mode === 'fft'
+											? 'yFFT'
+											: `y${d[0]}`,
+									data: isStreamConnected ? d[1] : [],
+									pointRadius: 0,
+									borderWidth: 2,
+									borderColor: colors[d[0]],
+								})) ?? [],
 						labels,
 					}}
 				/>
