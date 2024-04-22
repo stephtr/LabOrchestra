@@ -69,15 +69,15 @@ export function Oscilloscope({ topContent }: { topContent?: React.ReactNode }) {
 					<Tab title="Time trace" key="time" />
 					<Tab title="FFT" key="fft" />
 				</Tabs>
-				<ButtonGroup variant="flat" className="ml-4">
-					<Button
-						className="w-full h-12"
-						onPress={() => action('resetFFTStorage')}
-						isDisabled={!state}
-					>
-						FFT
-					</Button>
-					{state?.timeMode === 'fft' && (
+				{state?.timeMode === 'fft' && (
+					<ButtonGroup variant="flat" className="ml-4">
+						<Button
+							className="w-full h-12"
+							onPress={() => action('resetFFTStorage')}
+							isDisabled={!state}
+						>
+							FFT
+						</Button>
 						<Popover placement="bottom">
 							<PopoverTrigger>
 								<Button
@@ -129,8 +129,8 @@ export function Oscilloscope({ topContent }: { topContent?: React.ReactNode }) {
 								/>
 							</PopoverContent>
 						</Popover>
-					)}
-				</ButtonGroup>
+					</ButtonGroup>
+				)}
 				<StateSlider
 					label="Test frequency"
 					state={state}
@@ -138,7 +138,9 @@ export function Oscilloscope({ topContent }: { topContent?: React.ReactNode }) {
 					variableName="testSignalFrequency"
 					actionName="setTestSignalFrequency"
 					values={[1e6, 2e6, 3e6, 4e6]}
-					formatter={(v) => Intl.NumberFormat().format(v / 1e6) + ' MHz'}
+					formatter={(v) =>
+						Intl.NumberFormat().format(v / 1e6) + ' MHz'
+					}
 				/>
 				{topContent}
 			</div>

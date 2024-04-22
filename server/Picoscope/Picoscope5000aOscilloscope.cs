@@ -254,7 +254,11 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 
 	public void SetFFTBinCount(int length)
 	{
-		// throw new NotImplementedException();
+		lock (_fftStorage)
+		{
+			ResetFFTStorage();
+			_state.FFTLength = length;
+		}
 	}
 
 	public void SetAveragingMode(string mode)

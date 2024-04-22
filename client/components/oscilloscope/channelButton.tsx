@@ -40,7 +40,7 @@ export function ChannelButton({
 	label: string;
 	channelIndex: number;
 	action: (name: string, ...params: any[]) => void;
-	state: OscilloscopeState;
+	state?: OscilloscopeState;
 }) {
 	const [state, action] = useChannelControl(
 		devState,
