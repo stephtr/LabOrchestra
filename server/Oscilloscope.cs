@@ -10,6 +10,7 @@ public class OscilloscopeState
 {
 	public bool Running { get; set; } = true;
 	public string TimeMode { get; set; } = "time"; // Default mode is "time"
+	public float FFTFrequency { get; set; } = 10e6f;
 	public int FFTLength { get; set; } = 1024;
 	public string FFTAveragingMode { get; set; } = "prefer-data";
 	public int FFTAveragingDurationInMilliseconds { get; set; } = 0;

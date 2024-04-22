@@ -78,8 +78,17 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 			}
 		}
 		if (_state.Running) Start();
-		// _fftStorage[channel] = new double[_state.FFTLength / 2 + 1];
-		// _acquiredFFTs[channel] = 0;
+	}
+
+	public void SetFFTFrequency(float freq){
+		var wasRunning = _state.Running;
+		if (wasRunning) {
+			Stop();
+		}
+		_state.FFTFrequency = freq;
+		if (wasRunning) {
+			Start();
+		}
 	}
 
 	public void ResetFFTStorage()
@@ -89,11 +98,14 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 		_acquiredFFTs = [0, 0, 0, 0];
 	}
 
+	private int _runId = 0;
 	public void Start()
 	{
+		_runId++;
+		var localRunId = _runId;
 		ResetFFTStorage();
 		Imports.SetSimpleTrigger(_handle, 0, 0, 0, Imports.ThresholdDirection.None, 0, 0);
-		var buffer_length = 65536u;
+		var buffer_length = 65536u * 50;
 		var buffers = new[] { new short[buffer_length], new short[buffer_length], new short[buffer_length], new short[buffer_length] };
 		var GCHandles = new GCHandle[4];
 		for (int ch = 0; ch < 4; ch++)
@@ -102,14 +114,23 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 			GCHandles[ch] = GCHandle.Alloc(buffers[ch], GCHandleType.Pinned);
 			Imports.SetDataBuffer(_handle, (Imports.Channel)ch, buffers[ch], (int)buffer_length, 0, Imports.RatioMode.None);
 		}
-		var sampleInterval = 100u;
+		var sampleInterval = (uint)(1e9 / 2 / _state.FFTFrequency);
 		Imports.MaximumValue(_handle, out var maxValue);
-		Imports.RunStreaming(_handle, ref sampleInterval, Imports.ReportedTimeUnits.NanoSeconds, 0, buffer_length, 0, 1, Imports.RatioMode.None, buffer_length);
+		var status = Imports.RunStreaming(_handle, ref sampleInterval, Imports.ReportedTimeUnits.NanoSeconds, 0, buffer_length, 0, 1, Imports.RatioMode.None, buffer_length);
+		if (status != PicoStatus.StatusCodes.PICO_OK)
+		{
+			// throw new Exception($"Failed to start acquisition ({status:X})");
+		}
 		var dt = sampleInterval * 1e-9;
 		var df = 1 / (_state.FFTLength * dt);
 
+		ulong samplesReceived = 0;
+		ulong triggerCount = 0;
+
 		void StreamingCallback(short handle, int noOfSamples, uint startIndex, short overflow, uint triggerAt, short triggered, short autoStop, IntPtr pVoid)
 		{
+			samplesReceived += (ulong)noOfSamples;
+			triggerCount += 1;
 			if (autoStop != 0)
 			{
 				_state.Running = false;
@@ -136,7 +157,7 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 
 		Task.Run(() =>
 		{
-			while (_state.Running)
+			while (_state.Running && _runId == localRunId)
 			{
 				lock (this)
 				{
@@ -155,7 +176,7 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 
 		Task.Run(() =>
 		{
-			while (_state.Running)
+			while (_state.Running && _runId == localRunId)
 			{
 				Thread.Sleep(1);
 				bool didSomeWork;
@@ -195,7 +216,7 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 								_acquiredFFTs[ch]++;
 							}
 						}
-					} while (didSomeWork && _state.Running);
+					} while (didSomeWork && _state.Running && _runId == localRunId);
 				}
 			}
 		});
@@ -203,7 +224,7 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 		Task.Run(() =>
 		{
 			DateTime lastTransmission = DateTime.MinValue;
-			while (_state.Running)
+			while (_state.Running && _runId == localRunId)
 			{
 				if (DateTime.UtcNow - lastTransmission < TimeSpan.FromSeconds(1.0 / 30))
 				{
@@ -248,11 +269,11 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 
 	public void Stop()
 	{
+		_state.Running = false;
 		lock (this)
 		{
 			Imports.Stop(_handle);
 		}
-		_state.Running = false;
 	}
 
 	public void SetTimeMode(string mode)
@@ -266,8 +287,8 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 	{
 		lock (_fftStorage)
 		{
-			ResetFFTStorage();
 			_state.FFTLength = length;
+			ResetFFTStorage();
 		}
 	}
 

@@ -18,6 +18,7 @@ import { StateSlider } from '../stateSlider';
 export interface OscilloscopeState {
 	running: boolean;
 	timeMode: 'time' | 'fft';
+	fftFrequency: number;
 	fftLength: number;
 	fftAveragingMode: 'prefer-data' | 'prefer-display';
 	fftAveragingDurationInMilliseconds: number;
@@ -28,7 +29,7 @@ export interface OscilloscopeState {
 	}>;
 }
 
-const fftLengthValues = [512, 1024, 2048, 4096, 8192, 16384, 32768, 65536];
+const fftLengthValues = [512, 2**10, 2**11, 2**12, 2**13, 2**14, 2**15, 2**16, 2**17, 2**18, 2**19];
 
 const fftAveragingTimeInms = [
 	0, 50, 100, 200, 500, 1000, 2000, 5000, 10000, -1,
@@ -40,6 +41,21 @@ function formatAveragingTime(ms: number) {
 	if (ms === 0) return 'off';
 	if (ms < 1000) return `${ms} ms`;
 	return `${new Intl.NumberFormat().format(ms / 1000)} s`;
+}
+
+function formatFrequency(f: number) {
+	const formatter = new Intl.NumberFormat();
+	if(f>=1e9) return `${formatter.format(f/1e9)} GHz`;
+	if(f>=1e6) return `${formatter.format(f/1e6)} MHz`;
+	if(f>=1e3) return `${formatter.format(f/1e3)} kHz`;
+	return `${formatter.format(f)} Hz`;
+}
+
+const fftFrequencies: number[] = [];
+let decade = 1e3;
+while(decade < 1e8){
+	fftFrequencies.push(1*decade, 2*decade, 5*decade);
+	decade *= 10;
 }
 
 export function Oscilloscope({ topContent }: { topContent?: React.ReactNode }) {
@@ -94,6 +110,17 @@ export function Oscilloscope({ topContent }: { topContent?: React.ReactNode }) {
 							>
 								<h2 className="text-xl">FFT Settings</h2>
 								<StateSlider
+									label="Frequency"
+									className="mt-2"
+									state={state}
+									action={action}
+									variableName="fftFrequency"
+									actionName="setFFTFrequency"
+									values={fftFrequencies}
+									marks={[1e3, 1e6]}
+									formatter={formatFrequency}
+								/>
+								<StateSlider
 									label="Averaging duration"
 									className="mt-2"
 									state={state}
@@ -131,17 +158,6 @@ export function Oscilloscope({ topContent }: { topContent?: React.ReactNode }) {
 						</Popover>
 					</ButtonGroup>
 				)}
-				<StateSlider
-					label="Test frequency"
-					state={state}
-					action={action}
-					variableName="testSignalFrequency"
-					actionName="setTestSignalFrequency"
-					values={[1e6, 2e6, 3e6, 4e6]}
-					formatter={(v) =>
-						`${Intl.NumberFormat().format(v / 1e6)} MHz`
-					}
-				/>
 				{topContent}
 			</div>
 			<main className="col-start-2 row-start-2 overflow-hidden">

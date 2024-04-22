@@ -99,5 +99,5 @@ public class CircularBuffer<T>
 		Tail = 0;
 	}
 
-	public long Count => Head > Tail ? Head - Tail : Capacity - Tail + Head;
+	public long Count => Head >= Tail ? Head - Tail : Capacity - Tail + Head;
 }
