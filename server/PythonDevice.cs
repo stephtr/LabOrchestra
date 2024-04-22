@@ -1,7 +1,7 @@
 using System.Text.Json;
 using Python.Runtime;
 
-public class PythonDevice : IDeviceHandler, IDisposable
+public class PythonDevice : IDeviceHandler
 {
     private readonly Dictionary<string, PyObject> _methodCache = new();
     private event Action<object>? _onStateUpdate;

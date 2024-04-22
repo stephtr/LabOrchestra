@@ -21,6 +21,7 @@ export interface OscilloscopeState {
 	fftLength: number;
 	fftAveragingMode: 'prefer-data' | 'prefer-display';
 	fftAveragingDurationInMilliseconds: number;
+	testSignalFrequency: number;
 	channels: Array<{
 		channelActive: boolean;
 		rangeInMillivolts: number;
@@ -130,6 +131,15 @@ export function Oscilloscope({ topContent }: { topContent?: React.ReactNode }) {
 						</Popover>
 					)}
 				</ButtonGroup>
+				<StateSlider
+					label="Test frequency"
+					state={state}
+					action={action}
+					variableName="testSignalFrequency"
+					actionName="setTestSignalFrequency"
+					values={[1e6, 2e6, 3e6, 4e6]}
+					formatter={(v) => Intl.NumberFormat().format(v / 1e6) + ' MHz'}
+				/>
 				{topContent}
 			</div>
 			<main className="col-start-2 row-start-2 overflow-hidden">

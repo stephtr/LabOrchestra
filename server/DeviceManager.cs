@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.SignalR;
 
 public record DeviceAction(string DeviceId, string? ChannelId, string ActionName, object[]? Parameters);
 
-public class DeviceManager
+public class DeviceManager: IDisposable
 {
     private readonly IHubContext<ControlHub> _controlHub;
     private readonly IHubContext<StreamingHub> _streamingHub;
@@ -76,4 +76,12 @@ public class DeviceManager
         _updateQueue.Clear();
         SendPartialStateUpdateAsync(state);
     }
+
+	public void Dispose()
+	{
+		foreach (var (_, device) in _deviceHandlers) {
+			device.Dispose();
+		}
+		_deviceHandlers.Clear();
+	}
 }

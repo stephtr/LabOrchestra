@@ -1,7 +1,7 @@
 using System.Reflection;
 using System.Text.Json;
 
-public interface IDeviceHandler
+public interface IDeviceHandler : IDisposable
 {
     object HandleActionAsync(DeviceAction action);
     object GetState();
@@ -106,6 +106,7 @@ public abstract class DeviceHandlerBase<TState> : IDeviceHandler where TState : 
             Type t when t == typeof(int) => element.GetInt32(),
             Type t when t == typeof(long) => element.GetInt64(),
             Type t when t == typeof(bool) => element.GetBoolean(),
+            Type t when t == typeof(float) => element.GetSingle(),
             Type t when t == typeof(double) => element.GetDouble(),
             Type t when t == typeof(DateTime) => element.GetDateTime(),
             // Add other types as needed
@@ -113,4 +114,6 @@ public abstract class DeviceHandlerBase<TState> : IDeviceHandler where TState : 
             _ => throw new Exception("Unsupported type")
         })!;
     }
+
+	virtual public void Dispose() { }
 }

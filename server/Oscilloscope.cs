@@ -13,6 +13,7 @@ public class OscilloscopeState
 	public int FFTLength { get; set; } = 1024;
 	public string FFTAveragingMode { get; set; } = "prefer-data";
 	public int FFTAveragingDurationInMilliseconds { get; set; } = 0;
+	public float TestSignalFrequency { get; set; } = 1e6f;
 
 	public OscilloscopeChannel[] Channels { get; set; } =
 	{
@@ -34,6 +35,7 @@ interface IOscilloscope
 	void ChannelActive(int channel, bool active);
 	void UpdateRange(int channel, int rangeInMillivolts);
 	void ResetFFTStorage();
+	void SetTestSignalFrequency(float frequency);
 }
 
 public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>, IOscilloscope
@@ -186,5 +188,10 @@ public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>, IOscill
 	public void SetFFTAveragingDuration(int durationInMilliseconds)
 	{
 		_state.FFTAveragingDurationInMilliseconds = durationInMilliseconds;
+	}
+
+	public void SetTestSignalFrequency(float frequency)
+	{
+		_state.TestSignalFrequency = frequency;
 	}
 }

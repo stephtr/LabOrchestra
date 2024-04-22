@@ -19,7 +19,7 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 		{
 			throw new Exception("Failed to open Picoscope device");
 		}
-		Imports.SetSigGenBuiltInV2(_handle, 0, 800_000, Imports.WaveType.PS5000A_GAUSSIAN, 4_800_000, 5_200_000, 50_000, 0, Imports.SweepType.PS5000A_UPDOWN, Imports.ExtraOperations.PS5000A_PRBS, 0xFFFFFFFF, 0xFFFFFFFF, 0, Imports.SigGenTrigSource.PS5000A_SIGGEN_NONE, 0);
+		Imports.SetSigGenBuiltInV2(_handle, 0, 800_000, Imports.WaveType.PS5000A_GAUSSIAN, 2_000_000, 2_000_000, 0, 0, Imports.SweepType.PS5000A_UP, 0, 0xFFFFFFFF, 0, 0, Imports.SigGenTrigSource.PS5000A_SIGGEN_NONE, 0);
 	}
 
 	public void UpdateRange(int channel, int rangeInMillivolts)
@@ -252,5 +252,17 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 	public void SetFFTAveragingDuration(int durationInMilliseconds)
 	{
 		_state.FFTAveragingDurationInMilliseconds = durationInMilliseconds;
+	}
+
+	public void SetTestSignalFrequency(float frequency)
+	{
+		_state.TestSignalFrequency = frequency;
+		Imports.SetSigGenBuiltInV2(_handle, 0, 800_000, Imports.WaveType.PS5000A_GAUSSIAN, (int)frequency, (int)frequency, 0, 0, Imports.SweepType.PS5000A_UP, 0, 0xFFFFFFFF, 0, 0, Imports.SigGenTrigSource.PS5000A_SIGGEN_NONE, 0);
+	}
+
+	override public void Dispose(){
+		Imports.Stop(_handle);
+		Imports.CloseUnit(_handle);
+		_handle = -1;
 	}
 }
