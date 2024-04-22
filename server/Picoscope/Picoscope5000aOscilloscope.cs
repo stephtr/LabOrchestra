@@ -150,6 +150,14 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 						_buffer[ch].Pop(_state.FFTLength, fft);
 						Fourier.ForwardReal(fft, _state.FFTLength);
 						var newWeight = 1.0 / (_acquiredFFTs[ch] + 1);
+						if (_state.FFTAveragingDurationInMilliseconds == 0)
+						{
+							newWeight = 1.0;
+						}
+						else if (_state.FFTAveragingDurationInMilliseconds > 0)
+						{
+							newWeight = Math.Max(newWeight, 1 - Math.Exp(-dt * _state.FFTLength / _state.FFTAveragingDurationInMilliseconds * 1000));
+						}
 						var oldWeight = 1.0 - newWeight;
 						for (int i = 0; i < _state.FFTLength / 2 + 1; i++)
 						{
@@ -236,5 +244,10 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 			throw new ArgumentException($"Invalid mode {mode}");
 		_state.FFTAveragingMode = mode;
 		ResetFFTStorage();
+	}
+
+	public void SetFFTAveragingDuration(int durationInMilliseconds)
+	{
+		_state.FFTAveragingDurationInMilliseconds = durationInMilliseconds;
 	}
 }

@@ -12,6 +12,7 @@ public class OscilloscopeState
 	public string TimeMode { get; set; } = "time"; // Default mode is "time"
 	public int FFTLength { get; set; } = 1024;
 	public string FFTAveragingMode { get; set; } = "prefer-data";
+	public int FFTAveragingDurationInMilliseconds { get; set; } = 0;
 
 	public OscilloscopeChannel[] Channels { get; set; } =
 	{
@@ -29,6 +30,7 @@ interface IOscilloscope
 	void SetTimeMode(string mode);
 	void SetFFTBinCount(int length);
 	void SetAveragingMode(string mode);
+	void SetFFTAveragingDuration(int durationInMilliseconds);
 	void ChannelActive(int channel, bool active);
 	void UpdateRange(int channel, int rangeInMillivolts);
 }
@@ -38,6 +40,7 @@ public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>, IOscill
 	private double[][] _fftStorage = [[], [], [], []];
 	private int[] _acquiredFFTs = { 0, 0, 0, 0 };
 	private double _dt = 1e-6;
+	private double _updateInterval = 50e-3;
 	public OscilloscopeHandler()
 	{
 		Task.Run(() =>
@@ -47,7 +50,7 @@ public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>, IOscill
 				try
 				{
 					DoWork();
-					Thread.Sleep(50);
+					Thread.Sleep((int)(_updateInterval * 1e3));
 				}
 				catch (Exception e)
 				{
@@ -129,6 +132,14 @@ public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>, IOscill
 				Fourier.ForwardReal(fft, _state.FFTLength);
 
 				var newWeight = 1.0 / (_acquiredFFTs[ch] + 1);
+				if (_state.FFTAveragingDurationInMilliseconds == 0)
+				{
+					newWeight = 1.0;
+				}
+				else if (_state.FFTAveragingDurationInMilliseconds > 0)
+				{
+					newWeight = Math.Max(newWeight, 1 - Math.Exp(-_updateInterval / _state.FFTAveragingDurationInMilliseconds * 1000));
+				}
 				var oldWeight = 1.0 - newWeight;
 				for (int i = 0; i < _state.FFTLength / 2 + 1; i++)
 				{
@@ -169,5 +180,10 @@ public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>, IOscill
 				SendStreamData(new { XMin = 0, XMax = 1 / (2 * _dt), Data = channelData, Mode = "fft", Length = _state.FFTLength / 2 + 1 });
 				break;
 		}
+	}
+
+	public void SetFFTAveragingDuration(int durationInMilliseconds)
+	{
+		_state.FFTAveragingDurationInMilliseconds = durationInMilliseconds;
 	}
 }

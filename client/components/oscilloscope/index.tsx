@@ -19,6 +19,7 @@ export interface OscilloscopeState {
 	timeMode: 'time' | 'fft';
 	fftLength: number;
 	fftAveragingMode: 'prefer-data' | 'prefer-display';
+	fftAveragingDurationInMilliseconds: number;
 	channels: Array<{
 		channelActive: boolean;
 		rangeInMillivolts: number;
@@ -26,6 +27,23 @@ export interface OscilloscopeState {
 }
 
 const fftLengthValues = [512, 1024, 2048, 4096, 8192, 16384, 32768, 65536];
+
+const fftAveragingTimeInms = [
+	0, 50, 100, 200, 500, 1000, 2000, 5000, 10000, -1,
+];
+
+function formatAveragingTime(ms: number) {
+	if (ms === -1) return '∞';
+	if (ms === 0) return 'off';
+	if (ms < 1000) return `${ms} ms`;
+	return `${new Intl.NumberFormat().format(ms / 1000)} s`;
+}
+
+const fftAveragingMarksFor = [0, 100, 1000, 10000, -1];
+const fftAveragingMarks = fftAveragingMarksFor.map((range) => {
+	const index = fftAveragingTimeInms.indexOf(range);
+	return { value: index, label: formatAveragingTime(range) };
+});
 
 export function Oscilloscope({ topContent }: { topContent?: React.ReactNode }) {
 	const { isConnected, action, state } =
@@ -45,10 +63,19 @@ export function Oscilloscope({ topContent }: { topContent?: React.ReactNode }) {
 	const [currentBinCount, setCurrentBinCount] = useState<number>(
 		state ? fftLengthValues.indexOf(state.fftLength) : 0,
 	);
+	const [currentFFTAveragingLength, setcurrentFFTAveragingLength] =
+		useState<number>(state ? fftLengthValues.indexOf(state.fftLength) : 0);
 	useEffect(() => {
-		if (state) setCurrentBinCount(fftLengthValues.indexOf(state.fftLength));
+		if (state) {
+			setCurrentBinCount(fftLengthValues.indexOf(state.fftLength));
+			setcurrentFFTAveragingLength(
+				fftAveragingTimeInms.indexOf(
+					state.fftAveragingDurationInMilliseconds,
+				),
+			);
+		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [state?.fftLength]);
+	}, [state?.fftLength, state?.fftAveragingDurationInMilliseconds]);
 	return (
 		<div className="h-full grid grid-cols-[10rem,1fr] grid-rows-[3.5rem,1fr]">
 			<VerticalControlBar />
@@ -84,24 +111,26 @@ export function Oscilloscope({ topContent }: { topContent?: React.ReactNode }) {
 							<Slider
 								label="Averaging duration"
 								className="mt-2"
-								maxValue={fftLengthValues.length - 1}
-								// marks={marks}
+								maxValue={fftAveragingTimeInms.length - 1}
+								marks={fftAveragingMarks}
 								getValue={(i) =>
-									fftLengthValues[i as number].toString()
+									formatAveragingTime(
+										fftAveragingTimeInms[i as number],
+									)
 								}
-								value={currentBinCount}
+								value={currentFFTAveragingLength}
 								onChange={(v) =>
-									setCurrentBinCount(v as number)
+									setcurrentFFTAveragingLength(v as number)
 								}
 								onChangeEnd={(v) => {
 									action(
-										'setFFTBinCount',
-										fftLengthValues[v as number],
+										'setFFTAveragingDuration',
+										fftAveragingTimeInms[v as number],
 									);
 									if (state)
-										setCurrentBinCount(
-											fftLengthValues.indexOf(
-												state.fftLength,
+										setcurrentFFTAveragingLength(
+											fftAveragingTimeInms.indexOf(
+												state.fftAveragingDurationInMilliseconds,
 											),
 										);
 								}}
@@ -112,9 +141,9 @@ export function Oscilloscope({ topContent }: { topContent?: React.ReactNode }) {
 								selectedKey={state?.fftAveragingMode}
 								onSelectionChange={fftAveragingChangeHandler}
 							>
-								<Tab title="Prefer data" key="prefer-data" />
+								<Tab title="Precision" key="prefer-data" />
 								<Tab
-									title="Prefer display"
+									title="Prefer display speed"
 									key="prefer-display"
 								/>
 							</Tabs>
