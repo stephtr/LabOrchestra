@@ -19,6 +19,7 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 		{
 			throw new Exception("Failed to open Picoscope device");
 		}
+		Imports.SetSigGenBuiltInV2(_handle, 0, 800_000, Imports.WaveType.PS5000A_GAUSSIAN, 4_800_000, 5_200_000, 50_000, 0, Imports.SweepType.PS5000A_UPDOWN, Imports.ExtraOperations.PS5000A_PRBS, 0xFFFFFFFF, 0xFFFFFFFF, 0, Imports.SigGenTrigSource.PS5000A_SIGGEN_NONE, 0);
 	}
 
 	public void UpdateRange(int channel, int rangeInMillivolts)
