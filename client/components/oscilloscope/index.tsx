@@ -29,7 +29,19 @@ export interface OscilloscopeState {
 	}>;
 }
 
-const fftLengthValues = [512, 2**10, 2**11, 2**12, 2**13, 2**14, 2**15, 2**16, 2**17, 2**18, 2**19];
+const fftLengthValues = [
+	512,
+	2 ** 10,
+	2 ** 11,
+	2 ** 12,
+	2 ** 13,
+	2 ** 14,
+	2 ** 15,
+	2 ** 16,
+	2 ** 17,
+	2 ** 18,
+	2 ** 19,
+];
 
 const fftAveragingTimeInms = [
 	0, 50, 100, 200, 500, 1000, 2000, 5000, 10000, -1,
@@ -45,16 +57,16 @@ function formatAveragingTime(ms: number) {
 
 function formatFrequency(f: number) {
 	const formatter = new Intl.NumberFormat();
-	if(f>=1e9) return `${formatter.format(f/1e9)} GHz`;
-	if(f>=1e6) return `${formatter.format(f/1e6)} MHz`;
-	if(f>=1e3) return `${formatter.format(f/1e3)} kHz`;
+	if (f >= 1e9) return `${formatter.format(f / 1e9)} GHz`;
+	if (f >= 1e6) return `${formatter.format(f / 1e6)} MHz`;
+	if (f >= 1e3) return `${formatter.format(f / 1e3)} kHz`;
 	return `${formatter.format(f)} Hz`;
 }
 
 const fftFrequencies: number[] = [];
 let decade = 1e3;
-while(decade < 1e8){
-	fftFrequencies.push(1*decade, 2*decade, 5*decade);
+while (decade < 1e8) {
+	fftFrequencies.push(1 * decade, 2 * decade, 5 * decade);
 	decade *= 10;
 }
 

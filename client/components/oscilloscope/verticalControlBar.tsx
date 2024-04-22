@@ -1,7 +1,17 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { Button, ButtonGroup, Popover, PopoverContent, PopoverTrigger } from '@nextui-org/react';
+import {
+	Button,
+	ButtonGroup,
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from '@nextui-org/react';
 import { useControl } from '@/lib/controlHub';
-import { faChevronRight, faPlay, faStop } from '@/lib/fortawesome/pro-solid-svg-icons';
+import {
+	faChevronRight,
+	faPlay,
+	faStop,
+} from '@/lib/fortawesome/pro-solid-svg-icons';
 import { ChannelButton } from './channelButton';
 import { OscilloscopeState } from '.';
 import { StateSlider } from '../stateSlider';
@@ -51,13 +61,17 @@ export function VerticalControlBar() {
 				<ButtonGroup variant="flat" className="w-full mt-2">
 					<Button
 						className="w-full h-12 flex-1 border-l-8"
-						isDisabled={true}
+						isDisabled
 					>
 						Signal gen
 					</Button>
 					<Popover placement="right-start">
 						<PopoverTrigger>
-							<Button isIconOnly className="h-12" isDisabled={!state}>
+							<Button
+								isIconOnly
+								className="h-12"
+								isDisabled={!state}
+							>
 								<FontAwesomeIcon icon={faChevronRight} />
 							</Button>
 						</PopoverTrigger>
@@ -65,9 +79,11 @@ export function VerticalControlBar() {
 							aria-label="Signal generator settings"
 							className="w-[300px]"
 						>
-							<h2 className="text-xl">Signal Generator Settings</h2>
+							<h2 className="text-xl">
+								Signal Generator Settings
+							</h2>
 							<StateSlider
-							className="mt-2"
+								className="mt-2"
 								label="Test frequency"
 								state={state}
 								action={action}

@@ -80,13 +80,16 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 		if (_state.Running) Start();
 	}
 
-	public void SetFFTFrequency(float freq){
+	public void SetFFTFrequency(float freq)
+	{
 		var wasRunning = _state.Running;
-		if (wasRunning) {
+		if (wasRunning)
+		{
 			Stop();
 		}
 		_state.FFTFrequency = freq;
-		if (wasRunning) {
+		if (wasRunning)
+		{
 			Start();
 		}
 	}
