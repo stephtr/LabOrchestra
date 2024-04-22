@@ -33,6 +33,7 @@ interface IOscilloscope
 	void SetFFTAveragingDuration(int durationInMilliseconds);
 	void ChannelActive(int channel, bool active);
 	void UpdateRange(int channel, int rangeInMillivolts);
+	void ResetFFTStorage();
 }
 
 public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>, IOscilloscope
@@ -60,7 +61,7 @@ public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>, IOscill
 		});
 	}
 
-	private void ResetFFTStorage()
+	public void ResetFFTStorage()
 	{
 		for (int i = 0; i < _fftStorage.Length; i++)
 			_fftStorage[i] = new double[_state.FFTLength / 2 + 1];

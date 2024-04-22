@@ -73,7 +73,7 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 		// _acquiredFFTs[channel] = 0;
 	}
 
-	private void ResetFFTStorage()
+	public void ResetFFTStorage()
 	{
 		for (int i = 0; i < _fftStorage.Length; i++)
 			_fftStorage[i] = new double[_state.FFTLength / 2 + 1];

@@ -1,10 +1,10 @@
-import { Key, useCallback, useEffect, useState } from 'react';
+import { Key, useCallback } from 'react';
 import {
 	Button,
+	ButtonGroup,
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-	Slider,
 	Tab,
 	Tabs,
 } from '@nextui-org/react';
@@ -13,6 +13,7 @@ import { faChevronDown } from '@/lib/fortawesome/pro-solid-svg-icons';
 import { useControl } from '@/lib/controlHub';
 import { VerticalControlBar } from './verticalControlBar';
 import { OscilloscopeChart } from './oscilloscopeChart';
+import { StateSlider } from '../stateSlider';
 
 export interface OscilloscopeState {
 	running: boolean;
@@ -31,6 +32,7 @@ const fftLengthValues = [512, 1024, 2048, 4096, 8192, 16384, 32768, 65536];
 const fftAveragingTimeInms = [
 	0, 50, 100, 200, 500, 1000, 2000, 5000, 10000, -1,
 ];
+const fftAveragingMarksFor = [0, 100, 1000, 10000, -1];
 
 function formatAveragingTime(ms: number) {
 	if (ms === -1) return '∞';
@@ -38,12 +40,6 @@ function formatAveragingTime(ms: number) {
 	if (ms < 1000) return `${ms} ms`;
 	return `${new Intl.NumberFormat().format(ms / 1000)} s`;
 }
-
-const fftAveragingMarksFor = [0, 100, 1000, 10000, -1];
-const fftAveragingMarks = fftAveragingMarksFor.map((range) => {
-	const index = fftAveragingTimeInms.indexOf(range);
-	return { value: index, label: formatAveragingTime(range) };
-});
 
 export function Oscilloscope({ topContent }: { topContent?: React.ReactNode }) {
 	const { isConnected, action, state } =
@@ -60,22 +56,6 @@ export function Oscilloscope({ topContent }: { topContent?: React.ReactNode }) {
 		},
 		[action],
 	);
-	const [currentBinCount, setCurrentBinCount] = useState<number>(
-		state ? fftLengthValues.indexOf(state.fftLength) : 0,
-	);
-	const [currentFFTAveragingLength, setcurrentFFTAveragingLength] =
-		useState<number>(state ? fftLengthValues.indexOf(state.fftLength) : 0);
-	useEffect(() => {
-		if (state) {
-			setCurrentBinCount(fftLengthValues.indexOf(state.fftLength));
-			setcurrentFFTAveragingLength(
-				fftAveragingTimeInms.indexOf(
-					state.fftAveragingDurationInMilliseconds,
-				),
-			);
-		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [state?.fftLength, state?.fftAveragingDurationInMilliseconds]);
 	return (
 		<div className="h-full grid grid-cols-[10rem,1fr] grid-rows-[3.5rem,1fr]">
 			<VerticalControlBar />
@@ -88,93 +68,68 @@ export function Oscilloscope({ topContent }: { topContent?: React.ReactNode }) {
 					<Tab title="Time trace" key="time" />
 					<Tab title="FFT" key="fft" />
 				</Tabs>
-
-				{state?.timeMode === 'fft' && (
-					<Popover placement="bottom">
-						<PopoverTrigger>
-							<Button
-								isIconOnly
-								className="h-12 w-auto px-4 ml-4"
-								isDisabled={!state}
-								endContent={
+				<ButtonGroup variant="flat" className="ml-4">
+					<Button
+						className="w-full h-12"
+						onPress={() => action('resetFFTStorage')}
+						isDisabled={!state}
+					>
+						FFT
+					</Button>
+					{state?.timeMode === 'fft' && (
+						<Popover placement="bottom">
+							<PopoverTrigger>
+								<Button
+									isIconOnly
+									className="h-12"
+									isDisabled={!state}
+								>
 									<FontAwesomeIcon icon={faChevronDown} />
-								}
+								</Button>
+							</PopoverTrigger>
+							<PopoverContent
+								aria-label="FFT settings"
+								className="w-[300px] items-start"
 							>
-								FFT Settings
-							</Button>
-						</PopoverTrigger>
-						<PopoverContent
-							aria-label="FFT settings"
-							className="w-[300px] items-start"
-						>
-							<h2 className="text-xl">FFT Settings</h2>
-							<Slider
-								label="Averaging duration"
-								className="mt-2"
-								maxValue={fftAveragingTimeInms.length - 1}
-								marks={fftAveragingMarks}
-								getValue={(i) =>
-									formatAveragingTime(
-										fftAveragingTimeInms[i as number],
-									)
-								}
-								value={currentFFTAveragingLength}
-								onChange={(v) =>
-									setcurrentFFTAveragingLength(v as number)
-								}
-								onChangeEnd={(v) => {
-									action(
-										'setFFTAveragingDuration',
-										fftAveragingTimeInms[v as number],
-									);
-									if (state)
-										setcurrentFFTAveragingLength(
-											fftAveragingTimeInms.indexOf(
-												state.fftAveragingDurationInMilliseconds,
-											),
-										);
-								}}
-							/>
-							<div className="mt-2 mb-1">Averaging mode</div>
-							<Tabs
-								isDisabled={!isConnected}
-								selectedKey={state?.fftAveragingMode}
-								onSelectionChange={fftAveragingChangeHandler}
-							>
-								<Tab title="Precision" key="prefer-data" />
-								<Tab
-									title="Prefer display speed"
-									key="prefer-display"
+								<h2 className="text-xl">FFT Settings</h2>
+								<StateSlider
+									label="Averaging duration"
+									className="mt-2"
+									state={state}
+									action={action}
+									variableName="fftAveragingDurationInMilliseconds"
+									actionName="setFFTAveragingDuration"
+									values={fftAveragingTimeInms}
+									marks={fftAveragingMarksFor}
+									formatter={formatAveragingTime}
 								/>
-							</Tabs>
-							<Slider
-								label="Bin count"
-								className="mt-2"
-								maxValue={fftLengthValues.length - 1}
-								// marks={marks}
-								getValue={(i) =>
-									fftLengthValues[i as number].toString()
-								}
-								value={currentBinCount}
-								onChange={(v) =>
-									setCurrentBinCount(v as number)
-								}
-								onChangeEnd={(v) => {
-									action(
-										'setFFTBinCount',
-										fftLengthValues[v as number],
-									);
-									if (state)
-										setCurrentBinCount(
-											fftLengthValues.indexOf(
-												state.fftLength,
-											),
-										);
-								}}
-							/>
-						</PopoverContent>
-					</Popover>
-				)}
+								<div className="mt-2 mb-1">Averaging mode</div>
+								<Tabs
+									isDisabled={!isConnected}
+									selectedKey={state?.fftAveragingMode}
+									onSelectionChange={
+										fftAveragingChangeHandler
+									}
+								>
+									<Tab title="Precision" key="prefer-data" />
+									<Tab
+										title="Prefer display speed"
+										key="prefer-display"
+									/>
+								</Tabs>
+								<StateSlider
+									label="Bin count"
+									className="mt-2"
+									state={state}
+									action={action}
+									variableName="fftLength"
+									actionName="setFFTBinCount"
+									values={fftLengthValues}
+								/>
+							</PopoverContent>
+						</Popover>
+					)}
+				</ButtonGroup>
 				{topContent}
 			</div>
 			<main className="col-start-2 row-start-2 overflow-hidden">
