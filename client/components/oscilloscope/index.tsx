@@ -139,7 +139,7 @@ export function Oscilloscope({ topContent }: { topContent?: React.ReactNode }) {
 					actionName="setTestSignalFrequency"
 					values={[1e6, 2e6, 3e6, 4e6]}
 					formatter={(v) =>
-						Intl.NumberFormat().format(v / 1e6) + ' MHz'
+						`${Intl.NumberFormat().format(v / 1e6)} MHz`
 					}
 				/>
 				{topContent}

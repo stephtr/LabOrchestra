@@ -39,14 +39,15 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 			20000 => Imports.Range.Range_20V,
 			_ => throw new NotSupportedException(),
 		};
-		lock (this) {
+		lock (this)
+		{
 			var status = Imports.SetChannel(_handle, (Imports.Channel)channel, _state.Channels[channel].ChannelActive ? (short)1 : (short)0, Imports.Coupling.PS5000A_AC, range, 0);
 			if (status != PicoStatus.StatusCodes.PICO_OK)
 			{
 				throw new Exception("Failed to set channel range");
 			}
 		}
-		if(_state.Running) Start();
+		if (_state.Running) Start();
 		_state.Channels[channel].RangeInMillivolts = rangeInMillivolts;
 	}
 
@@ -68,14 +69,15 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 			_ => throw new NotSupportedException(),
 		};
 		_state.Channels[channel].ChannelActive = active;
-		lock (this) {
+		lock (this)
+		{
 			var status = Imports.SetChannel(_handle, (Imports.Channel)channel, _state.Channels[channel].ChannelActive ? (short)1 : (short)0, Imports.Coupling.PS5000A_AC, range, 0);
 			if (status != PicoStatus.StatusCodes.PICO_OK)
 			{
 				throw new Exception("Failed to set channel range");
 			}
 		}
-		if(_state.Running) Start();
+		if (_state.Running) Start();
 		// _fftStorage[channel] = new double[_state.FFTLength / 2 + 1];
 		// _acquiredFFTs[channel] = 0;
 	}
@@ -136,8 +138,10 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 		{
 			while (_state.Running)
 			{
-				lock (this) {
-					for (var i = 0; i < 1000; i++) {
+				lock (this)
+				{
+					for (var i = 0; i < 1000; i++)
+					{
 						Imports.GetStreamingLatestValues(_handle, StreamingCallback, IntPtr.Zero);
 						Thread.Sleep(0);
 					}
@@ -153,40 +157,45 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 		{
 			while (_state.Running)
 			{
-				var didSomeWork = false;
-				for (var ch = 0; ch < 4; ch++)
+				Thread.Sleep(1);
+				bool didSomeWork;
+				lock (_fftStorage)
 				{
-					var fft = new float[_state.FFTLength + 2];
-					if (_state.Channels[ch].ChannelActive && _buffer[ch].Count > _state.FFTLength)
+					do
 					{
-						didSomeWork = true;
-						_buffer[ch].Pop(_state.FFTLength, fft);
-						Fourier.ForwardReal(fft, _state.FFTLength);
-						var newWeight = 1.0 / (_acquiredFFTs[ch] + 1);
-						if (_state.FFTAveragingDurationInMilliseconds == 0)
+						didSomeWork = false;
+						for (var ch = 0; ch < 4; ch++)
 						{
-							newWeight = 1.0;
-						}
-						else if (_state.FFTAveragingDurationInMilliseconds > 0)
-						{
-							newWeight = Math.Max(newWeight, 1 - Math.Exp(-dt * _state.FFTLength / _state.FFTAveragingDurationInMilliseconds * 1000));
-						}
-						var oldWeight = 1.0 - newWeight;
-						for (int i = 0; i < _state.FFTLength / 2 + 1; i++)
-						{
-							var val = Convert.ToDouble(fft[i * 2] * fft[i * 2] + fft[i * 2 + 1] * fft[i * 2 + 1]);
-							val *= 1 / df;
-							if (_state.FFTAveragingMode == "prefer-display")
+							var fft = new float[_state.FFTLength + 2];
+							if (_state.Channels[ch].ChannelActive && _buffer[ch].Count > _state.FFTLength)
 							{
-								val = Math.Log10(val) * 10;
+								didSomeWork = true;
+								_buffer[ch].Pop(_state.FFTLength, fft);
+								Fourier.ForwardReal(fft, _state.FFTLength);
+								var newWeight = 1.0 / (_acquiredFFTs[ch] + 1);
+								if (_state.FFTAveragingDurationInMilliseconds == 0)
+								{
+									newWeight = 1.0;
+								}
+								else if (_state.FFTAveragingDurationInMilliseconds > 0)
+								{
+									newWeight = Math.Max(newWeight, 1 - Math.Exp(-dt * _state.FFTLength / _state.FFTAveragingDurationInMilliseconds * 1000));
+								}
+								var oldWeight = 1.0 - newWeight;
+								for (int i = 0; i < _state.FFTLength / 2 + 1; i++)
+								{
+									var val = Convert.ToDouble(fft[i * 2] * fft[i * 2] + fft[i * 2 + 1] * fft[i * 2 + 1]);
+									val *= 1 / df;
+									if (_state.FFTAveragingMode == "prefer-display")
+									{
+										val = Math.Log10(val) * 10;
+									}
+									_fftStorage[ch][i] = _fftStorage[ch][i] * oldWeight + val * newWeight;
+								}
+								_acquiredFFTs[ch]++;
 							}
-							_fftStorage[ch][i] = _fftStorage[ch][i] * oldWeight + val * newWeight;
 						}
-						_acquiredFFTs[ch]++;
-					}
-				}
-				if (!didSomeWork) {
-					Thread.Sleep(1);
+					} while (didSomeWork && _state.Running);
 				}
 			}
 		});
@@ -239,7 +248,8 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 
 	public void Stop()
 	{
-		lock (this) {
+		lock (this)
+		{
 			Imports.Stop(_handle);
 		}
 		_state.Running = false;
@@ -276,7 +286,8 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 
 	public void SetTestSignalFrequency(float frequency)
 	{
-		lock (this) {
+		lock (this)
+		{
 			var status = Imports.SetSigGenBuiltInV2(_handle, 0, 800_000, Imports.WaveType.PS5000A_GAUSSIAN, (int)frequency, (int)frequency, 0, 0, Imports.SweepType.PS5000A_UP, 0, 0xFFFFFFFF, 0, 0, Imports.SigGenTrigSource.PS5000A_SIGGEN_NONE, 0);
 			if (status != PicoStatus.StatusCodes.PICO_OK)
 			{
@@ -286,7 +297,8 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 		_state.TestSignalFrequency = frequency;
 	}
 
-	override public void Dispose(){
+	override public void Dispose()
+	{
 		_state.Running = false;
 		Imports.Stop(_handle);
 		Imports.CloseUnit(_handle);
