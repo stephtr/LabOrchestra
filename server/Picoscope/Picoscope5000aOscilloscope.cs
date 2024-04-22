@@ -39,11 +39,14 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 			20000 => Imports.Range.Range_20V,
 			_ => throw new NotSupportedException(),
 		};
-		var status = Imports.SetChannel(_handle, (Imports.Channel)channel, _state.Channels[channel].ChannelActive ? (short)1 : (short)0, Imports.Coupling.PS5000A_AC, range, 0);
-		if (status != PicoStatus.StatusCodes.PICO_OK)
-		{
-			throw new Exception("Failed to set channel range");
+		lock (this) {
+			var status = Imports.SetChannel(_handle, (Imports.Channel)channel, _state.Channels[channel].ChannelActive ? (short)1 : (short)0, Imports.Coupling.PS5000A_AC, range, 0);
+			if (status != PicoStatus.StatusCodes.PICO_OK)
+			{
+				throw new Exception("Failed to set channel range");
+			}
 		}
+		if(_state.Running) Start();
 		_state.Channels[channel].RangeInMillivolts = rangeInMillivolts;
 	}
 
@@ -65,11 +68,14 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 			_ => throw new NotSupportedException(),
 		};
 		_state.Channels[channel].ChannelActive = active;
-		var status = Imports.SetChannel(_handle, (Imports.Channel)channel, _state.Channels[channel].ChannelActive ? (short)1 : (short)0, Imports.Coupling.PS5000A_AC, range, 0);
-		if (status != PicoStatus.StatusCodes.PICO_OK)
-		{
-			throw new Exception("Failed to set channel range");
+		lock (this) {
+			var status = Imports.SetChannel(_handle, (Imports.Channel)channel, _state.Channels[channel].ChannelActive ? (short)1 : (short)0, Imports.Coupling.PS5000A_AC, range, 0);
+			if (status != PicoStatus.StatusCodes.PICO_OK)
+			{
+				throw new Exception("Failed to set channel range");
+			}
 		}
+		if(_state.Running) Start();
 		// _fftStorage[channel] = new double[_state.FFTLength / 2 + 1];
 		// _acquiredFFTs[channel] = 0;
 	}
@@ -130,8 +136,12 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 		{
 			while (_state.Running)
 			{
-				Imports.GetStreamingLatestValues(_handle, StreamingCallback, IntPtr.Zero);
-				Thread.Sleep(0);
+				lock (this) {
+					for (var i = 0; i < 1000; i++) {
+						Imports.GetStreamingLatestValues(_handle, StreamingCallback, IntPtr.Zero);
+						Thread.Sleep(0);
+					}
+				}
 			}
 			for (int ch = 0; ch < 4; ch++)
 			{
@@ -143,12 +153,13 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 		{
 			while (_state.Running)
 			{
-				Thread.Sleep(1);
+				var didSomeWork = false;
 				for (var ch = 0; ch < 4; ch++)
 				{
 					var fft = new float[_state.FFTLength + 2];
 					if (_state.Channels[ch].ChannelActive && _buffer[ch].Count > _state.FFTLength)
 					{
+						didSomeWork = true;
 						_buffer[ch].Pop(_state.FFTLength, fft);
 						Fourier.ForwardReal(fft, _state.FFTLength);
 						var newWeight = 1.0 / (_acquiredFFTs[ch] + 1);
@@ -173,6 +184,9 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 						}
 						_acquiredFFTs[ch]++;
 					}
+				}
+				if (!didSomeWork) {
+					Thread.Sleep(1);
 				}
 			}
 		});
@@ -225,8 +239,10 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 
 	public void Stop()
 	{
+		lock (this) {
+			Imports.Stop(_handle);
+		}
 		_state.Running = false;
-		Imports.Stop(_handle);
 	}
 
 	public void SetTimeMode(string mode)
@@ -256,11 +272,18 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 
 	public void SetTestSignalFrequency(float frequency)
 	{
+		lock (this) {
+			var status = Imports.SetSigGenBuiltInV2(_handle, 0, 800_000, Imports.WaveType.PS5000A_GAUSSIAN, (int)frequency, (int)frequency, 0, 0, Imports.SweepType.PS5000A_UP, 0, 0xFFFFFFFF, 0, 0, Imports.SigGenTrigSource.PS5000A_SIGGEN_NONE, 0);
+			if (status != PicoStatus.StatusCodes.PICO_OK)
+			{
+				throw new Exception($"Failed to set channel range ({status})");
+			}
+		}
 		_state.TestSignalFrequency = frequency;
-		Imports.SetSigGenBuiltInV2(_handle, 0, 800_000, Imports.WaveType.PS5000A_GAUSSIAN, (int)frequency, (int)frequency, 0, 0, Imports.SweepType.PS5000A_UP, 0, 0xFFFFFFFF, 0, 0, Imports.SigGenTrigSource.PS5000A_SIGGEN_NONE, 0);
 	}
 
 	override public void Dispose(){
+		_state.Running = false;
 		Imports.Stop(_handle);
 		Imports.CloseUnit(_handle);
 		_handle = -1;
