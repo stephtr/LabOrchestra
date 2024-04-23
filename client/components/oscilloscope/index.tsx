@@ -27,9 +27,15 @@ import {
 	formatFrequency,
 } from './utils';
 
-export function Oscilloscope({ topContent }: { topContent?: React.ReactNode }) {
+export function Oscilloscope({
+	topContent,
+	deviceId,
+}: {
+	topContent?: React.ReactNode;
+	deviceId: string;
+}) {
 	const { isConnected, action, state } =
-		useControl<OscilloscopeState>('myOsci');
+		useControl<OscilloscopeState>(deviceId);
 	const selectionChangeHandler = useCallback(
 		(mode: Key) => {
 			action('setTimeMode', mode);
@@ -43,8 +49,8 @@ export function Oscilloscope({ topContent }: { topContent?: React.ReactNode }) {
 		[action],
 	);
 	return (
-		<div className="h-full grid grid-cols-[10rem,1fr] grid-rows-[3.5rem,1fr]">
-			<VerticalControlBar />
+		<div className="h-full grid grid-cols-[10rem,1fr] grid-rows-[3.5rem,1fr] overflow-hidden">
+			<VerticalControlBar deviceId={deviceId} />
 			<div className="col-start-2 flex items-center mr-1">
 				<Tabs
 					isDisabled={!isConnected}
@@ -153,7 +159,7 @@ export function Oscilloscope({ topContent }: { topContent?: React.ReactNode }) {
 				{topContent}
 			</div>
 			<main className="col-start-2 row-start-2 overflow-hidden">
-				<OscilloscopeChart state={state} />
+				<OscilloscopeChart state={state} deviceId={deviceId} />
 			</main>
 		</div>
 	);

@@ -23,6 +23,7 @@
     "react": "^18",
     "react-chartjs-2": "^5.2.0",
     "react-dom": "^18",
+    "react-split-pane": "^2.0.3",
     "timechart": "^0.5.2",
     "uplot": "^1.6.30",
     "uplot-react": "^1.1.5"

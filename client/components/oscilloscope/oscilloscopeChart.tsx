@@ -52,7 +52,13 @@ type OscilloscopeStreamData = {
 
 const colors = ['blue', 'red', 'green', 'yellow'];
 
-export function OscilloscopeChart({ state }: { state?: OscilloscopeState }) {
+export function OscilloscopeChart({
+	state,
+	deviceId,
+}: {
+	state?: OscilloscopeState;
+	deviceId: string;
+}) {
 	const [data, setData] = useState<OscilloscopeStreamData>({
 		XMin: 0,
 		XMax: 0,
@@ -62,7 +68,7 @@ export function OscilloscopeChart({ state }: { state?: OscilloscopeState }) {
 	});
 
 	const { isConnected: isStreamConnected } = useStream(
-		'myOsci',
+		deviceId,
 		useCallback((newData: OscilloscopeStreamData) => setData(newData), []),
 	);
 

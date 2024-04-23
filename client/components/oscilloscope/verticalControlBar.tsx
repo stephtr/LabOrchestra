@@ -13,12 +13,12 @@ import {
 	faStop,
 } from '@/lib/fortawesome/pro-solid-svg-icons';
 import { ChannelButton } from './channelButton';
-import { OscilloscopeState } from '.';
+import { OscilloscopeState } from './utils';
 import { StateSlider } from '../stateSlider';
 
-export function VerticalControlBar() {
+export function VerticalControlBar({ deviceId }: { deviceId: string }) {
 	const { isConnected, action, state } =
-		useControl<OscilloscopeState>('myOsci');
+		useControl<OscilloscopeState>(deviceId);
 	const isRunning = state?.running;
 
 	return (
@@ -90,7 +90,7 @@ export function VerticalControlBar() {
 								variableName="testSignalFrequency"
 								actionName="setTestSignalFrequency"
 								values={[0.5e6, 1e6, 2e6, 3e6, 4e6]}
-								formatter={(v) =>
+								formatter={(v: number) =>
 									`${Intl.NumberFormat().format(v / 1e6)} MHz`
 								}
 							/>
