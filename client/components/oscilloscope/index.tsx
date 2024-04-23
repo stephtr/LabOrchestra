@@ -5,6 +5,8 @@ import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
+	Select,
+	SelectItem,
 	Tab,
 	Tabs,
 } from '@nextui-org/react';
@@ -22,6 +24,7 @@ export interface OscilloscopeState {
 	fftLength: number;
 	fftAveragingMode: 'prefer-data' | 'prefer-display';
 	fftAveragingDurationInMilliseconds: number;
+	fftWindowFunction: string;
 	testSignalFrequency: number;
 	channels: Array<{
 		channelActive: boolean;
@@ -47,6 +50,13 @@ const fftAveragingTimeInms = [
 	0, 50, 100, 200, 500, 1000, 2000, 5000, 10000, -1,
 ];
 const fftAveragingMarksFor = [0, 100, 1000, 10000, -1];
+
+const fftWindowFunctions = [
+	{ value: 'rectangular', label: 'Rectangular' },
+	{ value: 'hann', label: 'Hann' },
+	{ value: 'blackman', label: 'Blackman' },
+	{ value: 'nuttall', label: 'Nuttall' },
+];
 
 function formatAveragingTime(ms: number) {
 	if (ms === -1) return '∞';
@@ -166,6 +176,24 @@ export function Oscilloscope({ topContent }: { topContent?: React.ReactNode }) {
 									actionName="setFFTBinCount"
 									values={fftLengthValues}
 								/>
+								<Select
+									label="Window function"
+									labelPlacement="outside"
+									className="mt-2"
+									value={state?.fftWindowFunction}
+									onChange={(v) =>
+										action('setFFTWindowFunction', v)
+									}
+								>
+									{fftWindowFunctions.map((f) => (
+										<SelectItem
+											key={f.value}
+											value={f.value}
+										>
+											{f.label}
+										</SelectItem>
+									))}
+								</Select>
 							</PopoverContent>
 						</Popover>
 					</ButtonGroup>

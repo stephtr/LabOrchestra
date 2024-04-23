@@ -3,19 +3,22 @@
 import { Slider } from '@nextui-org/react';
 import { useEffect, useState } from 'react';
 
-type Props<T extends string> = {
-	state: undefined | (Record<T, number> & Record<string, any>);
-	action: (actionName: string, value: number) => void;
+type Props<TKey extends string, TValue extends string | number> = {
+	state: undefined | (Record<TKey, TValue> & Record<string, any>);
+	action: (actionName: string, value: TValue) => void;
 	actionName: string;
-	variableName: T;
-	values: number[];
+	variableName: TKey;
+	values: TValue[];
 	className?: string;
 	label?: string;
-	marks?: number[];
-	formatter?: (value: number) => string;
+	marks?: TValue[];
+	formatter?: (value: TValue) => string;
 };
 
-export function StateSlider<T extends string>({
+export function StateSlider<
+	TKey extends string,
+	TValue extends string | number,
+>({
 	state,
 	action,
 	actionName,
@@ -24,7 +27,7 @@ export function StateSlider<T extends string>({
 	marks,
 	formatter = (v) => v.toString(),
 	...props
-}: Props<T>) {
+}: Props<TKey, TValue>) {
 	const [currentValue, setCurrentValue] = useState(
 		state ? values.indexOf(state[variableName]) : 0,
 	);

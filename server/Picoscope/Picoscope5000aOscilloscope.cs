@@ -7,6 +7,7 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 	private short _handle;
 	private CircularBuffer<float>[] _buffer = [new(100_000_000), new(100_000_000), new(100_000_000), new(100_000_000)];
 	private double[][] _fftStorage = [[], [], [], []];
+	private float[] _fftWindowFunction = Array.Empty<float>();
 	private int[] _acquiredFFTs = { 0, 0, 0, 0 };
 	public Picoscope5000aOscilloscope()
 	{
@@ -99,6 +100,32 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 		for (int i = 0; i < _fftStorage.Length; i++)
 			_fftStorage[i] = new double[_state.FFTLength / 2 + 1];
 		_acquiredFFTs = [0, 0, 0, 0];
+		_fftWindowFunction = new float[_state.FFTLength];
+		var N = _state.FFTLength - 1;
+		switch (_state.FFTWindowFunction)
+		{
+			case "rectangular":
+				for (int i = 0; i < _state.FFTLength; i++)
+					_fftWindowFunction[i] = 1;
+				break;
+			case "hann":
+				for (int n = 0; n < _state.FFTLength; n++)
+				{
+					var sin = Math.Sin(Math.PI * n / N);
+					_fftWindowFunction[n] = (float)(sin * sin);
+				}
+				break;
+			case "blackman":
+				for (int n = 0; n < _state.FFTLength; n++)
+					_fftWindowFunction[n] = (float)(0.42 - 0.5 * Math.Cos(2 * Math.PI * n / N) + 0.08 * Math.Cos(4 * Math.PI * n / N));
+				break;
+			case "nuttall":
+				for (int n = 0; n < _state.FFTLength; n++)
+					_fftWindowFunction[n] = (float)(0.355768 - 0.487396 * Math.Cos(2 * Math.PI * n / N) + 0.144232 * Math.Cos(4 * Math.PI * n / N) - 0.012604 * Math.Cos(6 * Math.PI * n / N));
+				break;
+			default:
+				throw new ArgumentException($"Invalid window function {_state.FFTWindowFunction}");
+		}
 	}
 
 	private int _runId = 0;
@@ -195,6 +222,11 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 							{
 								didSomeWork = true;
 								_buffer[ch].Pop(_state.FFTLength, fft);
+								if (_state.FFTWindowFunction != "rectangular")
+								{
+									for (int i = 0; i < _state.FFTLength; i++)
+										fft[i] *= _fftWindowFunction[i];
+								}
 								Fourier.ForwardReal(fft, _state.FFTLength);
 								var newWeight = 1.0 / (_acquiredFFTs[ch] + 1);
 								if (_state.FFTAveragingDurationInMilliseconds == 0)
