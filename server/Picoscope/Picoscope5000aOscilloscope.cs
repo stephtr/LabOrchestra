@@ -1,5 +1,7 @@
+using System.IO.Compression;
 using System.Runtime.InteropServices;
 using MathNet.Numerics.IntegralTransforms;
+using NumSharp;
 using PS5000AImports;
 
 public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, IOscilloscope
@@ -48,8 +50,8 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 				throw new Exception("Failed to set channel range");
 			}
 		}
-		if (_state.Running) Start();
 		_state.Channels[channel].RangeInMillivolts = rangeInMillivolts;
+		if (_state.Running) Start();
 	}
 
 	public void ChannelActive(int channel, bool active)
@@ -69,7 +71,6 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 			20000 => Imports.Range.Range_20V,
 			_ => throw new NotSupportedException(),
 		};
-		_state.Channels[channel].ChannelActive = active;
 		lock (this)
 		{
 			var status = Imports.SetChannel(_handle, (Imports.Channel)channel, _state.Channels[channel].ChannelActive ? (short)1 : (short)0, Imports.Coupling.PS5000A_AC, range, 0);
@@ -78,6 +79,7 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 				throw new Exception("Failed to set channel range");
 			}
 		}
+		_state.Channels[channel].ChannelActive = active;
 		if (_state.Running) Start();
 	}
 
@@ -134,6 +136,8 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 	}
 
 	private int _runId = 0;
+	private double _dt = 0;
+	private double _df = 0;
 	public void Start()
 	{
 		_runId++;
@@ -156,8 +160,8 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 		{
 			// throw new Exception($"Failed to start acquisition ({status:X})");
 		}
-		var dt = sampleInterval * 1e-9;
-		var df = 1 / (_state.FFTLength * dt);
+		_dt = sampleInterval * 1e-9;
+		_df = 1 / (_state.FFTLength * _dt);
 
 		ulong samplesReceived = 0;
 		ulong triggerCount = 0;
@@ -240,13 +244,13 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 								}
 								else if (_state.FFTAveragingDurationInMilliseconds > 0)
 								{
-									newWeight = Math.Max(newWeight, 1 - Math.Exp(-dt * _state.FFTLength / _state.FFTAveragingDurationInMilliseconds * 1000));
+									newWeight = Math.Max(newWeight, 1 - Math.Exp(-_dt * _state.FFTLength / _state.FFTAveragingDurationInMilliseconds * 1000));
 								}
 								var oldWeight = 1.0 - newWeight;
 								for (int i = 0; i < _state.FFTLength / 2 + 1; i++)
 								{
 									var val = Convert.ToDouble(fft[i * 2] * fft[i * 2] + fft[i * 2 + 1] * fft[i * 2 + 1]);
-									val *= 1 / df;
+									val *= 1 / _df;
 									if (_state.FFTAveragingMode == "prefer-display")
 									{
 										val = Math.Log10(val) * 10;
@@ -282,7 +286,7 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 								channelData[ch] = _buffer[ch].PeekHead(_state.FFTLength, readPastTail: true);
 							}
 						}
-						SendStreamData(new { XMin = 0, XMax = dt * (_state.FFTLength - 1), Data = channelData, Mode = "time", Length = _state.FFTLength });
+						SendStreamData(new { XMin = 0, XMax = _dt * (_state.FFTLength - 1), Data = channelData, Mode = "time", Length = _state.FFTLength });
 						break;
 					case "fft":
 						for (var ch = 0; ch < channelData.Length; ch++)
@@ -299,7 +303,7 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 								channelData[ch] = data;
 							}
 						}
-						SendStreamData(new { XMin = 0, XMax = 1 / (2 * dt), Data = channelData, Mode = "fft", Length = _state.FFTLength / 2 + 1 });
+						SendStreamData(new { XMin = 0, XMax = 1 / (2 * _dt), Data = channelData, Mode = "fft", Length = _state.FFTLength / 2 + 1 });
 						break;
 				}
 				lastTransmission = DateTime.UtcNow;
@@ -362,6 +366,45 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 			}
 		}
 		_state.TestSignalFrequency = frequency;
+	}
+
+	public override object? OnSave(ZipArchive archive)
+	{
+		if (_dt == 0) return null;
+
+		var savedAnyTraces = false;
+		for (var ch = 0; ch < _state.Channels.Length; ch++)
+		{
+			if (!_state.Channels[ch].ChannelActive) continue;
+
+			using (var traceFile = archive.CreateEntry($"C{ch + 1}").Open())
+			{
+				np.Save(_buffer[ch].ToArray(), traceFile);
+			}
+
+			using (var fftFile = archive.CreateEntry($"F{ch + 1}").Open())
+			{
+				np.Save(_fftStorage[ch], fftFile);
+			}
+
+			savedAnyTraces = true;
+		}
+		if (!savedAnyTraces) return null;
+
+		var t = Enumerable.Range(0, _state.FFTLength).Select(i => (float)(i * _dt)).ToArray();
+		using (var tFile = archive.CreateEntry($"t").Open())
+		{
+			np.Save(t, tFile);
+		}
+
+		var df = _state.FFTFrequency / (_state.FFTLength / 2 + 1);
+		var f = Enumerable.Range(0, _state.FFTLength / 2 + 1).Select(i => (float)(i * _df)).ToArray();
+		using (var fFile = archive.CreateEntry($"f").Open())
+		{
+			np.Save(f, fFile);
+		}
+
+		return new { dt = _dt, df = _df };
 	}
 
 	override public void Dispose()

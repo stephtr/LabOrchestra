@@ -1,5 +1,8 @@
+using System.IO.Compression;
 using ExperimentControl.Hubs;
 using Microsoft.AspNetCore.SignalR;
+using YamlDotNet.Serialization;
+using YamlDotNet.Serialization.NamingConventions;
 
 public record DeviceAction(string DeviceId, string? ChannelId, string ActionName, object[]? Parameters);
 
@@ -17,12 +20,14 @@ public class DeviceManager : IDisposable
 		_controlHub = controlHub;
 		_streamingHub = streamingHub;
 		RegisterDevice("myOsci", new OscilloscopeHandler());
+		RegisterDevice("main", new MainDevice());
 		//RegisterDevice("myPressure", new PythonDevice("pressure.py"));
 	}
 
 	public void RegisterDevice(string deviceId, IDeviceHandler deviceHandler)
 	{
 		_deviceHandlers.Add(deviceId, deviceHandler);
+		deviceHandler.SetDeviceManager(this);
 		deviceHandler.SubscribeToStateUpdates(state =>
 		{
 			var stateUpdate = new Dictionary<string, object>();
@@ -75,6 +80,24 @@ public class DeviceManager : IDisposable
 		}
 		_updateQueue.Clear();
 		SendPartialStateUpdateAsync(state);
+	}
+
+	public void Save(string baseFilepath)
+	{
+		using var npzFile = new ZipArchive(new FileStream($"{baseFilepath}.npz", FileMode.CreateNew), ZipArchiveMode.Create);
+		var yamlFile = new Dictionary<string, object>();
+		foreach (var (deviceName, device) in _deviceHandlers)
+		{
+			var stateToWrite = device.OnSave(npzFile);
+			if (stateToWrite != null)
+			{
+				yamlFile[deviceName] = stateToWrite;
+			}
+		}
+		if (yamlFile.Count == 0) return;
+		var serializer = new SerializerBuilder().WithNamingConvention(CamelCaseNamingConvention.Instance).Build();
+		var yaml = serializer.Serialize(yamlFile);
+		File.WriteAllText($"{baseFilepath}.yaml", yaml);
 	}
 
 	public void Dispose()

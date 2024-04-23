@@ -97,7 +97,13 @@ public class CircularBuffer<T>
 	{
 		Head = 0;
 		Tail = 0;
+		Array.Clear(Buffer);
 	}
 
 	public long Count => Head >= Tail ? Head - Tail : Capacity - Tail + Head;
+
+	public T[] ToArray(bool readPastTail = false)
+	{
+		return PeekHead(readPastTail ? Capacity : Count, readPastTail: readPastTail);
+	}
 }

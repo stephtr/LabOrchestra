@@ -16,7 +16,16 @@ import { useControl } from '@/lib/controlHub';
 import { VerticalControlBar } from './verticalControlBar';
 import { OscilloscopeChart } from './oscilloscopeChart';
 import { StateSlider } from '../stateSlider';
-import { OscilloscopeState, fftAveragingMarksFor, fftAveragingTimeInms, fftFrequencies, fftLengthValues, fftWindowFunctions, formatAveragingTime, formatFrequency } from './utils';
+import {
+	OscilloscopeState,
+	fftAveragingMarksFor,
+	fftAveragingTimeInms,
+	fftFrequencies,
+	fftLengthValues,
+	fftWindowFunctions,
+	formatAveragingTime,
+	formatFrequency,
+} from './utils';
 
 export function Oscilloscope({ topContent }: { topContent?: React.ReactNode }) {
 	const { isConnected, action, state } =
@@ -118,9 +127,14 @@ export function Oscilloscope({ topContent }: { topContent?: React.ReactNode }) {
 									label="Window function"
 									labelPlacement="outside"
 									className="pt-2"
-									selectedKeys={state? [state.fftWindowFunction] : []}
+									selectedKeys={
+										state ? [state.fftWindowFunction] : []
+									}
 									onChange={(e) =>
-										action('setFFTWindowFunction', e.target.value)
+										action(
+											'setFFTWindowFunction',
+											e.target.value,
+										)
 									}
 								>
 									{fftWindowFunctions.map((f) => (

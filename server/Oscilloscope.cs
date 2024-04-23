@@ -1,4 +1,6 @@
+using System.IO.Compression;
 using MathNet.Numerics.IntegralTransforms;
+using NumSharp;
 
 public class OscilloscopeChannel
 {
@@ -45,31 +47,20 @@ public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>, IOscill
 {
 	private double[][] _fftStorage = [[], [], [], []];
 	private float[] _fftWindowFunction = Array.Empty<float>();
+	private float[][] _signal = [[], [], [], []];
 	private int[] _acquiredFFTs = { 0, 0, 0, 0 };
 	private double _updateInterval = 50e-3;
 	public OscilloscopeHandler()
 	{
-		Task.Run(() =>
-		{
-			while (true)
-			{
-				try
-				{
-					DoWork();
-					Thread.Sleep((int)(_updateInterval * 1e3));
-				}
-				catch (Exception e)
-				{
-					Console.WriteLine(e);
-				}
-			}
-		});
 	}
 
 	public void ResetFFTStorage()
 	{
 		for (int i = 0; i < _fftStorage.Length; i++)
+		{
 			_fftStorage[i] = new double[_state.FFTLength / 2 + 1];
+			_signal[i] = new float[_state.FFTLength];
+		}
 		_acquiredFFTs = [0, 0, 0, 0];
 		ResetFFTWindow();
 	}
@@ -106,8 +97,23 @@ public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>, IOscill
 
 	public void Start()
 	{
-		_state.Running = true;
 		ResetFFTStorage();
+		_state.Running = true;
+		Task.Run(() =>
+		{
+			while (_state.Running)
+			{
+				try
+				{
+					DoWork();
+					Thread.Sleep((int)(_updateInterval * 1e3));
+				}
+				catch (Exception e)
+				{
+					Console.WriteLine(e);
+				}
+			}
+		});
 	}
 	public void Stop()
 	{
@@ -142,6 +148,7 @@ public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>, IOscill
 		_state.Channels[channel].ChannelActive = active;
 		_fftStorage[channel] = new double[_state.FFTLength / 2 + 1];
 		_acquiredFFTs[channel] = 0;
+		_signal[channel] = new float[_state.FFTLength];
 	}
 
 	public void UpdateRange(int channel, int rangeInMillivolts)
@@ -161,12 +168,11 @@ public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>, IOscill
 		{
 			if (_state.Channels[ch].ChannelActive)
 			{
-				var signal = new float[_state.FFTLength];
 				for (int i = 0; i < _state.FFTLength; i++)
-					signal[i] = rand.NextSingle() * 2 - 1;
+					_signal[ch][i] = rand.NextSingle() * 2 - 1;
 
 				var fft = new float[_state.FFTLength + 2];
-				Array.Copy(signal, fft, _state.FFTLength);
+				Array.Copy(_signal[ch], fft, _state.FFTLength);
 				if (_state.FFTWindowFunction != "rectangular")
 				{
 					for (int i = 0; i < _state.FFTLength; i++)
@@ -199,7 +205,7 @@ public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>, IOscill
 				switch (_state.TimeMode)
 				{
 					case "time":
-						channelData[ch] = signal;
+						channelData[ch] = _signal[ch];
 						break;
 					case "fft":
 						var data = new float[_state.FFTLength / 2 + 1];
@@ -244,5 +250,43 @@ public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>, IOscill
 	public void SetTestSignalFrequency(float frequency)
 	{
 		_state.TestSignalFrequency = frequency;
+	}
+
+	public override object? OnSave(ZipArchive archive)
+	{
+		var savedAnyTraces = false;
+		for (var ch = 0; ch < _state.Channels.Length; ch++)
+		{
+			if (!_state.Channels[ch].ChannelActive) continue;
+
+			using (var traceFile = archive.CreateEntry($"C{ch + 1}").Open())
+			{
+				np.Save(_signal[ch], traceFile);
+			}
+
+			using (var fftFile = archive.CreateEntry($"F{ch + 1}").Open())
+			{
+				np.Save(_fftStorage[ch], fftFile);
+			}
+
+			savedAnyTraces = true;
+		}
+		if (!savedAnyTraces) return null;
+
+		var dt = 1 / _state.FFTFrequency * (1 / 2 + 1);
+		var t = Enumerable.Range(0, _state.FFTLength).Select(i => (float)(i * dt)).ToArray();
+		using (var tFile = archive.CreateEntry($"t").Open())
+		{
+			np.Save(t, tFile);
+		}
+
+		var df = _state.FFTFrequency / (_state.FFTLength / 2 + 1);
+		var f = Enumerable.Range(0, _state.FFTLength / 2 + 1).Select(i => (float)(i * df)).ToArray();
+		using (var fFile = archive.CreateEntry($"f").Open())
+		{
+			np.Save(f, fFile);
+		}
+
+		return null;
 	}
 }
