@@ -6,7 +6,7 @@ import 'chart.js/auto';
 import { useStream } from '@/lib/controlHub';
 
 import { ChartOptions, Chart as RawChart } from 'chart.js';
-import { OscilloscopeState } from '.';
+import { OscilloscopeState } from './utils';
 
 if (typeof window !== 'undefined') {
 	// eslint-disable-next-line global-require
@@ -84,7 +84,7 @@ export function OscilloscopeChart({ state }: { state?: OscilloscopeState }) {
 		const yFFT = {
 			yFFT: {
 				type: 'linear',
-				min: -90,
+				min: -120,
 				max: 0,
 				grid: { color: '#555' },
 			},
@@ -105,7 +105,7 @@ export function OscilloscopeChart({ state }: { state?: OscilloscopeState }) {
 						{
 							type: 'linear',
 							position: axisCountLeft > 2 ? 'right' : 'left',
-							min: data.Mode === 'fft' ? -90 : -c.range / 1000,
+							min: data.Mode === 'fft' ? -120 : -c.range / 1000,
 							max: data.Mode === 'fft' ? 0 : +c.range / 1000,
 							grid: { color: '#555', tickColor: colors[c.id] },
 							ticks: {

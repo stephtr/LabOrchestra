@@ -11,7 +11,7 @@ public class OscilloscopeState
 	public bool Running { get; set; } = true;
 	public string TimeMode { get; set; } = "time"; // Default mode is "time"
 	public float FFTFrequency { get; set; } = 10e6f;
-	public int FFTLength { get; set; } = 1024;
+	public int FFTLength { get; set; } = 32768;
 	public string FFTAveragingMode { get; set; } = "prefer-data";
 	public int FFTAveragingDurationInMilliseconds { get; set; } = 0;
 	public string FFTWindowFunction { get; set; } = "blackman";
@@ -37,6 +37,7 @@ interface IOscilloscope
 	void ChannelActive(int channel, bool active);
 	void UpdateRange(int channel, int rangeInMillivolts);
 	void ResetFFTStorage();
+	void SetFFTWindowFunction(string windowFuction);
 	void SetTestSignalFrequency(float frequency);
 }
 
@@ -70,6 +71,11 @@ public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>, IOscill
 		for (int i = 0; i < _fftStorage.Length; i++)
 			_fftStorage[i] = new double[_state.FFTLength / 2 + 1];
 		_acquiredFFTs = [0, 0, 0, 0];
+		ResetFFTWindow();
+	}
+
+	private void ResetFFTWindow()
+	{
 		_fftWindowFunction = new float[_state.FFTLength];
 		var N = _state.FFTLength - 1;
 		switch (_state.FFTWindowFunction)
@@ -227,6 +233,12 @@ public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>, IOscill
 	public void SetFFTAveragingDuration(int durationInMilliseconds)
 	{
 		_state.FFTAveragingDurationInMilliseconds = durationInMilliseconds;
+	}
+
+	public void SetFFTWindowFunction(string windowFuction)
+	{
+		_state.FFTWindowFunction = windowFuction;
+		ResetFFTWindow();
 	}
 
 	public void SetTestSignalFrequency(float frequency)

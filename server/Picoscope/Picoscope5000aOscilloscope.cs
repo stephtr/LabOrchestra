@@ -100,6 +100,11 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 		for (int i = 0; i < _fftStorage.Length; i++)
 			_fftStorage[i] = new double[_state.FFTLength / 2 + 1];
 		_acquiredFFTs = [0, 0, 0, 0];
+		ResetFFTWindow();
+	}
+
+	private void ResetFFTWindow()
+	{
 		_fftWindowFunction = new float[_state.FFTLength];
 		var N = _state.FFTLength - 1;
 		switch (_state.FFTWindowFunction)
@@ -338,6 +343,12 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 	public void SetFFTAveragingDuration(int durationInMilliseconds)
 	{
 		_state.FFTAveragingDurationInMilliseconds = durationInMilliseconds;
+	}
+
+	public void SetFFTWindowFunction(string windowFuction)
+	{
+		_state.FFTWindowFunction = windowFuction;
+		ResetFFTWindow();
 	}
 
 	public void SetTestSignalFrequency(float frequency)
