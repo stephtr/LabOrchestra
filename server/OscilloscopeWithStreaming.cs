@@ -1,0 +1,278 @@
+using System.IO.Compression;
+using MathNet.Numerics.IntegralTransforms;
+using NumSharp;
+
+public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, IOscilloscope
+{
+	protected CircularBuffer<float>[] _buffer = [new(100_000_000), new(100_000_000), new(100_000_000), new(100_000_000)];
+	protected double[][] _fftStorage = [[], [], [], []];
+	protected float[] _fftWindowFunction = Array.Empty<float>();
+	protected int[] _acquiredFFTs = { 0, 0, 0, 0 };
+	protected double _dt = 0;
+	protected double _df = 0;
+
+
+	virtual public void UpdateRange(int channel, int rangeInMillivolts)
+	{
+		_state.Channels[channel].RangeInMillivolts = rangeInMillivolts;
+	}
+
+	virtual public void ChannelActive(int channel, bool active)
+	{
+		_state.Channels[channel].ChannelActive = active;
+	}
+
+	public void SetFFTFrequency(float freq)
+	{
+		var wasRunning = _state.Running;
+		if (wasRunning)
+		{
+			Stop();
+		}
+		_state.FFTFrequency = freq;
+		if (wasRunning)
+		{
+			Start();
+		}
+	}
+
+	public void ResetFFTStorage()
+	{
+		for (int i = 0; i < _fftStorage.Length; i++)
+			_fftStorage[i] = new double[_state.FFTLength / 2 + 1];
+		_acquiredFFTs = [0, 0, 0, 0];
+		ResetFFTWindow();
+	}
+
+	protected void ResetFFTWindow()
+	{
+		_fftWindowFunction = new float[_state.FFTLength];
+		var N = _state.FFTLength - 1;
+		switch (_state.FFTWindowFunction)
+		{
+			case "rectangular":
+				for (int i = 0; i < _state.FFTLength; i++)
+					_fftWindowFunction[i] = 1;
+				break;
+			case "hann":
+				for (int n = 0; n < _state.FFTLength; n++)
+				{
+					var sin = Math.Sin(Math.PI * n / N);
+					_fftWindowFunction[n] = (float)(sin * sin);
+				}
+				break;
+			case "blackman":
+				for (int n = 0; n < _state.FFTLength; n++)
+					_fftWindowFunction[n] = (float)(0.42 - 0.5 * Math.Cos(2 * Math.PI * n / N) + 0.08 * Math.Cos(4 * Math.PI * n / N));
+				break;
+			case "nuttall":
+				for (int n = 0; n < _state.FFTLength; n++)
+					_fftWindowFunction[n] = (float)(0.355768 - 0.487396 * Math.Cos(2 * Math.PI * n / N) + 0.144232 * Math.Cos(4 * Math.PI * n / N) - 0.012604 * Math.Cos(6 * Math.PI * n / N));
+				break;
+			default:
+				throw new ArgumentException($"Invalid window function {_state.FFTWindowFunction}");
+		}
+	}
+
+	public void SetTimeMode(string mode)
+	{
+		if (mode != "time" && mode != "fft")
+			throw new ArgumentException($"Invalid mode {mode}");
+		_state.TimeMode = mode;
+	}
+
+	public void SetFFTBinCount(int length)
+	{
+		lock (_fftStorage)
+		{
+			_state.FFTLength = length;
+			ResetFFTStorage();
+		}
+	}
+
+	public void SetAveragingMode(string mode)
+	{
+		if (mode != "prefer-data" && mode != "prefer-display")
+			throw new ArgumentException($"Invalid mode {mode}");
+		_state.FFTAveragingMode = mode;
+		ResetFFTStorage();
+	}
+
+	public void SetFFTAveragingDuration(int durationInMilliseconds)
+	{
+		_state.FFTAveragingDurationInMilliseconds = durationInMilliseconds;
+	}
+
+	public void SetFFTWindowFunction(string windowFuction)
+	{
+		_state.FFTWindowFunction = windowFuction;
+		ResetFFTWindow();
+	}
+
+	public override object? OnSave(ZipArchive archive, string deviceId)
+	{
+		if (_dt == 0) return null;
+		var wasRunning = _state.Running;
+		if (wasRunning) Stop();
+		Thread.Sleep(10);
+		var traceLength = -1;
+		for (var ch = 0; ch < _state.Channels.Length; ch++)
+		{
+			if (!_state.Channels[ch].ChannelActive) continue;
+
+			var trace = _buffer[ch].ToArray(readPastTail: true);
+			if (traceLength == -1) traceLength = trace.Length;
+			if (traceLength != trace.Length) throw new Exception("The traces should all have the same length.");
+			using (var traceFile = archive.CreateEntry($"{deviceId}_C{ch + 1}").Open())
+			{
+				np.Save(trace, traceFile);
+			}
+
+			using (var fftFile = archive.CreateEntry($"{deviceId}_F{ch + 1}").Open())
+			{
+				np.Save(_fftStorage[ch], fftFile);
+			}
+
+		}
+		if (traceLength == -1) return null;
+
+		var t = Enumerable.Range(0, traceLength).Select(i => (float)(i * _dt)).ToArray();
+		using (var tFile = archive.CreateEntry($"{deviceId}_t").Open())
+		{
+			np.Save(t, tFile);
+		}
+
+		var df = _state.FFTFrequency / (_state.FFTLength / 2 + 1);
+		var f = Enumerable.Range(0, _state.FFTLength / 2 + 1).Select(i => (float)(i * _df)).ToArray();
+		using (var fFile = archive.CreateEntry($"{deviceId}_f").Open())
+		{
+			np.Save(f, fFile);
+		}
+
+		if (wasRunning) Start();
+
+		return new { dt = _dt, df = _df };
+	}
+
+	protected int _runId = 0;
+	virtual public void Start()
+	{
+		_runId++;
+		var localRunId = _runId;
+		ResetFFTStorage();
+
+		_state.Running = true;
+
+		Task.Run(() =>
+		{
+			while (_state.Running && _runId == localRunId)
+			{
+				Thread.Sleep(1);
+				bool didSomeWork;
+				lock (_fftStorage)
+				{
+					do
+					{
+						didSomeWork = false;
+						for (var ch = 0; ch < 4; ch++)
+						{
+							var fft = new float[_state.FFTLength + 2];
+							if (_state.Channels[ch].ChannelActive && _buffer[ch].Count > _state.FFTLength)
+							{
+								didSomeWork = true;
+								_buffer[ch].Pop(_state.FFTLength, fft);
+								if (_state.FFTWindowFunction != "rectangular")
+								{
+									for (int i = 0; i < _state.FFTLength; i++)
+										fft[i] *= _fftWindowFunction[i];
+								}
+								Fourier.ForwardReal(fft, _state.FFTLength);
+								var newWeight = 1.0 / (_acquiredFFTs[ch] + 1);
+								if (_state.FFTAveragingDurationInMilliseconds == 0)
+								{
+									newWeight = 1.0;
+								}
+								else if (_state.FFTAveragingDurationInMilliseconds > 0)
+								{
+									newWeight = Math.Max(newWeight, 1 - Math.Exp(-_dt * _state.FFTLength / _state.FFTAveragingDurationInMilliseconds * 1000));
+								}
+								var oldWeight = 1.0 - newWeight;
+								for (int i = 0; i < _state.FFTLength / 2 + 1; i++)
+								{
+									var val = Convert.ToDouble(fft[i * 2] * fft[i * 2] + fft[i * 2 + 1] * fft[i * 2 + 1]);
+									val *= 1 / _df;
+									if (_state.FFTAveragingMode == "prefer-display")
+									{
+										val = Math.Log10(val) * 10;
+									}
+									_fftStorage[ch][i] = _fftStorage[ch][i] * oldWeight + val * newWeight;
+								}
+								_acquiredFFTs[ch]++;
+							}
+						}
+					} while (didSomeWork && _state.Running && _runId == localRunId);
+				}
+			}
+		});
+
+		Task.Run(() =>
+		{
+			DateTime lastTransmission = DateTime.MinValue;
+			while (_state.Running && _runId == localRunId)
+			{
+				if (DateTime.UtcNow - lastTransmission < TimeSpan.FromSeconds(1.0 / 30))
+				{
+					Thread.Sleep(5);
+					continue;
+				}
+				var channelData = new float[_state.Channels.Length][];
+				switch (_state.TimeMode)
+				{
+					case "time":
+						for (var ch = 0; ch < channelData.Length; ch++)
+						{
+							if (_state.Channels[ch].ChannelActive)
+							{
+								channelData[ch] = _buffer[ch].PeekHead(_state.FFTLength, readPastTail: true);
+							}
+						}
+						SendStreamData(new { XMin = 0, XMax = _dt * (_state.FFTLength - 1), Data = channelData, Mode = "time", Length = _state.FFTLength });
+						break;
+					case "fft":
+						for (var ch = 0; ch < channelData.Length; ch++)
+						{
+							if (_state.Channels[ch].ChannelActive)
+							{
+								var data = new float[_state.FFTLength / 2 + 1];
+								for (int i = 0; i < _state.FFTLength / 2 + 1; i++)
+									data[i] = Convert.ToSingle(
+										_state.FFTAveragingMode == "prefer-display" ?
+											_fftStorage[ch][i] :
+											Math.Log10(_fftStorage[ch][i]) * 10
+									);
+								channelData[ch] = data;
+							}
+						}
+						SendStreamData(new { XMin = 0, XMax = 1 / (2 * _dt), Data = channelData, Mode = "fft", Length = _state.FFTLength / 2 + 1 });
+						break;
+				}
+				lastTransmission = DateTime.UtcNow;
+			}
+		});
+	}
+
+	virtual public void Stop()
+	{
+		_state.Running = false;
+	}
+
+	virtual public void SetTestSignalFrequency(float frequency)
+	{
+		_state.TestSignalFrequency = frequency;
+	}
+
+	public override void Dispose()
+	{
+		_state.Running = false;
+	}
+}
