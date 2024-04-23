@@ -43,7 +43,6 @@ public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>, IOscill
 {
 	private double[][] _fftStorage = [[], [], [], []];
 	private int[] _acquiredFFTs = { 0, 0, 0, 0 };
-	private double _dt = 1e-6;
 	private double _updateInterval = 50e-3;
 	public OscilloscopeHandler()
 	{
@@ -118,7 +117,8 @@ public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>, IOscill
 
 	private void DoWork()
 	{
-		var df = 1 / (_state.FFTLength * _dt);
+		var dt = 1 / _state.FFTFrequency * (1 / 2 + 1);
+		var df = _state.FFTFrequency / (_state.FFTLength / 2 + 1);
 
 		if (!_state.Running) return;
 		var rand = new Random();
@@ -178,12 +178,17 @@ public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>, IOscill
 		switch (_state.TimeMode)
 		{
 			case "time":
-				SendStreamData(new { XMin = 0, XMax = _dt * (_state.FFTLength - 1), Data = channelData, Mode = "time", Length = _state.FFTLength });
+				SendStreamData(new { XMin = 0, XMax = dt * (_state.FFTLength - 1), Data = channelData, Mode = "time", Length = _state.FFTLength });
 				break;
 			case "fft":
-				SendStreamData(new { XMin = 0, XMax = 1 / (2 * _dt), Data = channelData, Mode = "fft", Length = _state.FFTLength / 2 + 1 });
+				SendStreamData(new { XMin = 0, XMax = 1 / (2 * dt), Data = channelData, Mode = "fft", Length = _state.FFTLength / 2 + 1 });
 				break;
 		}
+	}
+
+	public void SetFFTFrequency(float frequency)
+	{
+		_state.FFTFrequency = frequency;
 	}
 
 	public void SetFFTAveragingDuration(int durationInMilliseconds)
