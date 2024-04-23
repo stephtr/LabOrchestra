@@ -4,6 +4,7 @@ public class CircularBuffer<T>
 	public readonly long Capacity;
 	private long Head = 0;
 	private long Tail = 0;
+	private bool HasRolledOver = false;
 
 	public CircularBuffer(long capacity)
 	{
@@ -21,6 +22,11 @@ public class CircularBuffer<T>
 		{
 			Array.Copy(values, 0, Buffer, Head, values.Length);
 			Head += values.Length;
+			if (Head == Capacity)
+			{
+				Head = 0;
+				HasRolledOver = true;
+			}
 		}
 		else
 		{
@@ -30,8 +36,9 @@ public class CircularBuffer<T>
 			Head = values.Length - valuesToCopy;
 			if (Head >= Tail)
 			{
-				Tail = Head + 1;
+				Tail = (Head + 1) % Capacity;
 			}
+			HasRolledOver = true;
 		}
 	}
 
@@ -48,7 +55,14 @@ public class CircularBuffer<T>
 		if (Tail + count <= Capacity)
 		{
 			Array.Copy(Buffer, Tail, values, 0, count);
-			if (incrementTail) Tail += count;
+			if (incrementTail)
+			{
+				Tail += count;
+				if (Tail == Capacity)
+				{
+					Tail = 0;
+				}
+			}
 		}
 		else
 		{
@@ -86,7 +100,7 @@ public class CircularBuffer<T>
 		}
 		else
 		{
-			var valuesToCopy = Head;
+			var valuesToCopy = count - Head;
 			Array.Copy(Buffer, Capacity - valuesToCopy, values, 0, valuesToCopy);
 			Array.Copy(Buffer, 0, values, valuesToCopy, count - valuesToCopy);
 		}
@@ -97,6 +111,7 @@ public class CircularBuffer<T>
 	{
 		Head = 0;
 		Tail = 0;
+		HasRolledOver = false;
 		Array.Clear(Buffer);
 	}
 
@@ -104,6 +119,7 @@ public class CircularBuffer<T>
 
 	public T[] ToArray(bool readPastTail = false)
 	{
+		if (!HasRolledOver) readPastTail = false;
 		return PeekHead(readPastTail ? Capacity : Count, readPastTail: readPastTail);
 	}
 }

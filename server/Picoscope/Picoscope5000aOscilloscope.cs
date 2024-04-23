@@ -374,14 +374,17 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 		var wasRunning = _state.Running;
 		if (wasRunning) Stop();
 		Thread.Sleep(10);
-		var savedAnyTraces = false;
+		var traceLength = -1;
 		for (var ch = 0; ch < _state.Channels.Length; ch++)
 		{
 			if (!_state.Channels[ch].ChannelActive) continue;
 
+			var trace = _buffer[ch].ToArray(readPastTail: true);
+			if (traceLength == -1) traceLength = trace.Length;
+			if (traceLength != trace.Length) throw new Exception("The traces should all have the same length.");
 			using (var traceFile = archive.CreateEntry($"C{ch + 1}").Open())
 			{
-				np.Save(_buffer[ch].ToArray(readPastTail: true), traceFile);
+				np.Save(trace, traceFile);
 			}
 
 			using (var fftFile = archive.CreateEntry($"F{ch + 1}").Open())
@@ -389,11 +392,10 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 				np.Save(_fftStorage[ch], fftFile);
 			}
 
-			savedAnyTraces = true;
 		}
-		if (!savedAnyTraces) return null;
+		if (traceLength == -1) return null;
 
-		var t = Enumerable.Range(0, (int)_buffer[0].Capacity).Select(i => (float)(i * _dt)).ToArray();
+		var t = Enumerable.Range(0, traceLength).Select(i => (float)(i * _dt)).ToArray();
 		using (var tFile = archive.CreateEntry($"t").Open())
 		{
 			np.Save(t, tFile);
