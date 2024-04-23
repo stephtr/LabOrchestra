@@ -73,7 +73,7 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 		};
 		lock (this)
 		{
-			var status = Imports.SetChannel(_handle, (Imports.Channel)channel, _state.Channels[channel].ChannelActive ? (short)1 : (short)0, Imports.Coupling.PS5000A_AC, range, 0);
+			var status = Imports.SetChannel(_handle, (Imports.Channel)channel, active ? (short)1 : (short)0, Imports.Coupling.PS5000A_AC, range, 0);
 			if (status != PicoStatus.StatusCodes.PICO_OK)
 			{
 				throw new Exception("Failed to set channel range");
@@ -371,7 +371,9 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 	public override object? OnSave(ZipArchive archive)
 	{
 		if (_dt == 0) return null;
-
+		var wasRunning = _state.Running;
+		if (wasRunning) Stop();
+		Thread.Sleep(10);
 		var savedAnyTraces = false;
 		for (var ch = 0; ch < _state.Channels.Length; ch++)
 		{
@@ -379,7 +381,7 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 
 			using (var traceFile = archive.CreateEntry($"C{ch + 1}").Open())
 			{
-				np.Save(_buffer[ch].ToArray(), traceFile);
+				np.Save(_buffer[ch].ToArray(readPastTail: true), traceFile);
 			}
 
 			using (var fftFile = archive.CreateEntry($"F{ch + 1}").Open())
@@ -391,7 +393,7 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 		}
 		if (!savedAnyTraces) return null;
 
-		var t = Enumerable.Range(0, _state.FFTLength).Select(i => (float)(i * _dt)).ToArray();
+		var t = Enumerable.Range(0, (int)_buffer[0].Capacity).Select(i => (float)(i * _dt)).ToArray();
 		using (var tFile = archive.CreateEntry($"t").Open())
 		{
 			np.Save(t, tFile);
@@ -403,6 +405,8 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 		{
 			np.Save(f, fFile);
 		}
+
+		if (wasRunning) Start();
 
 		return new { dt = _dt, df = _df };
 	}
