@@ -368,7 +368,7 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 		_state.TestSignalFrequency = frequency;
 	}
 
-	public override object? OnSave(ZipArchive archive)
+	public override object? OnSave(ZipArchive archive, string deviceId)
 	{
 		if (_dt == 0) return null;
 		var wasRunning = _state.Running;
@@ -382,12 +382,12 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 			var trace = _buffer[ch].ToArray(readPastTail: true);
 			if (traceLength == -1) traceLength = trace.Length;
 			if (traceLength != trace.Length) throw new Exception("The traces should all have the same length.");
-			using (var traceFile = archive.CreateEntry($"C{ch + 1}").Open())
+			using (var traceFile = archive.CreateEntry($"{deviceId}_C{ch + 1}").Open())
 			{
 				np.Save(trace, traceFile);
 			}
 
-			using (var fftFile = archive.CreateEntry($"F{ch + 1}").Open())
+			using (var fftFile = archive.CreateEntry($"{deviceId}_F{ch + 1}").Open())
 			{
 				np.Save(_fftStorage[ch], fftFile);
 			}
@@ -396,14 +396,14 @@ public class Picoscope5000aOscilloscope : DeviceHandlerBase<OscilloscopeState>, 
 		if (traceLength == -1) return null;
 
 		var t = Enumerable.Range(0, traceLength).Select(i => (float)(i * _dt)).ToArray();
-		using (var tFile = archive.CreateEntry($"t").Open())
+		using (var tFile = archive.CreateEntry($"{deviceId}_t").Open())
 		{
 			np.Save(t, tFile);
 		}
 
 		var df = _state.FFTFrequency / (_state.FFTLength / 2 + 1);
 		var f = Enumerable.Range(0, _state.FFTLength / 2 + 1).Select(i => (float)(i * _df)).ToArray();
-		using (var fFile = archive.CreateEntry($"f").Open())
+		using (var fFile = archive.CreateEntry($"{deviceId}_f").Open())
 		{
 			np.Save(f, fFile);
 		}

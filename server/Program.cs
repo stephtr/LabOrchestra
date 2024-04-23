@@ -31,8 +31,5 @@ app.MapHub<ControlHub>("/hub/control");
 
 // Start up the DeviceManager
 app.Services.GetRequiredService<DeviceManager>();
-app.Services.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping.Register(() => {
-	app.Services.GetRequiredService<DeviceManager>().Dispose();
-});
 
 app.Run();

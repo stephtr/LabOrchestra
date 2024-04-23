@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
 public class MainState
@@ -34,5 +35,20 @@ public class MainDevice : DeviceHandlerBase<MainState>
 		var baseFilepath = Path.Combine(path, $"{currentIndex + 1} {_state.LastFilename}");
 
 		_deviceManager!.Save(baseFilepath);
+	}
+
+	override public object? GetSettings()
+	{
+		return new
+		{
+			_state.SaveDirectory,
+			_state.LastFilename,
+		};
+	}
+
+	public override void LoadSettings(JsonElement settings)
+	{
+		_state.SaveDirectory = settings.GetProperty("SaveDirectory").GetString()!;
+		_state.LastFilename = settings.GetProperty("LastFilename").GetString()!;
 	}
 }

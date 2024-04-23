@@ -252,19 +252,19 @@ public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>, IOscill
 		_state.TestSignalFrequency = frequency;
 	}
 
-	public override object? OnSave(ZipArchive archive)
+	public override object? OnSave(ZipArchive archive, string deviceId)
 	{
 		var savedAnyTraces = false;
 		for (var ch = 0; ch < _state.Channels.Length; ch++)
 		{
 			if (!_state.Channels[ch].ChannelActive) continue;
 
-			using (var traceFile = archive.CreateEntry($"C{ch + 1}").Open())
+			using (var traceFile = archive.CreateEntry($"{deviceId}_C{ch + 1}").Open())
 			{
 				np.Save(_signal[ch], traceFile);
 			}
 
-			using (var fftFile = archive.CreateEntry($"F{ch + 1}").Open())
+			using (var fftFile = archive.CreateEntry($"{deviceId}_F{ch + 1}").Open())
 			{
 				np.Save(_fftStorage[ch], fftFile);
 			}
@@ -275,14 +275,14 @@ public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>, IOscill
 
 		var dt = 1 / _state.FFTFrequency * (1 / 2 + 1);
 		var t = Enumerable.Range(0, _state.FFTLength).Select(i => (float)(i * dt)).ToArray();
-		using (var tFile = archive.CreateEntry($"t").Open())
+		using (var tFile = archive.CreateEntry($"{deviceId}_t").Open())
 		{
 			np.Save(t, tFile);
 		}
 
 		var df = _state.FFTFrequency / (_state.FFTLength / 2 + 1);
 		var f = Enumerable.Range(0, _state.FFTLength / 2 + 1).Select(i => (float)(i * df)).ToArray();
-		using (var fFile = archive.CreateEntry($"f").Open())
+		using (var fFile = archive.CreateEntry($"{deviceId}_f").Open())
 		{
 			np.Save(f, fFile);
 		}

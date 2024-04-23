@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Text.Json;
 using ExperimentControl.Hubs;
 using Microsoft.AspNetCore.SignalR;
 using YamlDotNet.Serialization;
@@ -21,6 +22,7 @@ public class DeviceManager : IDisposable
 		_streamingHub = streamingHub;
 		RegisterDevice("myOsci", new OscilloscopeHandler());
 		RegisterDevice("main", new MainDevice());
+		LoadSettings();
 		//RegisterDevice("myPressure", new PythonDevice("pressure.py"));
 	}
 
@@ -53,9 +55,9 @@ public class DeviceManager : IDisposable
 	public Dictionary<string, object> GetFullState()
 	{
 		var state = new Dictionary<string, object>();
-		foreach (var device in _deviceHandlers)
+		foreach (var (deviceId, device) in _deviceHandlers)
 		{
-			state[device.Key] = device.Value.GetState();
+			state[deviceId] = device.GetState();
 		}
 		return state;
 	}
@@ -74,9 +76,9 @@ public class DeviceManager : IDisposable
 	{
 		_updateTimer = null;
 		var state = new Dictionary<string, object>();
-		foreach (var deviceName in _updateQueue)
+		foreach (var deviceId in _updateQueue)
 		{
-			state[deviceName] = _deviceHandlers[deviceName].GetState();
+			state[deviceId] = _deviceHandlers[deviceId].GetState();
 		}
 		_updateQueue.Clear();
 		SendPartialStateUpdateAsync(state);
@@ -86,12 +88,12 @@ public class DeviceManager : IDisposable
 	{
 		using var npzFile = new ZipArchive(new FileStream($"{baseFilepath}.npz", FileMode.CreateNew), ZipArchiveMode.Create);
 		var yamlFile = new Dictionary<string, object>();
-		foreach (var (deviceName, device) in _deviceHandlers)
+		foreach (var (deviceId, device) in _deviceHandlers)
 		{
-			var stateToWrite = device.OnSave(npzFile);
+			var stateToWrite = device.OnSave(npzFile, deviceId);
 			if (stateToWrite != null)
 			{
-				yamlFile[deviceName] = stateToWrite;
+				yamlFile[deviceId] = stateToWrite;
 			}
 		}
 		if (yamlFile.Count == 0) return;
@@ -100,8 +102,45 @@ public class DeviceManager : IDisposable
 		File.WriteAllText($"{baseFilepath}.yaml", yaml);
 	}
 
+	private void SaveSettings()
+	{
+		var state = new Dictionary<string, dynamic>();
+		foreach (var (deviceId, device) in _deviceHandlers)
+		{
+			var setting = device.GetSettings();
+			if (setting != null)
+			{
+				state[deviceId] = setting;
+			}
+		}
+		File.WriteAllText("settings.json", JsonSerializer.Serialize(state));
+	}
+
+	private void LoadSettings()
+	{
+		if (!File.Exists("settings.json")) return;
+		try
+		{
+			var settings = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(File.ReadAllText("settings.json"));
+			if (settings == null) return;
+			foreach (var (deviceId, settingObject) in settings)
+			{
+				dynamic setting = settingObject;
+				if (_deviceHandlers.ContainsKey(deviceId))
+				{
+					_deviceHandlers[deviceId].LoadSettings(setting);
+				}
+			}
+		}
+		catch (Exception e)
+		{
+			Console.WriteLine("Error loading settings: " + e.Message);
+		}
+	}
+
 	public void Dispose()
 	{
+		SaveSettings();
 		foreach (var (_, device) in _deviceHandlers)
 		{
 			device.Dispose();
