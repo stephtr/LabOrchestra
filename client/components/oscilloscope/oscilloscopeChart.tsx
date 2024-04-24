@@ -142,6 +142,10 @@ export function OscilloscopeChart({
 			plugins: {
 				tooltip: { enabled: false },
 				legend: { display: false },
+				decimation: {
+					enabled: true,
+					algorithm: 'lttb',
+				},
 				zoom: {
 					pan: { enabled: true, mode: 'x' },
 					zoom: {
