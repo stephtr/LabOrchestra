@@ -10,6 +10,7 @@ export interface OscilloscopeState {
 	channels: Array<{
 		channelActive: boolean;
 		rangeInMillivolts: number;
+		coupling: 'AC' | 'DC';
 	}>;
 }
 

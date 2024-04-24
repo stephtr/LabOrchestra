@@ -126,9 +126,16 @@ export function ChannelButton({
 						}}
 					/>
 					<div className="mt-4 mb-1">Coupling</div>
-					<Tabs aria-label="Coupling">
-						<Tab title="AC" />
-						<Tab title="DC" />
+					<Tabs
+						aria-label="Coupling"
+						isDisabled={!state}
+						selectedKey={state?.coupling}
+						onSelectionChange={(v) => {
+							action('SetCoupling', v);
+						}}
+					>
+						<Tab title="AC" key="AC" />
+						<Tab title="DC" key="DC" />
 					</Tabs>
 				</PopoverContent>
 			</Popover>

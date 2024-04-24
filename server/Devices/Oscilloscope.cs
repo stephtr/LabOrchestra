@@ -6,6 +6,7 @@ public class OscilloscopeChannel
 {
 	public bool ChannelActive { get; set; } = false;
 	public int RangeInMillivolts { get; set; } = 1000;
+	public string Coupling { get; set; } = "AC";
 }
 
 public class OscilloscopeState
@@ -41,6 +42,7 @@ interface IOscilloscope
 	void ResetFFTStorage();
 	void SetFFTWindowFunction(string windowFuction);
 	void SetTestSignalFrequency(float frequency);
+	void SetCoupling(int channel, string coupling);
 }
 
 public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>, IOscilloscope
@@ -288,5 +290,12 @@ public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>, IOscill
 		}
 
 		return null;
+	}
+
+	public void SetCoupling(int channel, string coupling)
+	{
+		if (coupling != "AC" && coupling != "DC")
+			throw new ArgumentException($"Invalid mode {coupling}");
+		_state.Channels[channel].Coupling = coupling;
 	}
 }

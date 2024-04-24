@@ -266,6 +266,13 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 		_state.Running = false;
 	}
 
+	virtual public void SetCoupling(int channel, string coupling)
+	{
+		if (coupling != "AC" && coupling != "DC")
+			throw new ArgumentException($"Invalid mode {coupling}");
+		_state.Channels[channel].Coupling = coupling;
+	}
+
 	virtual public void SetTestSignalFrequency(float frequency)
 	{
 		_state.TestSignalFrequency = frequency;

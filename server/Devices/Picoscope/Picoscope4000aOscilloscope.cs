@@ -18,7 +18,7 @@ public class Picoscope4000aOscilloscope : OscilloscopeWithStreaming
 		Imports.SetDeviceResolution(_handle, Imports.DeviceResolution.PS4000A_DR_12BIT);
 	}
 
-	override public void UpdateRange(int channel, int rangeInMillivolts)
+	private void SetChannel(int channel, int rangeInMillivolts, bool active, string coupling)
 	{
 		var range = rangeInMillivolts switch
 		{
@@ -37,42 +37,34 @@ public class Picoscope4000aOscilloscope : OscilloscopeWithStreaming
 		};
 		lock (this)
 		{
-			var status = Imports.SetChannel(_handle, (Imports.Channel)channel, _state.Channels[channel].ChannelActive ? (short)1 : (short)0, Imports.Coupling.AC, range, 0);
+			var status = Imports.SetChannel(_handle, (Imports.Channel)channel, active ? (short)1 : (short)0, coupling == "AC" ? Imports.Coupling.AC : Imports.Coupling.DC, range, 0);
 			if (status != PicoStatus.StatusCodes.PICO_OK)
 			{
 				throw new Exception("Failed to set channel range");
 			}
 		}
+	}
+
+	override public void UpdateRange(int channel, int rangeInMillivolts)
+	{
+		SetChannel(channel, rangeInMillivolts, _state.Channels[channel].ChannelActive, _state.Channels[channel].Coupling);
 		base.UpdateRange(channel, rangeInMillivolts);
 		if (_state.Running) Start();
 	}
 
 	override public void ChannelActive(int channel, bool active)
 	{
-		var range = _state.Channels[channel].RangeInMillivolts switch
-		{
-			10 => Imports.Range.Range_10MV,
-			20 => Imports.Range.Range_20MV,
-			50 => Imports.Range.Range_50MV,
-			100 => Imports.Range.Range_100MV,
-			200 => Imports.Range.Range_200MV,
-			500 => Imports.Range.Range_500MV,
-			1000 => Imports.Range.Range_1V,
-			2000 => Imports.Range.Range_2V,
-			5000 => Imports.Range.Range_5V,
-			10000 => Imports.Range.Range_10V,
-			20000 => Imports.Range.Range_20V,
-			_ => throw new NotSupportedException(),
-		};
-		lock (this)
-		{
-			var status = Imports.SetChannel(_handle, (Imports.Channel)channel, active ? (short)1 : (short)0, Imports.Coupling.AC, range, 0);
-			if (status != PicoStatus.StatusCodes.PICO_OK)
-			{
-				throw new Exception("Failed to set channel range");
-			}
-		}
+		SetChannel(channel, _state.Channels[channel].RangeInMillivolts, active, _state.Channels[channel].Coupling);
 		base.ChannelActive(channel, active);
+		if (_state.Running) Start();
+	}
+
+	override public void SetCoupling(int channel, string coupling)
+	{
+		if (coupling != "AC" && coupling != "DC")
+			throw new ArgumentException($"Invalid mode {coupling}");
+		SetChannel(channel, _state.Channels[channel].RangeInMillivolts, _state.Channels[channel].ChannelActive, coupling);
+		base.SetCoupling(channel, coupling);
 		if (_state.Running) Start();
 	}
 

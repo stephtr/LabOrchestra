@@ -29,7 +29,7 @@ export default function Home() {
 			className="[&>[data-type='Resizer']]:!bg-slate-200 [&>[data-type='Resizer']:hover]:!border-slate-200"
 		>
 			<Oscilloscope
-				deviceId="osci1"
+				deviceId="het"
 				topContent={
 					<>
 						<div className="flex-1" />
@@ -80,7 +80,7 @@ export default function Home() {
 					</>
 				}
 			/>
-			<Oscilloscope deviceId="osci2" />
+			<Oscilloscope deviceId="split" />
 		</SplitPane>
 	);
 }
