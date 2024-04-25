@@ -258,10 +258,8 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 						{
 							if (_state.Channels[ch].ChannelActive)
 							{
-								var storage = np.array(_fftStorage[ch]);
-
-								if (preferDisplay) channelData[ch] = storage.ToArray<float>();
-								else channelData[ch] = (np.log10(storage) * 10).astype(NPTypeCode.Float).ToArray<float>();
+								if (preferDisplay) channelData[ch] = _fftStorage[ch].ToArray<float>();
+								else channelData[ch] = (np.log10(_fftStorage[ch]) * 10).astype(NPTypeCode.Float).ToArray<float>();
 							}
 						}
 						xMax = 1 / (2 * _dt);
