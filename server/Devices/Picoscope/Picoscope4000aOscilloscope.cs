@@ -97,6 +97,7 @@ public class Picoscope4000aOscilloscope : OscilloscopeWithStreaming
 		{
 			ulong samplesReceived = 0;
 			ulong triggerCount = 0;
+			var values = new float[buffer_length];
 
 			void StreamingCallback(short handle, int noOfSamples, uint startIndex, short overflow, uint triggerAt, short triggered, short autoStop, IntPtr pVoid)
 			{
@@ -109,7 +110,6 @@ public class Picoscope4000aOscilloscope : OscilloscopeWithStreaming
 				}
 				if (noOfSamples > 0)
                 {
-                    var values = new float[noOfSamples];
                     for (int ch = 0; ch < 4; ch++)
 					{
 						if (_state.Channels[ch].ChannelActive)
@@ -129,7 +129,7 @@ public class Picoscope4000aOscilloscope : OscilloscopeWithStreaming
                                     }
                                 }
                             }
-                            _buffer[ch].Push(values);
+                            _buffer[ch].Push(values, noOfSamples);
 						}
 					}
 				}

@@ -12,16 +12,17 @@ public class CircularBuffer<T>
 		Buffer = new T[capacity];
 	}
 
-	public void Push(T[] values)
+	public void Push(T[] values, int count = -1)
 	{
-		if (values.Length > Capacity)
+		if(count < 0) count = values.Length;
+		if (count > Capacity)
 		{
 			throw new InvalidOperationException("Too many elements to push");
 		}
-		if (Capacity - Head >= values.Length)
+		if (Capacity - Head >= count)
 		{
-			Array.Copy(values, 0, Buffer, Head, values.Length);
-			Head += values.Length;
+			Array.Copy(values, 0, Buffer, Head, count);
+			Head += count;
 			if (Head == Capacity)
 			{
 				Head = 0;
@@ -32,8 +33,8 @@ public class CircularBuffer<T>
 		{
 			var valuesToCopy = Capacity - Head;
 			Array.Copy(values, 0, Buffer, Head, valuesToCopy);
-			Array.Copy(values, valuesToCopy, Buffer, 0, values.Length - valuesToCopy);
-			Head = values.Length - valuesToCopy;
+			Array.Copy(values, valuesToCopy, Buffer, 0, count - valuesToCopy);
+			Head = count - valuesToCopy;
 			if (Head >= Tail)
 			{
 				Tail = (Head + 1) % Capacity;
