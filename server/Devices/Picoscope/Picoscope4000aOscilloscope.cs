@@ -108,18 +108,28 @@ public class Picoscope4000aOscilloscope : OscilloscopeWithStreaming
 					SendStateUpdate(new { Running = false });
 				}
 				if (noOfSamples > 0)
-				{
-					for (int ch = 0; ch < 4; ch++)
+                {
+                    var values = new float[noOfSamples];
+                    for (int ch = 0; ch < 4; ch++)
 					{
 						if (_state.Channels[ch].ChannelActive)
 						{
-							var conversionFactor = _state.Channels[ch].RangeInMillivolts / (maxValue * 1000f);
-							var values = new float[noOfSamples];
-							for (long i = 0; i < noOfSamples; i++)
-							{
-								values[i] = buffers[ch][startIndex + i] * conversionFactor;
-							}
-							_buffer[ch].Push(values);
+							var buffer = buffers[ch];
+                            var conversionFactor = _state.Channels[ch].RangeInMillivolts / (maxValue * 1000f);
+                            unsafe
+                            {
+                                fixed (short* bufferPtr = buffer)
+                                fixed (float* valuesPtr = values)
+                                {
+                                    short* bufferStartPtr = bufferPtr + startIndex;
+                                    float* valuesStartPtr = valuesPtr;
+                                    for (long i = 0; i < noOfSamples; i++)
+                                    {
+                                        *valuesStartPtr++ = *bufferStartPtr++ * conversionFactor;
+                                    }
+                                }
+                            }
+                            _buffer[ch].Push(values);
 						}
 					}
 				}
