@@ -258,7 +258,7 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 						{
 							if (_state.Channels[ch].ChannelActive)
 							{
-								if (preferDisplay) channelData[ch] = _fftStorage[ch].ToArray<float>();
+								if (preferDisplay) channelData[ch] = _fftStorage[ch].astype(NPTypeCode.Float).ToArray<float>();
 								else channelData[ch] = (np.log10(_fftStorage[ch]) * 10).astype(NPTypeCode.Float).ToArray<float>();
 							}
 						}
