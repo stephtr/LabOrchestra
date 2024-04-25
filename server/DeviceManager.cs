@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.IO.Compression;
 using System.Text.Json;
 using ExperimentControl.Hubs;
@@ -15,6 +16,7 @@ public class DeviceManager : IDisposable
 	private List<string> _updateQueue = new();
 	private Timer? _updateTimer = null;
 	private const float _maxUpdateDelay = 0.05f;
+	internal ConcurrentDictionary<string, Dictionary<string, Dictionary<object, object>>> StreamingContexts = new();
 
 	public DeviceManager(IHubContext<ControlHub> controlHub, IHubContext<StreamingHub> streamingHub)
 	{
@@ -71,6 +73,26 @@ public class DeviceManager : IDisposable
 	public void SendStreamData(string deviceId, object data)
 	{
 		_streamingHub.Clients.All.SendAsync("StreamData", deviceId, data);
+	}
+
+	public string GetDeviceId(IDeviceHandler deviceHandler)
+	{
+		return _deviceHandlers.FirstOrDefault(x => x.Value == deviceHandler).Key;
+	}
+
+	public void SendStreamData<T>(string deviceId, Func<T, Dictionary<object, object>, object> filter, T data)
+	{
+		foreach (var (connectionId, customizations) in StreamingContexts)
+		{
+			if (customizations.TryGetValue(deviceId, out var customization))
+			{
+				_streamingHub.Clients.Client(connectionId).SendAsync("StreamData", deviceId, filter(data, customization));
+			}
+			else
+			{
+				_streamingHub.Clients.Client(connectionId).SendAsync("StreamData", deviceId, data);
+			}
+		}
 	}
 
 	public void UpdateDevices(object? _ = null)

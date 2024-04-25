@@ -45,6 +45,8 @@ function frequencyFormatterFactory(maxVal: number) {
 type OscilloscopeStreamData = {
 	XMin: number;
 	XMax: number;
+	XMinDecimated?: number;
+	XMaxDecimated?: number;
 	Data: number[][];
 	Mode: 'time' | 'fft';
 	Length: number;
@@ -67,21 +69,28 @@ export function OscilloscopeChart({
 		Length: 0,
 	});
 
-	const { isConnected: isStreamConnected } = useStream(
+	const { isConnected: isStreamConnected, setCustomization } = useStream(
 		deviceId,
 		useCallback((newData: OscilloscopeStreamData) => setData(newData), []),
 	);
-
 	const labels = useMemo(
 		() =>
 			new Array(data.Length)
 				.fill(0)
 				.map(
 					(_, i) =>
-						data.XMin +
-						(i / (data.Length - 1)) * (data.XMax - data.XMin),
+						(data.XMinDecimated ?? data.XMin) +
+						(i / (data.Length - 1)) *
+							((data.XMaxDecimated ?? data.XMax) -
+								(data.XMinDecimated ?? data.XMin)),
 				),
-		[data.Length, data.XMin, data.XMax],
+		[
+			data.Length,
+			data.XMin,
+			data.XMax,
+			data.XMinDecimated,
+			data.XMaxDecimated,
+		],
 	);
 	const channelHash = state?.channels
 		.map((c) => c.channelActive + c.rangeInMillivolts.toString())
@@ -121,6 +130,15 @@ export function OscilloscopeChart({
 					];
 				}) ?? [],
 		);
+		const onPanOrZoom = ({ chart }: { chart: any }) => {
+			// eslint-disable-next-line no-underscore-dangle
+			const xMin = chart._options.scales.x.min;
+			// eslint-disable-next-line no-underscore-dangle
+			const xMax = chart._options.scales.x.max;
+			const updatedXMin = (xMin + xMax) / 2 - (xMax - xMin) / 2;
+			const updatedXMax = (xMin + xMax) / 2 + (xMax - xMin) / 2;
+			setCustomization({ xMin: updatedXMin, xMax: updatedXMax });
+		};
 		return {
 			animation: false,
 			scales: {
@@ -147,12 +165,17 @@ export function OscilloscopeChart({
 					algorithm: 'lttb',
 				},
 				zoom: {
-					pan: { enabled: true, mode: 'x' },
+					pan: {
+						enabled: true,
+						mode: 'x',
+						onPan: onPanOrZoom,
+					},
 					zoom: {
 						wheel: {
 							enabled: true,
 						},
 						mode: 'x',
+						onZoom: onPanOrZoom,
 					},
 					limits: {
 						x: {

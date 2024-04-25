@@ -73,12 +73,16 @@ export function useStream(deviceId: string, callback: (data: any) => void) {
 		},
 		[deviceId, callback],
 	);
-	const { isConnected } = useSignalRHub({
+	const { isConnected, invoke } = useSignalRHub({
 		url: streamHubUrl,
 		useBinaryProtocol: true,
 		onDataReceived: { StreamData: onStream },
 	});
-	return { isConnected };
+	function setCustomization(customization: any) {
+		if (!invoke) throw Error('Not connected');
+		return invoke('setStreamCustomization', deviceId, customization);
+	}
+	return { isConnected, setCustomization };
 }
 
 export function useChannelControl<TState extends { channels: any[] }>(

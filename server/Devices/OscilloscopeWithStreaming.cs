@@ -226,6 +226,8 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 					continue;
 				}
 				var channelData = new float[_state.Channels.Length][];
+				double xMax = 0;
+				int length = 0;
 				switch (_state.TimeMode)
 				{
 					case "time":
@@ -236,7 +238,8 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 								channelData[ch] = _buffer[ch].PeekHead(_state.FFTLength, readPastTail: true);
 							}
 						}
-						SendStreamData(new { XMin = 0, XMax = _dt * (_state.FFTLength - 1), Data = channelData, Mode = "time", Length = _state.FFTLength });
+						xMax = _dt * (_state.FFTLength - 1);
+						length = _state.FFTLength;
 						break;
 					case "fft":
 						for (var ch = 0; ch < channelData.Length; ch++)
@@ -253,9 +256,28 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 								channelData[ch] = data;
 							}
 						}
-						SendStreamData(new { XMin = 0, XMax = 1 / (2 * _dt), Data = channelData, Mode = "fft", Length = _state.FFTLength / 2 + 1 });
+						xMax = 1 / (2 * _dt);
+						length = _state.FFTLength / 2 + 1;
 						break;
 				}
+				_deviceManager?.SendStreamData(_deviceManager.GetDeviceId(this), (data, customization) =>
+				{
+					var xMinWish = Convert.ToSingle(customization["xMin"]);
+					var xMaxWish = Convert.ToSingle(customization["xMax"]);
+					var xMin = 0f;
+					var xMax = 0f;
+					var length = 0;
+					var reducedData = data.Data.Select(d =>
+					{
+						if (d == null) return null;
+						var decimation = SignalUtils.DecimateSignal(d, data.XMin, data.XMax, xMinWish, xMaxWish, 1500);
+						xMin = decimation.xMin;
+						xMax = decimation.xMax;
+						length = decimation.signal.Length;
+						return decimation.signal;
+					}).ToArray();
+					return new { data.XMin, data.XMax, XMinDecimated = xMin, XMaxDecimated = xMax, data.Mode, Length = length, Data = reducedData };
+				}, new { XMin = 0f, XMax = (float)xMax, Mode = _state.TimeMode, Length = length, Data = channelData });
 				lastTransmission = DateTime.UtcNow;
 			}
 		});

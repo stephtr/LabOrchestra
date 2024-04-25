@@ -26,6 +26,7 @@ export const fftLengthValues = [
 	2 ** 17,
 	2 ** 18,
 	2 ** 19,
+	2 ** 20,
 ];
 
 export const fftAveragingTimeInms = [

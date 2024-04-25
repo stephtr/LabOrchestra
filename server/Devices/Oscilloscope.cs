@@ -222,15 +222,37 @@ public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>, IOscill
 				}
 			}
 		}
+		double xMax = 0;
+		int length = 0;
 		switch (_state.TimeMode)
 		{
 			case "time":
-				SendStreamData(new { XMin = 0, XMax = dt * (_state.FFTLength - 1), Data = channelData, Mode = "time", Length = _state.FFTLength });
+				xMax = dt * (_state.FFTLength - 1);
+				length = _state.FFTLength;
 				break;
 			case "fft":
-				SendStreamData(new { XMin = 0, XMax = 1 / (2 * dt), Data = channelData, Mode = "fft", Length = _state.FFTLength / 2 + 1 });
+				xMax = 1 / (2 * dt);
+				length = _state.FFTLength / 2 + 1;
 				break;
 		}
+		_deviceManager?.SendStreamData(_deviceManager.GetDeviceId(this), (data, customization) =>
+		{
+			var xMinWish = Convert.ToSingle(customization["xMin"]);
+			var xMaxWish = Convert.ToSingle(customization["xMax"]);
+			var xMin = 0f;
+			var xMax = 0f;
+			var length = 0;
+			var reducedData = data.Data.Select(d =>
+			{
+				if (d == null) return null;
+				var decimation = SignalUtils.DecimateSignal(d, data.XMin, data.XMax, xMinWish, xMaxWish, 1500);
+				xMin = decimation.xMin;
+				xMax = decimation.xMax;
+				length = decimation.signal.Length;
+				return decimation.signal;
+			}).ToArray();
+			return new { data.XMin, data.XMax, XMinDecimated = xMin, XMaxDecimated = xMax, data.Mode, Length = length, Data = reducedData };
+		}, new { XMin = 0f, XMax = (float)xMax, Mode = _state.TimeMode, Length = length, Data = channelData });
 	}
 
 	public void SetFFTFrequency(float frequency)
