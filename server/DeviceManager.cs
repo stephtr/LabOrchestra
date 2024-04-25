@@ -80,7 +80,7 @@ public class DeviceManager : IDisposable
 		return _deviceHandlers.FirstOrDefault(x => x.Value == deviceHandler).Key;
 	}
 
-	public void SendStreamData<T>(string deviceId, Func<T, Dictionary<object, object>, object> filter, T data)
+	public void SendStreamData<T>(string deviceId, Func<T, Dictionary<object, object>?, object> filter, T data)
 	{
 		foreach (var (connectionId, customizations) in StreamingContexts)
 		{
@@ -90,7 +90,7 @@ public class DeviceManager : IDisposable
 			}
 			else
 			{
-				_streamingHub.Clients.Client(connectionId).SendAsync("StreamData", deviceId, data);
+				_streamingHub.Clients.Client(connectionId).SendAsync("StreamData", deviceId, filter(data, null));
 			}
 		}
 	}

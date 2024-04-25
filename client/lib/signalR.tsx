@@ -97,6 +97,24 @@ export function SignalRHubProvider({
 	);
 }
 
+export function SignalRHubProviderWithTwoUrls({
+	children,
+	provider1,
+	provider2,
+}: PropsWithChildren<{ provider1: ProviderProps; provider2: ProviderProps }>) {
+	const hub1 = useSignalRHubConnection(provider1);
+	const hub2 = useSignalRHubConnection(provider2);
+	const val = useMemo(
+		() => ({ [provider1.url]: hub1, [provider2.url]: hub2 }),
+		[hub1, provider1.url, hub2, provider2.url],
+	);
+	return (
+		<ConnectionContext.Provider value={val}>
+			{children}
+		</ConnectionContext.Provider>
+	);
+}
+
 export function useSignalRHub({
 	url,
 	useBinaryProtocol,

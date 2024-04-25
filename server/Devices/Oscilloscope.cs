@@ -237,8 +237,8 @@ public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>, IOscill
 		}
 		_deviceManager?.SendStreamData(_deviceManager.GetDeviceId(this), (data, customization) =>
 		{
-			var xMinWish = Convert.ToSingle(customization["xMin"]);
-			var xMaxWish = Convert.ToSingle(customization["xMax"]);
+			var xMinWish = customization == null ? data.XMin : Convert.ToSingle(customization["xMin"]);
+			var xMaxWish = customization == null ? data.XMax : Convert.ToSingle(customization["xMax"]);
 			var xMin = 0f;
 			var xMax = 0f;
 			var length = 0;

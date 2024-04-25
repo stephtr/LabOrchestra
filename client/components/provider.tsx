@@ -1,17 +1,20 @@
 'use client';
 
-import { controlHubUrl } from '@/lib/connection';
+import { controlHubUrl, streamHubUrl } from '@/lib/connection';
 import { ControlStateProvider } from '@/lib/controlHub';
-import { SignalRHubProvider } from '@/lib/signalR';
+import { SignalRHubProviderWithTwoUrls } from '@/lib/signalR';
 import { NextUIProvider } from '@nextui-org/react';
 import { PropsWithChildren } from 'react';
 
 export default function RootProvider({ children }: PropsWithChildren) {
 	return (
 		<NextUIProvider className="h-full">
-			<SignalRHubProvider url={controlHubUrl}>
+			<SignalRHubProviderWithTwoUrls
+				provider1={{ url: controlHubUrl }}
+				provider2={{ url: streamHubUrl, useBinaryProtocol: true }}
+			>
 				<ControlStateProvider>{children}</ControlStateProvider>
-			</SignalRHubProvider>
+			</SignalRHubProviderWithTwoUrls>
 		</NextUIProvider>
 	);
 }
