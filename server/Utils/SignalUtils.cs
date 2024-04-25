@@ -1,4 +1,5 @@
 using System.Numerics;
+using NumSharp.Utilities;
 
 public static class SignalUtils
 {
@@ -13,7 +14,7 @@ public static class SignalUtils
 		var decimation = (int)(count / maxSamples);
 		if (decimation <= 1)
 		{
-			return (signal.Skip(iStart).Take(count).ToArray(), xMin + iStart * dx, xMin + (iStart + count - 1) * dx);
+			return (signal.Slice(iStart, iStart + count), xMin + iStart * dx, xMin + (iStart + count - 1) * dx);
 		}
 		iStart = Math.Max(0, iStart - decimation / 2);
 		count = Math.Min(signal.Length - iStart, count + decimation);

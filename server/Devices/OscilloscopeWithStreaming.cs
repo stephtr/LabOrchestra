@@ -55,11 +55,11 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 					_fftWindowFunction[n] = 1;
 				break;
 			case "hann":
-                for (int n = 0; n < _state.FFTLength; n++)
-                {
-                    var sin = Math.Sin(Math.PI * n / N);
-                    _fftWindowFunction[n] = (float)(sin * sin);
-                }
+				for (int n = 0; n < _state.FFTLength; n++)
+				{
+					var sin = Math.Sin(Math.PI * n / N);
+					_fftWindowFunction[n] = (float)(sin * sin);
+				}
 				break;
 			case "blackman":
 				for (int n = 0; n < _state.FFTLength; n++)
@@ -186,7 +186,7 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 								var fftNp = np.array(fft);
 								if (_state.FFTWindowFunction != "rectangular")
 								{
-									fftNp = fftNp * _fftWindowFunction;
+									fftNp *= _fftWindowFunction;
 								}
 								fft = fftNp.ToArray<float>();
 								Fourier.ForwardReal(fft, length);
@@ -203,7 +203,10 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 								var oldWeight = 1.0 - newWeight;
 								var fftReal = fftNp["::2"];
 								var fftImag = fftNp["1::2"];
-								var val = (np.square(fftReal) + np.square(fftImag)).astype(NPTypeCode.Double);
+								fftReal *= fftReal;
+								fftImag *= fftImag;
+								fftReal += fftImag;
+								var val = fftReal.astype(NPTypeCode.Double);
 								val *= 1 / _df;
 
 								if (prefersDisplayMode)
@@ -211,7 +214,9 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 									val = np.log10(val) * 10;
 								}
 
-								_fftStorage[ch] = _fftStorage[ch] * oldWeight + val * newWeight;
+								_fftStorage[ch] *= oldWeight;
+								val *= newWeight;
+								_fftStorage[ch] += val;
 								_acquiredFFTs[ch]++;
 							}
 						}
