@@ -41,18 +41,18 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 		for (int i = 0; i < _fftStorage.Length; i++)
 			_fftStorage[i] = np.zeros<double>(_state.FFTLength / 2 + 1);
 		_acquiredFFTs = [0, 0, 0, 0];
+		_fftWindowFunction = np.zeros<float>(_state.FFTLength);
 		ResetFFTWindow();
 	}
 
 	protected void ResetFFTWindow()
 	{
-		var array = new float[_state.FFTLength + 2];
 		var N = _state.FFTLength - 1;
 		switch (_state.FFTWindowFunction)
 		{
 			case "rectangular":
 				for (int n = 0; n < _state.FFTLength; n++)
-					array[n] = 1;
+					_fftWindowFunction[n] = 1;
 				break;
 			case "hann":
                 for (int n = 0; n < _state.FFTLength; n++)
@@ -63,16 +63,15 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 				break;
 			case "blackman":
 				for (int n = 0; n < _state.FFTLength; n++)
-					array[n] = (float)(0.42 - 0.5 * Math.Cos(2 * Math.PI * n / N) + 0.08 * Math.Cos(4 * Math.PI * n / N));
+					_fftWindowFunction[n] = (float)(0.42 - 0.5 * Math.Cos(2 * Math.PI * n / N) + 0.08 * Math.Cos(4 * Math.PI * n / N));
 				break;
 			case "nuttall":
 				for (int n = 0; n < _state.FFTLength; n++)
-					array[n] = (float)(0.355768 - 0.487396 * Math.Cos(2 * Math.PI * n / N) + 0.144232 * Math.Cos(4 * Math.PI * n / N) - 0.012604 * Math.Cos(6 * Math.PI * n / N));
+					_fftWindowFunction[n] = (float)(0.355768 - 0.487396 * Math.Cos(2 * Math.PI * n / N) + 0.144232 * Math.Cos(4 * Math.PI * n / N) - 0.012604 * Math.Cos(6 * Math.PI * n / N));
 				break;
 			default:
 				throw new ArgumentException($"Invalid window function {_state.FFTWindowFunction}");
 		}
-		_fftWindowFunction = np.array(array);
 	}
 
 	public void SetTimeMode(string mode)
