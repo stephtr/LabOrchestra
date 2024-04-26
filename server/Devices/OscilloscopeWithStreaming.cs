@@ -40,7 +40,7 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 		for (int i = 0; i < _fftStorage.Length; i++)
 			_fftStorage[i] = np.zeros<double>(_state.FFTLength / 2 + 1);
 		_acquiredFFTs = [0, 0, 0, 0];
-		_fftWindowFunction = np.zeros<float>(_state.FFTLength + 2);
+		_fftWindowFunction = np.zeros<float>(_state.FFTLength);
 		ResetFFTWindow();
 	}
 
@@ -171,7 +171,7 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 				lock (_fftStorage)
 				{
 					var length = _state.FFTLength;
-					var fft = new float[length + 2];
+					var fft = new float[length];
 					for (var i = 0; i < 500_000; i += length)
 					{
 						didSomeWork = false;
