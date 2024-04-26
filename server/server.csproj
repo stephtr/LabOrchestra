@@ -16,6 +16,7 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="NumSharp" Version="0.30.0" />
+    <PackageReference Include="PetterPet.FFTSSharp" Version="0.0.1" />
     <PackageReference Include="pythonnet" Version="3.0.3" />
     <PackageReference Include="YamlDotNet" Version="15.1.2" />
   </ItemGroup>

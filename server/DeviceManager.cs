@@ -22,7 +22,7 @@ public class DeviceManager : IDisposable
 	{
 		_controlHub = controlHub;
 		_streamingHub = streamingHub;
-		RegisterDevice("het", new OscilloscopeHandler());
+		RegisterDevice("het", new Picoscope5000aOscilloscope());
 		RegisterDevice("split", new OscilloscopeHandler());
 		RegisterDevice("main", new MainDevice());
 		LoadSettings();
