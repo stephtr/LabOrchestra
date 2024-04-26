@@ -1,5 +1,4 @@
 using System.IO.Compression;
-using MathNet.Numerics.IntegralTransforms;
 using NumSharp;
 
 public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, IOscilloscope
@@ -188,9 +187,9 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 								{
 									fftNp *= _fftWindowFunction;
 								}
-								fft = fftNp.ToArray<float>();
-								Fourier.ForwardReal(fft, length);
-								fftNp = np.array(fft);
+								fftNp = np.abs(FFT.Rfft(fftNp), NPTypeCode.Double);
+								fftNp *= fftNp;
+								fftNp *= 1 / _df;
 								var newWeight = 1.0 / (_acquiredFFTs[ch] + 1);
 								if (_state.FFTAveragingDurationInMilliseconds == 0)
 								{
@@ -201,22 +200,15 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 									newWeight = Math.Max(newWeight, 1 - (double)Math.Exp(-_dt * length / _state.FFTAveragingDurationInMilliseconds * 1000));
 								}
 								var oldWeight = 1.0 - newWeight;
-								var fftReal = fftNp["::2"];
-								var fftImag = fftNp["1::2"];
-								fftReal *= fftReal;
-								fftImag *= fftImag;
-								fftReal += fftImag;
-								var val = fftReal.astype(NPTypeCode.Double);
-								val *= 1 / _df;
 
 								if (prefersDisplayMode)
 								{
-									val = np.log10(val) * 10;
+									fftNp = np.log10(fftNp) * 10;
 								}
 
 								_fftStorage[ch] *= oldWeight;
-								val *= newWeight;
-								_fftStorage[ch] += val;
+								fftNp *= newWeight;
+								_fftStorage[ch] += fftNp;
 								_acquiredFFTs[ch]++;
 							}
 						}
