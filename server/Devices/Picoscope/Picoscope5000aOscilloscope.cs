@@ -8,7 +8,7 @@ public class Picoscope5000aOscilloscope : OscilloscopeWithStreaming
 	private short _handle;
 	public Picoscope5000aOscilloscope()
 	{
-		var status = Imports.OpenUnit(out _handle, null!, Imports.DeviceResolution.PS5000A_DR_12BIT);
+		var status = Imports.OpenUnit(out _handle, null!, Imports.DeviceResolution.PS5000A_DR_15BIT);
 		if (status == PicoStatus.StatusCodes.PICO_POWER_SUPPLY_NOT_CONNECTED || status == PicoStatus.StatusCodes.PICO_USB3_0_DEVICE_NON_USB3_0_PORT)
 		{
 			status = Imports.ChangePowerSource(_handle, status);
