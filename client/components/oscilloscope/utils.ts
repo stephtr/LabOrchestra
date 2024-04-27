@@ -14,6 +14,16 @@ export interface OscilloscopeState {
 	}>;
 }
 
+export type OscilloscopeStreamData = {
+	XMin: number;
+	XMax: number;
+	XMinDecimated: number;
+	XMaxDecimated: number;
+	Mode: 'time' | 'fft';
+	Length: number;
+	Data: Array<number[] | null>;
+};
+
 export const fftLengthValues = [
 	512,
 	2 ** 10,

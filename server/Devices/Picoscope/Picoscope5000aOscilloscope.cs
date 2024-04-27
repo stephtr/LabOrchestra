@@ -1,6 +1,4 @@
-using System.Buffers;
 using System.Runtime.InteropServices;
-using NumSharp.Utilities;
 using PS5000AImports;
 
 public class Picoscope5000aOscilloscope : OscilloscopeWithStreaming

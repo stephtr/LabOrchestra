@@ -6,7 +6,7 @@ import 'chart.js/auto';
 import { useStream } from '@/lib/controlHub';
 
 import { ChartOptions, Chart as RawChart } from 'chart.js';
-import { OscilloscopeState } from './utils';
+import { OscilloscopeState, OscilloscopeStreamData } from './utils';
 
 if (typeof window !== 'undefined') {
 	// eslint-disable-next-line global-require
@@ -42,16 +42,6 @@ function frequencyFormatterFactory(maxVal: number) {
 	return (val: number) => `${formatter.format(val / 1e-3)} mHz`;
 }
 
-type OscilloscopeStreamData = {
-	XMin: number;
-	XMax: number;
-	XMinDecimated?: number;
-	XMaxDecimated?: number;
-	Data: number[][];
-	Mode: 'time' | 'fft';
-	Length: number;
-};
-
 const colors = ['blue', 'red', 'green', 'yellow'];
 
 export function OscilloscopeChart({
@@ -64,6 +54,8 @@ export function OscilloscopeChart({
 	const [data, setData] = useState<OscilloscopeStreamData>({
 		XMin: 0,
 		XMax: 0,
+		XMinDecimated: 0,
+		XMaxDecimated: 0,
 		Data: [],
 		Mode: 'time',
 		Length: 0,
@@ -200,18 +192,17 @@ export function OscilloscopeChart({
 					options={options}
 					data={{
 						datasets:
-							data.Data.map((d, i) => [i, d] as const)
-								.filter((d) => d[1]?.length > 0)
-								.map((d) => ({
-									label: d[0].toString(),
+							data.Data.map((d, i) => [d, i] as const)
+								// eslint-disable-next-line @typescript-eslint/no-unused-vars
+								.filter(([d, _]) => !!d)
+								.map(([d, i]) => ({
+									label: i.toString(),
 									yAxisID:
-										data.Mode === 'fft'
-											? 'yFFT'
-											: `y${d[0]}`,
-									data: isStreamConnected ? d[1] : [],
+										data.Mode === 'fft' ? 'yFFT' : `y${i}`,
+									data: isStreamConnected ? d : [],
 									pointRadius: 0,
 									borderWidth: 2,
-									borderColor: colors[d[0]],
+									borderColor: colors[i],
 								})) ?? [],
 						labels,
 					}}
