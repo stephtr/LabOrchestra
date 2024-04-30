@@ -61,7 +61,7 @@ export default function Home() {
 							</PopoverTrigger>
 							<PopoverContent
 								aria-label="General settings"
-								className="w-[300px]"
+								className="w-[300px] items-start gap-3 py-2 px-3"
 							>
 								<h2 className="text-xl">General Settings</h2>
 								<StateInput

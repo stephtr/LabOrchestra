@@ -11,7 +11,7 @@ import {
 	Tabs,
 } from '@nextui-org/react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faChevronDown } from '@/lib/fortawesome/pro-solid-svg-icons';
+import { faChevronDown, faGear } from '@/lib/fortawesome/pro-solid-svg-icons';
 import { useControl } from '@/lib/controlHub';
 import { VerticalControlBar } from './verticalControlBar';
 import { OscilloscopeChart } from './oscilloscopeChart';
@@ -25,6 +25,8 @@ import {
 	fftWindowFunctions,
 	formatAveragingTime,
 	formatFrequency,
+	datapointsToSaveOptions,
+	formatDatapoints,
 } from './utils';
 
 export function Oscilloscope({
@@ -51,7 +53,7 @@ export function Oscilloscope({
 	return (
 		<div className="h-full grid grid-cols-[10rem,1fr] grid-rows-[3.5rem,1fr] overflow-hidden">
 			<VerticalControlBar deviceId={deviceId} />
-			<div className="col-start-2 flex items-center mr-1">
+			<div className="col-start-2 flex items-center mr-1 gap-2">
 				<Tabs
 					isDisabled={!isConnected}
 					selectedKey={state?.timeMode}
@@ -61,7 +63,7 @@ export function Oscilloscope({
 					<Tab title="FFT" key="fft" />
 				</Tabs>
 				{state?.timeMode === 'fft' && (
-					<ButtonGroup variant="flat" className="ml-4">
+					<ButtonGroup variant="flat">
 						<Button
 							className="w-full h-12"
 							onPress={() => action('resetFFTStorage')}
@@ -81,12 +83,11 @@ export function Oscilloscope({
 							</PopoverTrigger>
 							<PopoverContent
 								aria-label="FFT settings"
-								className="w-[300px] items-start"
+								className="w-[300px] items-start gap-3 py-2 px-3"
 							>
 								<h2 className="text-xl">FFT Settings</h2>
 								<StateSlider
 									label="Frequency"
-									className="mt-2"
 									state={state}
 									action={action}
 									variableName="fftFrequency"
@@ -156,6 +157,42 @@ export function Oscilloscope({
 						</Popover>
 					</ButtonGroup>
 				)}
+				<Popover>
+					<PopoverTrigger>
+						<Button isIconOnly className="h-12">
+							<FontAwesomeIcon icon={faGear} />
+						</Button>
+					</PopoverTrigger>
+					<PopoverContent
+						aria-label="Oscilloscope settings"
+						className="w-[300px] items-start py-2 px-3 gap-2"
+					>
+						<h2 className="text-xl mb-2">Oscilloscope settings</h2>
+						<StateSlider
+							state={state}
+							action={action}
+							variableName="datapointsToSnapshot"
+							actionName="setDatapointsToSnapshot"
+							values={datapointsToSaveOptions}
+							label="Datapoints to save"
+							marks={[
+								10_000, 100_000, 1_000_000, 10_000_000,
+								100_000_000,
+							]}
+							formatter={formatDatapoints}
+						/>
+						{state && (
+							<p className="italic opacity-50 place-self-center">
+								this correspond to{' '}
+								{(
+									state.datapointsToSnapshot /
+									(2 * state.fftFrequency)
+								).toLocaleString()}{' '}
+								s
+							</p>
+						)}
+					</PopoverContent>
+				</Popover>
 				{topContent}
 			</div>
 			<main className="col-start-2 row-start-2 overflow-hidden">

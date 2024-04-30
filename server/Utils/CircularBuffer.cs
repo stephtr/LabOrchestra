@@ -4,7 +4,7 @@ public class CircularBuffer<T>
 	public readonly long Capacity;
 	private long Head = 0;
 	private long Tail = 0;
-	private bool HasRolledOver = false;
+	public bool HasRolledOver { get; private set; } = false;
 
 	public CircularBuffer(long capacity)
 	{
@@ -14,7 +14,7 @@ public class CircularBuffer<T>
 
 	public void Push(T[] values, int count = -1)
 	{
-		if(count < 0) count = values.Length;
+		if (count < 0) count = values.Length;
 		if (count > Capacity)
 		{
 			throw new InvalidOperationException("Too many elements to push");

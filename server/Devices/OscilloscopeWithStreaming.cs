@@ -135,7 +135,9 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 		{
 			if (!_state.Channels[ch].ChannelActive) continue;
 
-			var trace = _buffer[ch].ToArray(readPastTail: true);
+			var hasBufferRolledOver = _buffer[ch].HasRolledOver;
+			var pointsToRead = Math.Min(hasBufferRolledOver ? _buffer[ch].Capacity : _buffer[ch].Count, _state.DatapointsToSnapshot);
+			var trace = _buffer[ch].PeekHead(pointsToRead, readPastTail: hasBufferRolledOver);
 			if (traceLength == -1) traceLength = trace.Length;
 			if (traceLength != trace.Length) throw new Exception("The traces should all have the same length.");
 			using (var traceFile = archive.CreateEntry($"{deviceId}_C{ch + 1}").Open())
@@ -342,6 +344,11 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 		if (coupling != "AC" && coupling != "DC")
 			throw new ArgumentException($"Invalid mode {coupling}");
 		_state.Channels[channel].Coupling = coupling;
+	}
+
+	public void SetDatapointsToSnapshot(int datapoints)
+	{
+		_state.DatapointsToSnapshot = datapoints;
 	}
 
 	virtual public void SetTestSignalFrequency(float frequency)

@@ -19,6 +19,7 @@ public class OscilloscopeState
 	public int FFTAveragingDurationInMilliseconds { get; set; } = 0;
 	public string FFTWindowFunction { get; set; } = "blackman";
 	public float TestSignalFrequency { get; set; } = 1e6f;
+	public int DatapointsToSnapshot { get; set; } = 100_000_000;
 
 	public OscilloscopeChannel[] Channels { get; set; } =
 	{
@@ -43,6 +44,7 @@ interface IOscilloscope
 	void SetFFTWindowFunction(string windowFuction);
 	void SetTestSignalFrequency(float frequency);
 	void SetCoupling(int channel, string coupling);
+	void SetDatapointsToSnapshot(int datapoints);
 }
 
 public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>, IOscilloscope
@@ -319,5 +321,10 @@ public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>, IOscill
 		if (coupling != "AC" && coupling != "DC")
 			throw new ArgumentException($"Invalid mode {coupling}");
 		_state.Channels[channel].Coupling = coupling;
+	}
+
+	public void SetDatapointsToSnapshot(int datapoints)
+	{
+		_state.DatapointsToSnapshot = datapoints;
 	}
 }

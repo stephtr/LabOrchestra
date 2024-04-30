@@ -1,3 +1,4 @@
+/* eslint-disable no-constant-condition */
 export interface OscilloscopeState {
 	running: boolean;
 	timeMode: 'time' | 'fft';
@@ -7,6 +8,7 @@ export interface OscilloscopeState {
 	fftAveragingDurationInMilliseconds: number;
 	fftWindowFunction: string;
 	testSignalFrequency: number;
+	datapointsToSnapshot: number;
 	channels: Array<{
 		channelActive: boolean;
 		rangeInMillivolts: number;
@@ -51,6 +53,15 @@ export const fftWindowFunctions = [
 	{ value: 'nuttall', label: 'Nuttall' },
 ];
 
+export const datapointsToSaveOptions: Array<number> = [];
+let decade = 1e4;
+while (true) {
+	datapointsToSaveOptions.push(1 * decade);
+	if (decade === 1e8) break;
+	datapointsToSaveOptions.push(2 * decade, 5 * decade);
+	decade *= 10;
+}
+
 export function formatAveragingTime(ms: number) {
 	if (ms === -1) return '∞';
 	if (ms === 0) return 'off';
@@ -66,9 +77,17 @@ export function formatFrequency(f: number) {
 	return `${formatter.format(f)} Hz`;
 }
 
+export function formatDatapoints(num: number) {
+	if (num >= 1_000_000) return `${num / 1_000_000}M`;
+	if (num >= 1_000) return `${num / 1_000}K`;
+	return num.toString();
+}
+
 export const fftFrequencies: number[] = [];
-let decade = 1e3;
+decade = 1e3;
 while (decade < 1e8) {
-	fftFrequencies.push(1 * decade, 2 * decade, 5 * decade);
+	fftFrequencies.push(1 * decade);
+	if (decade === 1e7) break;
+	fftFrequencies.push(2 * decade, 5 * decade);
 	decade *= 10;
 }
