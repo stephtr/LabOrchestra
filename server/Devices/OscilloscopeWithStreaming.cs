@@ -53,39 +53,53 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 
 	public void ResetFFTStorage()
 	{
-		for (int i = 0; i < _fftStorage.Length; i++)
-			_fftStorage[i] = new double[_state.FFTLength / 2 + 1];
-		_acquiredFFTs = [0, 0, 0, 0];
-		_fftWindowFunction = new float[_state.FFTLength];
-		ResetFFTWindow();
+		lock (_fftStorage)
+		{
+			for (int i = 0; i < _fftStorage.Length; i++)
+				_fftStorage[i] = new double[_state.FFTLength / 2 + 1];
+			_acquiredFFTs = [0, 0, 0, 0];
+			_fftWindowFunction = new float[_state.FFTLength];
+			ResetFFTWindow();
+		}
 	}
 
 	protected void ResetFFTWindow()
 	{
+		var length = _state.FFTLength;
 		var N = _state.FFTLength - 1;
 		switch (_state.FFTWindowFunction)
 		{
 			case "rectangular":
-				for (int n = 0; n < _state.FFTLength; n++)
+				for (int n = 0; n < length; n++)
 					_fftWindowFunction[n] = 1;
 				break;
 			case "hann":
-				for (int n = 0; n < _state.FFTLength; n++)
+				for (int n = 0; n < length; n++)
 				{
 					var sin = Math.Sin(Math.PI * n / N);
 					_fftWindowFunction[n] = (float)(sin * sin);
 				}
 				break;
 			case "blackman":
-				for (int n = 0; n < _state.FFTLength; n++)
+				for (int n = 0; n < length; n++)
 					_fftWindowFunction[n] = (float)(0.42 - 0.5 * Math.Cos(2 * Math.PI * n / N) + 0.08 * Math.Cos(4 * Math.PI * n / N));
 				break;
 			case "nuttall":
-				for (int n = 0; n < _state.FFTLength; n++)
+				for (int n = 0; n < length; n++)
 					_fftWindowFunction[n] = (float)(0.355768 - 0.487396 * Math.Cos(2 * Math.PI * n / N) + 0.144232 * Math.Cos(4 * Math.PI * n / N) - 0.012604 * Math.Cos(6 * Math.PI * n / N));
 				break;
 			default:
 				throw new ArgumentException($"Invalid window function {_state.FFTWindowFunction}");
+		}
+		var sum = 0f;
+		for (int n = 0; n < length; n++)
+		{
+			sum += _fftWindowFunction[n];
+		}
+		var normalizationFactor = length / sum;
+		for (int n = 0; n < length; n++)
+		{
+			_fftWindowFunction[n] *= normalizationFactor;
 		}
 	}
 
@@ -120,8 +134,11 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 
 	public void SetFFTWindowFunction(string windowFuction)
 	{
-		_state.FFTWindowFunction = windowFuction;
-		ResetFFTWindow();
+		lock (_fftStorage)
+		{
+			_state.FFTWindowFunction = windowFuction;
+			ResetFFTWindow();
+		}
 	}
 
 	public override object? OnSave(ZipArchive archive, string deviceId)
@@ -185,7 +202,7 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 			while (true)
 			{
 				var length = _state.FFTLength;
-				var df = (float)_df;
+				var fftFactor = (float)(2 * _dt / length);
 				var fftIn = new float[length];
 				var fftOut = new float[length + 2];
 				var ffts = FFTS.Real(FFTS.Forward, length);
@@ -210,7 +227,7 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 									for (var j = 0; j < length; j++) fftIn[j] *= _fftWindowFunction[j];
 									ffts.Execute(fftIn, fftOut);
 
-									for (var j = 0; j < length / 2 + 1; j++) fftOut[j] = (fftOut[2 * j] * fftOut[2 * j] + fftOut[2 * j + 1] * fftOut[2 * j + 1]) / df;
+									for (var j = 0; j < length / 2 + 1; j++) fftOut[j] = (fftOut[2 * j] * fftOut[2 * j] + fftOut[2 * j + 1] * fftOut[2 * j + 1]) * fftFactor;
 									var newWeight = 1.0 / (_acquiredFFTs[ch] + 1);
 									if (_state.FFTAveragingDurationInMilliseconds == 0)
 									{

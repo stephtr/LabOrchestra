@@ -47,25 +47,31 @@ public class Picoscope5000aOscilloscope : OscilloscopeWithStreaming
 
 	override public void UpdateRange(int channel, int rangeInMillivolts)
 	{
+		var wasRunning = _state.Running;
+		if (wasRunning) Stop();
 		SetChannel(channel, rangeInMillivolts, _state.Channels[channel].ChannelActive, _state.Channels[channel].Coupling);
 		base.UpdateRange(channel, rangeInMillivolts);
-		if (_state.Running) Start();
+		if (wasRunning) Start();
 	}
 
 	override public void ChannelActive(int channel, bool active)
 	{
+		var wasRunning = _state.Running;
+		if (wasRunning) Stop();
 		SetChannel(channel, _state.Channels[channel].RangeInMillivolts, active, _state.Channels[channel].Coupling);
 		base.ChannelActive(channel, active);
-		if (_state.Running) Start();
+		if (wasRunning) Start();
 	}
 
 	override public void SetCoupling(int channel, string coupling)
 	{
+		var wasRunning = _state.Running;
+		if (wasRunning) Stop();
 		if (coupling != "AC" && coupling != "DC")
 			throw new ArgumentException($"Invalid mode {coupling}");
 		SetChannel(channel, _state.Channels[channel].RangeInMillivolts, _state.Channels[channel].ChannelActive, coupling);
 		base.SetCoupling(channel, coupling);
-		if (_state.Running) Start();
+		if (wasRunning) Start();
 	}
 
 	override public void Start()
@@ -98,7 +104,7 @@ public class Picoscope5000aOscilloscope : OscilloscopeWithStreaming
 			ulong samplesReceived = 0;
 			ulong triggerCount = 0;
 			var values = new float[buffer_length];
-			
+
 			void StreamingCallback(short handle, int noOfSamples, uint startIndex, short overflow, uint triggerAt, short triggered, short autoStop, IntPtr pVoid)
 			{
 				samplesReceived += (ulong)noOfSamples;
@@ -109,25 +115,26 @@ public class Picoscope5000aOscilloscope : OscilloscopeWithStreaming
 					SendStateUpdate(new { Running = false });
 				}
 				if (noOfSamples > 0)
-                {
-                    for (int ch = 0; ch < 4; ch++)
+				{
+					for (int ch = 0; ch < 4; ch++)
 					{
 						if (_state.Channels[ch].ChannelActive)
-                        {
-                            var buffer = buffers[ch];
-                            var conversionFactor = _state.Channels[ch].RangeInMillivolts / (maxValue * 1000f);
-							unsafe {
-                                fixed (short* bufferPtr = buffer)
-                                fixed (float* valuesPtr = values)
-                                {
-                                    short* bufferStartPtr = bufferPtr + startIndex;
-                                    float* valuesStartPtr = valuesPtr;
-                                    for (long i = 0; i < noOfSamples; i++)
-                                    {
-                                        *valuesStartPtr++ = *bufferStartPtr++ * conversionFactor;
-                                    }
-                                }
-                            }
+						{
+							var buffer = buffers[ch];
+							var conversionFactor = _state.Channels[ch].RangeInMillivolts / (maxValue * 1000f);
+							unsafe
+							{
+								fixed (short* bufferPtr = buffer)
+								fixed (float* valuesPtr = values)
+								{
+									short* bufferStartPtr = bufferPtr + startIndex;
+									float* valuesStartPtr = valuesPtr;
+									for (long i = 0; i < noOfSamples; i++)
+									{
+										*valuesStartPtr++ = *bufferStartPtr++ * conversionFactor;
+									}
+								}
+							}
 							_buffer[ch].Push(values, noOfSamples);
 						}
 					}
