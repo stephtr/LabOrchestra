@@ -34,7 +34,7 @@ public class MainDevice : DeviceHandlerBase<MainState>
 		}).Prepend(0).Max();
 		var baseFilepath = Path.Combine(path, $"{currentIndex + 1} {_state.LastFilename}");
 
-		_deviceManager!.Save(baseFilepath);
+		_deviceManager!.SaveSnapshot(baseFilepath);
 	}
 
 	override public object? GetSettings()

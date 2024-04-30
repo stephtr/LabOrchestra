@@ -108,7 +108,9 @@ public class PythonDevice : IDeviceHandler
 		_pyModule.Dispose();
 	}
 
-	public object? OnSave(ZipArchive archive, string deviceId) { return null; }
+	public object? OnSaveSnapshot(ZipArchive archive, string deviceId) { return null; }
+	virtual public void OnBeforeSaveSnapshot() { }
+	virtual public void OnAfterSaveSnapshot() { }
 	virtual public object? GetSettings() { return null; }
 	virtual public void LoadSettings(JsonElement settings) { }
 }

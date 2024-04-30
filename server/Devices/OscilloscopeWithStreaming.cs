@@ -141,7 +141,19 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 		}
 	}
 
-	public override object? OnSave(ZipArchive archive, string deviceId)
+	private bool WasRunningBeforeSnapshot = false;
+	public override void OnBeforeSaveSnapshot()
+	{
+		WasRunningBeforeSnapshot = _state.Running;
+		Stop();
+	}
+
+	public override void OnAfterSaveSnapshot()
+	{
+		if (WasRunningBeforeSnapshot) Start();
+	}
+
+	public override object? OnSaveSnapshot(ZipArchive archive, string deviceId)
 	{
 		if (_dt == 0) return null;
 		var wasRunning = _state.Running;

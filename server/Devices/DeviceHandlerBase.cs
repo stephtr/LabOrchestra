@@ -9,7 +9,9 @@ public interface IDeviceHandler : IDisposable
 	void SubscribeToStateUpdates(Action<object> onStateUpdate);
 	void SubscribeToStreamEvents(Action<object> onStreamEvent);
 	void SetDeviceManager(DeviceManager deviceManager);
-	object? OnSave(ZipArchive archive, string deviceId);
+	void OnBeforeSaveSnapshot();
+	void OnAfterSaveSnapshot();
+	object? OnSaveSnapshot(ZipArchive archive, string deviceId);
 	object? GetSettings();
 	void LoadSettings(JsonElement settings);
 }
@@ -128,7 +130,9 @@ public abstract class DeviceHandlerBase<TState> : IDeviceHandler where TState : 
 
 	virtual public void Dispose() { }
 
-	virtual public object? OnSave(ZipArchive archive, string deviceId) { return null; }
+	virtual public object? OnSaveSnapshot(ZipArchive archive, string deviceId) { return null; }
+	virtual public void OnBeforeSaveSnapshot() { }
+	virtual public void OnAfterSaveSnapshot() { }
 	virtual public object? GetSettings() { return null; }
 	virtual public void LoadSettings(JsonElement settings) { }
 }

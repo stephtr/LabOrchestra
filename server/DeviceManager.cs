@@ -107,17 +107,25 @@ public class DeviceManager : IDisposable
 		SendPartialStateUpdateAsync(state);
 	}
 
-	public void Save(string baseFilepath)
+	public void SaveSnapshot(string baseFilepath)
 	{
 		using var npzFile = new ZipArchive(new FileStream($"{baseFilepath}.npz", FileMode.CreateNew), ZipArchiveMode.Create);
 		var yamlFile = new Dictionary<string, object>();
+		foreach (var (_, device) in _deviceHandlers)
+		{
+			device.OnBeforeSaveSnapshot();
+		}
 		foreach (var (deviceId, device) in _deviceHandlers)
 		{
-			var stateToWrite = device.OnSave(npzFile, deviceId);
+			var stateToWrite = device.OnSaveSnapshot(npzFile, deviceId);
 			if (stateToWrite != null)
 			{
 				yamlFile[deviceId] = stateToWrite;
 			}
+		}
+		foreach (var (_, device) in _deviceHandlers)
+		{
+			device.OnAfterSaveSnapshot();
 		}
 		if (yamlFile.Count == 0) return;
 		var serializer = new SerializerBuilder().WithNamingConvention(CamelCaseNamingConvention.Instance).Build();

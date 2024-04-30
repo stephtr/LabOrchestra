@@ -278,7 +278,7 @@ public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>, IOscill
 		_state.TestSignalFrequency = frequency;
 	}
 
-	public override object? OnSave(ZipArchive archive, string deviceId)
+	public override object? OnSaveSnapshot(ZipArchive archive, string deviceId)
 	{
 		var savedAnyTraces = false;
 		for (var ch = 0; ch < _state.Channels.Length; ch++)
