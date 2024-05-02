@@ -188,7 +188,6 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 			np.Save(t, tFile);
 		}
 
-		var df = _state.FFTFrequency / (_state.FFTLength / 2 + 1);
 		var f = Enumerable.Range(0, _state.FFTLength / 2 + 1).Select(i => (float)(i * _df)).ToArray();
 		using (var fFile = archive.CreateEntry($"{deviceId}_f").Open())
 		{
