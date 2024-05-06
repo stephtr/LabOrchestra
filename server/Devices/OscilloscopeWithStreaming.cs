@@ -21,8 +21,9 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 	protected int[] _acquiredFFTs = { 0, 0, 0, 0 };
 	protected double _dt = 0;
 	protected double _df = 0;
+	private ReaderWriterLockSlim _fftLock = new();
 
-	public OscilloscopeWithStreaming()
+    public OscilloscopeWithStreaming()
 	{
 		FFTSManager.LoadAppropriateDll(FFTSManager.InstructionType.Auto);
 	}
@@ -219,7 +220,6 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 				var ffts = FFTS.Real(FFTS.Forward, length);
 				while (_state.FFTLength == length)
 				{
-					Thread.Sleep(1);
 					bool didSomeWork;
 					if (!_state.Running || _runId != localRunId) return;
 					lock (_fftStorage)
@@ -262,8 +262,9 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 							}
 							if (!didSomeWork || !_state.Running || _runId != localRunId) break;
 						}
-					}
-				}
+                    }
+                    Thread.Sleep(1);
+                }
 			}
 		});
 
