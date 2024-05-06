@@ -94,9 +94,9 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 		var sum = 0f;
 		for (int n = 0; n < length; n++)
 		{
-			sum += _fftWindowFunction[n];
+			sum += _fftWindowFunction[n]*_fftWindowFunction[n];
 		}
-		var normalizationFactor = length / sum;
+		var normalizationFactor = length / (float)Math.Sqrt(sum);
 		for (int n = 0; n < length; n++)
 		{
 			_fftWindowFunction[n] *= normalizationFactor;
