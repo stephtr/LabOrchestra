@@ -22,7 +22,6 @@ public static class SignalUtils
 		var decimatedSignal = new T[2 * count / decimation];
 		T minVal = signal[iStart];
 		T maxVal = signal[iStart];
-		var decimationAsT = T.CreateChecked(decimation);
 		for (var i = 1; i < count; i++)
 		{
 			var val = signal[i + iStart];
