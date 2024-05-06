@@ -94,9 +94,9 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 		var sum = 0f;
 		for (int n = 0; n < length; n++)
 		{
-			sum += _fftWindowFunction[n];
+			sum += _fftWindowFunction[n]*_fftWindowFunction[n];
 		}
-		var normalizationFactor = length / sum;
+		var normalizationFactor = length / (float)Math.Sqrt(sum);
 		for (int n = 0; n < length; n++)
 		{
 			_fftWindowFunction[n] *= normalizationFactor;
@@ -188,7 +188,6 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 			np.Save(t, tFile);
 		}
 
-		var df = _state.FFTFrequency / (_state.FFTLength / 2 + 1);
 		var f = Enumerable.Range(0, _state.FFTLength / 2 + 1).Select(i => (float)(i * _df)).ToArray();
 		using (var fFile = archive.CreateEntry($"{deviceId}_f").Open())
 		{
@@ -339,8 +338,8 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 						var length = 0;
 						var reducedData = data.Data.Select((d, i) =>
 						{
-							if (d == null || !_state.Channels[i].ChannelActive || customization == null) return null;
-							var decimation = SignalUtils.DecimateSignal(d, data.XMin, data.XMax, xMinWish, xMaxWish, 1500);
+							if (d == null || !_state.Channels[i].ChannelActive) return null;
+							var decimation = SignalUtils.DecimateSignal(d, data.XMin, data.XMax, xMinWish, xMaxWish, 1000);
 							xMin = decimation.xMin;
 							xMax = decimation.xMax;
 							length = decimation.signal.Length;
