@@ -13,7 +13,8 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from '@nextui-org/react';
-import SplitPane from 'react-split-pane';
+import DockLayout from 'rc-dock';
+import 'rc-dock/dist/rc-dock-dark.css';
 
 interface MainState {
 	saveDirectory: string;
@@ -23,64 +24,114 @@ interface MainState {
 export default function Home() {
 	const { isConnected, action, state } = useControl<MainState>('main');
 	return (
-		<SplitPane
-			split="horizontal"
-			resizerClassName="bg-slate-300"
-			className="[&>[data-type='Resizer']]:!bg-slate-200 [&>[data-type='Resizer']:hover]:!border-slate-200"
-		>
-			<Oscilloscope
-				deviceId="het"
-				topContent={
-					<>
-						<div className="flex-1" />
-						<StateInput
-							className="max-w-sm"
-							placeholder="Filename"
-							isDisabled={!isConnected}
-							state={state}
-							action={action}
-							actionName="setLastFilename"
-							variableName="lastFilename"
-						/>
-						<StateButton
-							className="ml-2"
-							startContent={<FontAwesomeIcon icon={faSave} />}
-							state={state}
-							action={action}
-							actionName="Save"
-						>
-							Save
-						</StateButton>
-						<div className="flex-1" />
-						{/* <Pressure /> */}
-						<Popover>
-							<PopoverTrigger>
-								<Button isIconOnly className="h-12 ml-2">
-									<FontAwesomeIcon icon={faGear} />
-								</Button>
-							</PopoverTrigger>
-							<PopoverContent
-								aria-label="General settings"
-								className="w-[300px] items-start gap-3 py-2 px-3"
-							>
-								<h2 className="text-xl">General Settings</h2>
-								<StateInput
-									label="Save directory"
-									labelPlacement="outside"
-									className="pt-2"
-									placeholder=" "
-									isDisabled={!isConnected}
-									state={state}
-									action={action}
-									actionName="setSaveDirectory"
-									variableName="saveDirectory"
-								/>
-							</PopoverContent>
-						</Popover>
-					</>
-				}
+		<div className="[&_.dock-panel]:bg-transparent h-full">
+			<DockLayout
+				style={{ width: '100%', height: '100%' }}
+				defaultLayout={{
+					dockbox: {
+						mode: 'vertical',
+						children: [
+							{
+								tabs: [
+									{
+										id: 'het',
+										title: 'het',
+										content: (
+											<Oscilloscope
+												deviceId="het"
+												topContent={
+													<>
+														<div className="flex-1" />
+														<StateInput
+															className="max-w-sm"
+															placeholder="Filename"
+															isDisabled={
+																!isConnected
+															}
+															state={state}
+															action={action}
+															actionName="setLastFilename"
+															variableName="lastFilename"
+														/>
+														<StateButton
+															className="ml-2"
+															startContent={
+																<FontAwesomeIcon
+																	icon={
+																		faSave
+																	}
+																/>
+															}
+															state={state}
+															action={action}
+															actionName="Save"
+														>
+															Save
+														</StateButton>
+														<div className="flex-1" />
+														{/* <Pressure /> */}
+														<Popover>
+															<PopoverTrigger>
+																<Button
+																	isIconOnly
+																	className="h-12 ml-2"
+																>
+																	<FontAwesomeIcon
+																		icon={
+																			faGear
+																		}
+																	/>
+																</Button>
+															</PopoverTrigger>
+															<PopoverContent
+																aria-label="General settings"
+																className="w-[300px] items-start gap-3 py-2 px-3"
+															>
+																<h2 className="text-xl">
+																	General
+																	Settings
+																</h2>
+																<StateInput
+																	label="Save directory"
+																	labelPlacement="outside"
+																	className="pt-2"
+																	placeholder=" "
+																	isDisabled={
+																		!isConnected
+																	}
+																	state={
+																		state
+																	}
+																	action={
+																		action
+																	}
+																	actionName="setSaveDirectory"
+																	variableName="saveDirectory"
+																/>
+															</PopoverContent>
+														</Popover>
+													</>
+												}
+											/>
+										),
+									},
+								],
+							},
+							{
+								tabs: [
+									{
+										id: 'split',
+										title: 'split',
+										content: (
+											<Oscilloscope deviceId="split" />
+										),
+									},
+								],
+							},
+						],
+					},
+				}}
 			/>
-			<Oscilloscope deviceId="split" />
-		</SplitPane>
+		</div>
 	);
 }
