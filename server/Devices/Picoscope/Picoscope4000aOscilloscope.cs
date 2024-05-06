@@ -15,7 +15,7 @@ public class Picoscope4000aOscilloscope : OscilloscopeWithStreaming
 		{
 			throw new Exception("Failed to open Picoscope device");
 		}
-		Imports.SetDeviceResolution(_handle, Imports.DeviceResolution.PS4000A_DR_15BIT);
+		Imports.SetDeviceResolution(_handle, Imports.DeviceResolution.PS4000A_DR_14BIT);
 	}
 
 	private void SetChannel(int channel, int rangeInMillivolts, bool active, string coupling)

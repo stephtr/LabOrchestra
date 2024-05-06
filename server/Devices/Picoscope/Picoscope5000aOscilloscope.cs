@@ -6,7 +6,7 @@ public class Picoscope5000aOscilloscope : OscilloscopeWithStreaming
 	private short _handle;
 	public Picoscope5000aOscilloscope()
 	{
-		var status = Imports.OpenUnit(out _handle, null!, Imports.DeviceResolution.PS5000A_DR_15BIT);
+		var status = Imports.OpenUnit(out _handle, null!, Imports.DeviceResolution.PS5000A_DR_14BIT);
 		if (status == PicoStatus.StatusCodes.PICO_POWER_SUPPLY_NOT_CONNECTED || status == PicoStatus.StatusCodes.PICO_USB3_0_DEVICE_NON_USB3_0_PORT)
 		{
 			status = Imports.ChangePowerSource(_handle, status);
@@ -15,7 +15,7 @@ public class Picoscope5000aOscilloscope : OscilloscopeWithStreaming
 		{
 			throw new Exception("Failed to open Picoscope device");
 		}
-		Imports.SetSigGenBuiltInV2(_handle, 0, 800_000, Imports.WaveType.PS5000A_GAUSSIAN, 2_000_000, 2_000_000, 0, 0, Imports.SweepType.PS5000A_UP, 0, 0xFFFFFFFF, 0, 0, Imports.SigGenTrigSource.PS5000A_SIGGEN_NONE, 0);
+		// Imports.SetSigGenBuiltInV2(_handle, 0, 800_000, Imports.WaveType.PS5000A_GAUSSIAN, 2_000_000, 2_000_000, 0, 0, Imports.SweepType.PS5000A_UP, 0, 0xFFFFFFFF, 0, 0, Imports.SigGenTrigSource.PS5000A_SIGGEN_NONE, 0);
 	}
 
 	private void SetChannel(int channel, int rangeInMillivolts, bool active, string coupling)
