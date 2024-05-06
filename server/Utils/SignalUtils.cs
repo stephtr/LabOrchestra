@@ -19,7 +19,7 @@ public static class SignalUtils
 		}
 		iStart = Math.Max(0, iStart - decimation / 2);
 		count = Math.Min(signal.Length - iStart, count + decimation);
-		var decimatedSignal = new T[count / decimation];
+		var decimatedSignal = new T[2 * count / decimation];
 		T minVal = signal[iStart];
 		T maxVal = signal[iStart];
 		var decimationAsT = T.CreateChecked(decimation);
@@ -30,8 +30,8 @@ public static class SignalUtils
 			if (val > maxVal) maxVal = val;
 			if ((i % decimation) == decimation - 1)
 			{
-				decimatedSignal[2 * i / decimation] = minVal;
-				decimatedSignal[2 * i / decimation + 1] = minVal;
+				decimatedSignal[2 * (i / decimation)] = minVal;
+				decimatedSignal[2 * (i / decimation) + 1] = maxVal;
 				if (i + iStart + 1 < signal.Length)
 				{
 					val = signal[i + iStart + 1];

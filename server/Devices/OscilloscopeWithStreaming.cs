@@ -338,8 +338,8 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 						var length = 0;
 						var reducedData = data.Data.Select((d, i) =>
 						{
-							if (d == null || !_state.Channels[i].ChannelActive || customization == null) return null;
-							var decimation = SignalUtils.DecimateSignal(d, data.XMin, data.XMax, xMinWish, xMaxWish, 1500);
+							if (d == null || !_state.Channels[i].ChannelActive) return null;
+							var decimation = SignalUtils.DecimateSignal(d, data.XMin, data.XMax, xMinWish, xMaxWish, 1000);
 							xMin = decimation.xMin;
 							xMax = decimation.xMax;
 							length = decimation.signal.Length;
