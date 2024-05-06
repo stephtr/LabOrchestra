@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 function useOnChange(
 	handleOnChange: (this: HTMLInputElement, ev: Event) => any,
 ) {
-	const ref = useRef<HTMLInputElement>();
+	const ref = useRef<HTMLInputElement>(null);
 
 	useEffect(() => {
 		if (!ref.current) return;
