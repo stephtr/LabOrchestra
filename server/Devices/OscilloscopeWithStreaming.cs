@@ -23,7 +23,7 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 	protected double _df = 0;
 	private ReaderWriterLockSlim _fftLock = new();
 
-    public OscilloscopeWithStreaming()
+	public OscilloscopeWithStreaming()
 	{
 		FFTSManager.LoadAppropriateDll(FFTSManager.InstructionType.Auto);
 	}
@@ -45,7 +45,15 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 		{
 			Stop();
 		}
-		_state.FFTFrequency = freq;
+		_fftLock.TryEnterWriteLock(-1);
+		try
+		{
+			_state.FFTFrequency = freq;
+		}
+		finally
+		{
+			_fftLock.ExitWriteLock();
+		}
 		if (wasRunning)
 		{
 			Start();
@@ -54,13 +62,18 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 
 	public void ResetFFTStorage()
 	{
-		lock (_fftStorage)
+		_fftLock.TryEnterWriteLock(-1);
+		try
 		{
 			for (int i = 0; i < _fftStorage.Length; i++)
 				_fftStorage[i] = new double[_state.FFTLength / 2 + 1];
 			_acquiredFFTs = [0, 0, 0, 0];
 			_fftWindowFunction = new float[_state.FFTLength];
 			ResetFFTWindow();
+		}
+		finally
+		{
+			_fftLock.ExitWriteLock();
 		}
 	}
 
@@ -95,7 +108,7 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 		var sum = 0f;
 		for (int n = 0; n < length; n++)
 		{
-			sum += _fftWindowFunction[n]*_fftWindowFunction[n];
+			sum += _fftWindowFunction[n] * _fftWindowFunction[n];
 		}
 		var normalizationFactor = length / (float)Math.Sqrt(sum);
 		for (int n = 0; n < length; n++)
@@ -113,10 +126,15 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 
 	public void SetFFTBinCount(int length)
 	{
-		lock (_fftStorage)
+		_fftLock.TryEnterWriteLock(-1);
+		try
 		{
 			_state.FFTLength = length;
 			ResetFFTStorage();
+		}
+		finally
+		{
+			_fftLock.ExitWriteLock();
 		}
 	}
 
@@ -135,10 +153,15 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 
 	public void SetFFTWindowFunction(string windowFuction)
 	{
-		lock (_fftStorage)
+		_fftLock.TryEnterWriteLock(-1);
+		try
 		{
 			_state.FFTWindowFunction = windowFuction;
 			ResetFFTWindow();
+		}
+		finally
+		{
+			_fftLock.ExitWriteLock();
 		}
 	}
 
@@ -222,7 +245,9 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 				{
 					bool didSomeWork;
 					if (!_state.Running || _runId != localRunId) return;
-					lock (_fftStorage)
+
+					_fftLock.TryEnterReadLock(-1);
+					try
 					{
 						// let's do a loop such that we don't have to constantly re-lock
 						for (var i = 0; i < 500_000; i += length)
@@ -262,9 +287,13 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 							}
 							if (!didSomeWork || !_state.Running || _runId != localRunId) break;
 						}
-                    }
-                    Thread.Sleep(1);
-                }
+					}
+					finally
+					{
+						_fftLock.ExitReadLock();
+					}
+					Thread.Sleep(1);
+				}
 			}
 		});
 
@@ -286,78 +315,87 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 				}
 
 				DateTime lastTransmission = DateTime.MinValue;
-				while (length == getSignalLength())
+				while (true)
 				{
 					if (DateTime.UtcNow - lastTransmission < TimeSpan.FromSeconds(1.0 / 30))
 					{
 						Thread.Sleep(5);
 						continue;
 					}
-					if (!_state.Running || _runId != localRunId) return;
-					double xMax = 0;
-					switch (_state.TimeMode)
+					_fftLock.TryEnterReadLock(-1);
+					try
 					{
-						case "time":
-							for (var ch = 0; ch < channelData.Length; ch++)
-							{
-								if (_state.Channels[ch].ChannelActive)
+						if (length != getSignalLength()) break; if (!_state.Running || _runId != localRunId) return;
+						double xMax = 0;
+						switch (_state.TimeMode)
+						{
+							case "time":
+								for (var ch = 0; ch < channelData.Length; ch++)
 								{
-									_buffer[ch].PeekHead(_state.FFTLength, channelData[ch], readPastTail: true);
-								}
-							}
-							xMax = _dt * (_state.FFTLength - 1);
-							break;
-						case "fft":
-							var preferDisplay = _state.FFTAveragingMode == "prefer-display";
-							for (var ch = 0; ch < channelData.Length; ch++)
-							{
-								if (_state.Channels[ch].ChannelActive)
-								{
-									if (preferDisplay)
+									if (_state.Channels[ch].ChannelActive)
 									{
-										for (var j = 0; j < length; j++)
-											channelData[ch][j] = (float)_fftStorage[ch][j];
+										_buffer[ch].PeekHead(_state.FFTLength, channelData[ch], readPastTail: true);
 									}
-									else
+								}
+								xMax = _dt * (_state.FFTLength - 1);
+								break;
+							case "fft":
+								var preferDisplay = _state.FFTAveragingMode == "prefer-display";
+								for (var ch = 0; ch < channelData.Length; ch++)
+								{
+									if (_state.Channels[ch].ChannelActive)
 									{
-										for (var j = 0; j < length; j++)
+										if (preferDisplay)
 										{
-											channelData[ch][j] = (float)Math.Log10(_fftStorage[ch][j]) * 10;
+											for (var j = 0; j < length; j++)
+												channelData[ch][j] = (float)_fftStorage[ch][j];
+										}
+										else
+										{
+											for (var j = 0; j < length; j++)
+											{
+												channelData[ch][j] = (float)Math.Log10(_fftStorage[ch][j]) * 10;
+											}
 										}
 									}
 								}
-							}
-							xMax = 1 / (2 * _dt);
-							break;
+								xMax = 1 / (2 * _dt);
+								break;
+						}
+						_deviceManager?.SendStreamData(_deviceManager.GetDeviceId(this), (data, customization) =>
+						{
+							var xMinWish = customization == null ? data.XMin : Convert.ToSingle(customization["xMin"]);
+							var xMaxWish = customization == null ? data.XMax : Convert.ToSingle(customization["xMax"]);
+							var xMin = 0f;
+							var xMax = 0f;
+							var length = 0;
+							var reducedData = data.Data.Select((d, i) =>
+							{
+								if (d == null || !_state.Channels[i].ChannelActive) return null;
+								var decimation = SignalUtils.DecimateSignal(d, data.XMin, data.XMax, xMinWish, xMaxWish, 1000);
+								xMin = decimation.xMin;
+								xMax = decimation.xMax;
+								length = decimation.signal.Length;
+								return decimation.signal;
+							}).ToArray();
+							return new OscilloscopeStreamData
+							{
+								XMin = data.XMin,
+								XMax = data.XMax,
+								XMinDecimated = xMin,
+								XMaxDecimated = xMax,
+								Mode = data.Mode,
+								Length = length,
+								Data = reducedData
+							};
+						}, new OscilloscopeStreamData { XMin = 0f, XMax = (float)xMax, Mode = _state.TimeMode, Length = length, Data = channelData });
+						lastTransmission = DateTime.UtcNow;
 					}
-					_deviceManager?.SendStreamData(_deviceManager.GetDeviceId(this), (data, customization) =>
+					finally
 					{
-						var xMinWish = customization == null ? data.XMin : Convert.ToSingle(customization["xMin"]);
-						var xMaxWish = customization == null ? data.XMax : Convert.ToSingle(customization["xMax"]);
-						var xMin = 0f;
-						var xMax = 0f;
-						var length = 0;
-						var reducedData = data.Data.Select((d, i) =>
-						{
-							if (d == null || !_state.Channels[i].ChannelActive) return null;
-							var decimation = SignalUtils.DecimateSignal(d, data.XMin, data.XMax, xMinWish, xMaxWish, 1000);
-							xMin = decimation.xMin;
-							xMax = decimation.xMax;
-							length = decimation.signal.Length;
-							return decimation.signal;
-						}).ToArray();
-						return new OscilloscopeStreamData
-						{
-							XMin = data.XMin,
-							XMax = data.XMax,
-							XMinDecimated = xMin,
-							XMaxDecimated = xMax,
-							Mode = data.Mode,
-							Length = length,
-							Data = reducedData
-						};
-					}, new OscilloscopeStreamData { XMin = 0f, XMax = (float)xMax, Mode = _state.TimeMode, Length = length, Data = channelData });
-					lastTransmission = DateTime.UtcNow;
+						_fftLock.ExitReadLock();
+					}
+
 				}
 			}
 		});
