@@ -62,19 +62,11 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 
 	public void ResetFFTStorage()
 	{
-		_fftLock.TryEnterWriteLock(-1);
-		try
-		{
-			for (int i = 0; i < _fftStorage.Length; i++)
-				_fftStorage[i] = new double[_state.FFTLength / 2 + 1];
-			_acquiredFFTs = [0, 0, 0, 0];
-			_fftWindowFunction = new float[_state.FFTLength];
-			ResetFFTWindow();
-		}
-		finally
-		{
-			_fftLock.ExitWriteLock();
-		}
+		for (int i = 0; i < _fftStorage.Length; i++)
+			_fftStorage[i] = new double[_state.FFTLength / 2 + 1];
+		_acquiredFFTs = [0, 0, 0, 0];
+		_fftWindowFunction = new float[_state.FFTLength];
+		ResetFFTWindow();
 	}
 
 	protected void ResetFFTWindow()
