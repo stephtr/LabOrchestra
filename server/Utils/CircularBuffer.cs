@@ -41,6 +41,10 @@ public class CircularBuffer<T>
 			}
 			HasRolledOver = true;
 		}
+		if (Head > Capacity)
+		{
+			throw new InvalidOperationException("Head is out of bounds; this is clearly a (multi-threading) bug");
+		}
 	}
 
 	private T[] PeekTail(long count, T[]? values, bool incrementTail)

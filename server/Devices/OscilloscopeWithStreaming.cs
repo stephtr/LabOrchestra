@@ -1,6 +1,12 @@
 using NumSharp;
-using PetterPet.FFTSSharp;
+using System.Numerics;
 using System.IO.Compression;
+
+#if _WINDOWS
+using PetterPet.FFTSSharp;
+#else
+using Accord.Math.Transforms;
+#endif
 
 public class OscilloscopeStreamData
 {
@@ -13,7 +19,7 @@ public class OscilloscopeStreamData
 	public required float[]?[] Data { get; set; }
 }
 
-public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, IOscilloscope
+public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, IOscilloscope
 {
 	protected CircularBuffer<float>[] Buffer = [new(100_000_000), new(100_000_000), new(100_000_000), new(100_000_000)];
 	protected double[][] FFTStorage = [Array.Empty<double>(), Array.Empty<double>(), Array.Empty<double>(), Array.Empty<double>()];
@@ -25,7 +31,9 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 
 	public OscilloscopeWithStreaming()
 	{
-		FFTSManager.LoadAppropriateDll(FFTSManager.InstructionType.Auto);
+#if _WINDOWS
+			FFTSManager.LoadAppropriateDll(FFTSManager.InstructionType.Auto);
+#endif
 	}
 
 	virtual public void SetRange(int channel, int rangeInMillivolts)
@@ -215,28 +223,34 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 		return new { dt = Dt, df = Df };
 	}
 
-	protected int _runId = 0;
-	virtual public void Start()
+	private CancellationTokenSource? runCancellationTokenSource = null;
+	public void Start()
 	{
-		_runId++;
-		var localRunId = _runId;
+		if (State.Running) return;
+		runCancellationTokenSource = new();
 		ResetFFTStorage();
 
 		State.Running = true;
 
+		OnStart(runCancellationTokenSource.Token);
+
 		Task.Run(() =>
 		{
+			var token = runCancellationTokenSource.Token;
 			while (true)
 			{
 				var length = State.FFTLength;
 				var fftFactor = (float)(2 * Dt / length);
 				var fftIn = new float[length];
 				var fftOut = new float[length + 2];
+#if _WINDOWS
 				var ffts = FFTS.Real(FFTS.Forward, length);
+#else
+				var fftComplex = new Complex[length];
+#endif
 				while (State.FFTLength == length)
 				{
-					bool didSomeWork;
-					if (!State.Running || _runId != localRunId) return;
+					if (token.IsCancellationRequested) return;
 
 					FFTLock.TryEnterReadLock(-1);
 					try
@@ -244,18 +258,21 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 						// let's do a loop such that we don't have to constantly re-lock
 						for (var i = 0; i < 500_000; i += length)
 						{
-							didSomeWork = false;
 							var prefersDisplayMode = State.FFTAveragingMode == "prefer-display";
 							for (var ch = 0; ch < 4; ch++)
 							{
 								if (State.Channels[ch].ChannelActive && Buffer[ch].Count > length)
 								{
-									didSomeWork = true;
 									Buffer[ch].Pop(length, fftIn);
 									for (var j = 0; j < length; j++) fftIn[j] *= FFTWindowFunction[j];
+#if _WINDOWS
 									ffts.Execute(fftIn, fftOut);
-
 									for (var j = 0; j < length / 2 + 1; j++) fftOut[j] = (fftOut[2 * j] * fftOut[2 * j] + fftOut[2 * j + 1] * fftOut[2 * j + 1]) * fftFactor;
+#else
+									for (var j = 0; j < length; j++) fftComplex[j] = fftIn[j];
+									FourierTransform2.FFT(fftComplex, Accord.Math.FourierTransform.Direction.Forward);
+									for (var j = 0; j < length / 2 + 1; j++) fftOut[j] = (float)(fftComplex[j].Real * fftComplex[j].Real + fftComplex[j].Imaginary * fftComplex[j].Imaginary) * fftFactor;
+#endif
 									var newWeight = 1.0 / (AcquiredFFTs[ch] + 1);
 									if (State.FFTAveragingDurationInMilliseconds == 0)
 									{
@@ -277,7 +294,7 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 									AcquiredFFTs[ch]++;
 								}
 							}
-							if (!didSomeWork || !State.Running || _runId != localRunId) break;
+							if (token.IsCancellationRequested) break;
 						}
 					}
 					finally
@@ -291,6 +308,7 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 
 		Task.Run(() =>
 		{
+			var token = runCancellationTokenSource.Token;
 			var getSignalLength = () => State.DisplayMode switch
 				{
 					"time" => State.FFTLength,
@@ -317,7 +335,8 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 					FFTLock.TryEnterReadLock(-1);
 					try
 					{
-						if (length != getSignalLength()) break; if (!State.Running || _runId != localRunId) return;
+						if (length != getSignalLength()) break;
+						if (token.IsCancellationRequested) return;
 						double xMax = 0;
 						switch (State.DisplayMode)
 						{
@@ -393,9 +412,12 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 		});
 	}
 
+	abstract protected void OnStart(CancellationToken token);
+
 	virtual public void Stop()
 	{
 		State.Running = false;
+		runCancellationTokenSource?.Cancel();
 	}
 
 	virtual public void SetCoupling(int channel, string coupling)

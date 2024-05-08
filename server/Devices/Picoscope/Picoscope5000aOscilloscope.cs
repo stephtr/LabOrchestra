@@ -73,11 +73,8 @@ public class Picoscope5000aOscilloscope : OscilloscopeWithStreaming
 		if (wasRunning) Start();
 	}
 
-	override public void Start()
+	override protected void OnStart(CancellationToken cancellationToken)
 	{
-		base.Start();
-
-		var localRunId = _runId;
 		var buffer_length = 65536u * 50;
 		var buffers = new[] { new short[buffer_length], new short[buffer_length], new short[buffer_length], new short[buffer_length] };
 		var GCHandles = new GCHandle[4];
@@ -151,7 +148,7 @@ public class Picoscope5000aOscilloscope : OscilloscopeWithStreaming
 
 			try
 			{
-				while (State.Running && _runId == localRunId)
+				while (!cancellationToken.IsCancellationRequested)
 				{
 					lock (this)
 					{
