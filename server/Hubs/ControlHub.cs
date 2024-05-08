@@ -4,18 +4,18 @@ namespace ExperimentControl.Hubs;
 
 public class ControlHub : Hub
 {
-    private readonly DeviceManager _deviceManager;
+    private readonly DeviceManager DeviceManager;
     public ControlHub(DeviceManager deviceManager)
     {
-        _deviceManager = deviceManager;
+        DeviceManager = deviceManager;
     }
     public void Action(DeviceAction action)
     {
-        _deviceManager.Action(action);
+        DeviceManager.Action(action);
     }
 
     public Dictionary<string, object> GetFullState()
     {
-        return _deviceManager.GetFullState();
+        return DeviceManager.GetFullState();
     }
 }

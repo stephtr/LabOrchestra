@@ -40,7 +40,7 @@ export function Oscilloscope({
 		useControl<OscilloscopeState>(deviceId);
 	const selectionChangeHandler = useCallback(
 		(mode: Key) => {
-			action('setTimeMode', mode);
+			action('setDisplayMode', mode);
 		},
 		[action],
 	);
@@ -56,13 +56,13 @@ export function Oscilloscope({
 			<div className="col-start-2 flex items-center mr-1 gap-2">
 				<Tabs
 					isDisabled={!isConnected}
-					selectedKey={state?.timeMode}
+					selectedKey={state?.displayMode}
 					onSelectionChange={selectionChangeHandler}
 				>
 					<Tab title="Time trace" key="time" />
 					<Tab title="FFT" key="fft" />
 				</Tabs>
-				{state?.timeMode === 'fft' && (
+				{state?.displayMode === 'fft' && (
 					<ButtonGroup variant="flat">
 						<Button
 							className="w-full h-12"

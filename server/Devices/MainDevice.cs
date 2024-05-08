@@ -11,18 +11,18 @@ public class MainDevice : DeviceHandlerBase<MainState>
 {
 	public void SetSaveDirectory(string directory)
 	{
-		_state.SaveDirectory = directory;
+		State.SaveDirectory = directory;
 	}
 
 	public void SetLastFilename(string filename)
 	{
-		_state.LastFilename = filename;
+		State.LastFilename = filename;
 	}
 
 	public void Save()
 	{
 		var date = DateTime.Now - TimeSpan.FromHours(4); // in case it's after midnight
-		var path = _state.SaveDirectory.Replace("{year}", date.ToString("yyyy")).Replace("{date}", date.ToString("yyyy-MM-dd"));
+		var path = State.SaveDirectory.Replace("{year}", date.ToString("yyyy")).Replace("{date}", date.ToString("yyyy-MM-dd"));
 		if (!Directory.Exists(path))
 		{
 			Directory.CreateDirectory(path);
@@ -32,23 +32,23 @@ public class MainDevice : DeviceHandlerBase<MainState>
 			var captures = Regex.Match(Path.GetFileName(f), @"^(\d+)\s").Captures;
 			return captures.Count > 0 ? int.Parse(captures[0].Value) : 0;
 		}).Prepend(0).Max();
-		var baseFilepath = Path.Combine(path, $"{currentIndex + 1} {_state.LastFilename}");
+		var baseFilepath = Path.Combine(path, $"{currentIndex + 1} {State.LastFilename}");
 
-		_deviceManager!.SaveSnapshot(baseFilepath);
+		DeviceManager!.SaveSnapshot(baseFilepath);
 	}
 
 	override public object? GetSettings()
 	{
 		return new
 		{
-			_state.SaveDirectory,
-			_state.LastFilename,
+			State.SaveDirectory,
+			State.LastFilename,
 		};
 	}
 
 	public override void LoadSettings(JsonElement settings)
 	{
-		_state.SaveDirectory = settings.GetProperty("SaveDirectory").GetString()!;
-		_state.LastFilename = settings.GetProperty("LastFilename").GetString()!;
+		State.SaveDirectory = settings.GetProperty("SaveDirectory").GetString()!;
+		State.LastFilename = settings.GetProperty("LastFilename").GetString()!;
 	}
 }

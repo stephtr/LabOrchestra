@@ -12,7 +12,7 @@ public class OscilloscopeChannel
 public class OscilloscopeState
 {
 	public bool Running { get; set; } = true;
-	public string TimeMode { get; set; } = "time"; // Default mode is "time"
+	public string DisplayMode { get; set; } = "time"; // Default mode is "time"
 	public float FFTFrequency { get; set; } = 10e6f;
 	public int FFTLength { get; set; } = 32768;
 	public string FFTAveragingMode { get; set; } = "prefer-data";
@@ -34,12 +34,12 @@ interface IOscilloscope
 {
 	void Start();
 	void Stop();
-	void SetTimeMode(string mode);
+	void SetDisplayMode(string mode);
 	void SetFFTBinCount(int length);
 	void SetAveragingMode(string mode);
 	void SetFFTAveragingDuration(int durationInMilliseconds);
-	void ChannelActive(int channel, bool active);
-	void UpdateRange(int channel, int rangeInMillivolts);
+	void SetChannelActive(int channel, bool active);
+	void SetRange(int channel, int rangeInMillivolts);
 	void ResetFFTStorage();
 	void SetFFTWindowFunction(string windowFuction);
 	void SetTestSignalFrequency(float frequency);
@@ -49,68 +49,68 @@ interface IOscilloscope
 
 public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>, IOscilloscope
 {
-	private double[][] _fftStorage = [[], [], [], []];
-	private float[] _fftWindowFunction = Array.Empty<float>();
-	private float[][] _signal = [[], [], [], []];
-	private int[] _acquiredFFTs = { 0, 0, 0, 0 };
-	private double _updateInterval = 50e-3;
+	private double[][] FFTStorage = [[], [], [], []];
+	private float[] FFTWindowFunction = Array.Empty<float>();
+	private float[][] Signal = [[], [], [], []];
+	private int[] AcquiredFFTs = { 0, 0, 0, 0 };
+	private double UpdateInterval = 50e-3;
 	public OscilloscopeHandler()
 	{
 	}
 
 	public void ResetFFTStorage()
 	{
-		for (int i = 0; i < _fftStorage.Length; i++)
+		for (int i = 0; i < FFTStorage.Length; i++)
 		{
-			_fftStorage[i] = new double[_state.FFTLength / 2 + 1];
-			_signal[i] = new float[_state.FFTLength];
+			FFTStorage[i] = new double[State.FFTLength / 2 + 1];
+			Signal[i] = new float[State.FFTLength];
 		}
-		_acquiredFFTs = [0, 0, 0, 0];
+		AcquiredFFTs = [0, 0, 0, 0];
 		ResetFFTWindow();
 	}
 
 	private void ResetFFTWindow()
 	{
-		_fftWindowFunction = new float[_state.FFTLength];
-		var N = _state.FFTLength - 1;
-		switch (_state.FFTWindowFunction)
+		FFTWindowFunction = new float[State.FFTLength];
+		var N = State.FFTLength - 1;
+		switch (State.FFTWindowFunction)
 		{
 			case "rectangular":
-				for (int i = 0; i < _state.FFTLength; i++)
-					_fftWindowFunction[i] = 1;
+				for (int i = 0; i < State.FFTLength; i++)
+					FFTWindowFunction[i] = 1;
 				break;
 			case "hann":
-				for (int n = 0; n < _state.FFTLength; n++)
+				for (int n = 0; n < State.FFTLength; n++)
 				{
 					var sin = Math.Sin(Math.PI * n / N);
-					_fftWindowFunction[n] = (float)(sin * sin);
+					FFTWindowFunction[n] = (float)(sin * sin);
 				}
 				break;
 			case "blackman":
-				for (int n = 0; n < _state.FFTLength; n++)
-					_fftWindowFunction[n] = (float)(0.42 - 0.5 * Math.Cos(2 * Math.PI * n / N) + 0.08 * Math.Cos(4 * Math.PI * n / N));
+				for (int n = 0; n < State.FFTLength; n++)
+					FFTWindowFunction[n] = (float)(0.42 - 0.5 * Math.Cos(2 * Math.PI * n / N) + 0.08 * Math.Cos(4 * Math.PI * n / N));
 				break;
 			case "nuttall":
-				for (int n = 0; n < _state.FFTLength; n++)
-					_fftWindowFunction[n] = (float)(0.355768 - 0.487396 * Math.Cos(2 * Math.PI * n / N) + 0.144232 * Math.Cos(4 * Math.PI * n / N) - 0.012604 * Math.Cos(6 * Math.PI * n / N));
+				for (int n = 0; n < State.FFTLength; n++)
+					FFTWindowFunction[n] = (float)(0.355768 - 0.487396 * Math.Cos(2 * Math.PI * n / N) + 0.144232 * Math.Cos(4 * Math.PI * n / N) - 0.012604 * Math.Cos(6 * Math.PI * n / N));
 				break;
 			default:
-				throw new ArgumentException($"Invalid window function {_state.FFTWindowFunction}");
+				throw new ArgumentException($"Invalid window function {State.FFTWindowFunction}");
 		}
 	}
 
 	public void Start()
 	{
 		ResetFFTStorage();
-		_state.Running = true;
+		State.Running = true;
 		Task.Run(() =>
 		{
-			while (_state.Running)
+			while (State.Running)
 			{
 				try
 				{
 					DoWork();
-					Thread.Sleep((int)(_updateInterval * 1e3));
+					Thread.Sleep((int)(UpdateInterval * 1e3));
 				}
 				catch (Exception e)
 				{
@@ -121,21 +121,21 @@ public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>, IOscill
 	}
 	public void Stop()
 	{
-		_state.Running = false;
+		State.Running = false;
 	}
 
-	public void SetTimeMode(string mode)
+	public void SetDisplayMode(string mode)
 	{
 		if (mode != "time" && mode != "fft")
 			throw new ArgumentException($"Invalid mode {mode}");
-		_state.TimeMode = mode;
+		State.DisplayMode = mode;
 	}
 
 	public void SetFFTBinCount(int length)
 	{
 		if (length < 1)
 			throw new ArgumentException($"Invalid length {length}");
-		_state.FFTLength = length;
+		State.FFTLength = length;
 		ResetFFTStorage();
 	}
 
@@ -143,81 +143,81 @@ public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>, IOscill
 	{
 		if (mode != "prefer-data" && mode != "prefer-display")
 			throw new ArgumentException($"Invalid mode {mode}");
-		_state.FFTAveragingMode = mode;
+		State.FFTAveragingMode = mode;
 		ResetFFTStorage();
 	}
 
-	public void ChannelActive(int channel, bool active)
+	public void SetChannelActive(int channel, bool active)
 	{
-		_state.Channels[channel].ChannelActive = active;
-		_fftStorage[channel] = new double[_state.FFTLength / 2 + 1];
-		_acquiredFFTs[channel] = 0;
-		_signal[channel] = new float[_state.FFTLength];
+		State.Channels[channel].ChannelActive = active;
+		FFTStorage[channel] = new double[State.FFTLength / 2 + 1];
+		AcquiredFFTs[channel] = 0;
+		Signal[channel] = new float[State.FFTLength];
 	}
 
-	public void UpdateRange(int channel, int rangeInMillivolts)
+	public void SetRange(int channel, int rangeInMillivolts)
 	{
-		_state.Channels[channel].RangeInMillivolts = rangeInMillivolts;
+		State.Channels[channel].RangeInMillivolts = rangeInMillivolts;
 	}
 
 	private void DoWork()
 	{
-		var dt = 1 / _state.FFTFrequency * (1 / 2 + 1);
-		var df = _state.FFTFrequency / (_state.FFTLength / 2 + 1);
+		var dt = 1 / State.FFTFrequency * (1 / 2 + 1);
+		var df = State.FFTFrequency / (State.FFTLength / 2 + 1);
 
-		if (!_state.Running) return;
+		if (!State.Running) return;
 		var rand = new Random();
-		var channelData = new float[_state.Channels.Length][];
+		var channelData = new float[State.Channels.Length][];
 		for (var ch = 0; ch < channelData.Length; ch++)
 		{
-			if (_state.Channels[ch].ChannelActive)
+			if (State.Channels[ch].ChannelActive)
 			{
-				for (int i = 0; i < _state.FFTLength; i++)
-					_signal[ch][i] = rand.NextSingle() * 2 - 1;
+				for (int i = 0; i < State.FFTLength; i++)
+					Signal[ch][i] = rand.NextSingle() * 2 - 1;
 
-				var fft = new float[_state.FFTLength + 2];
-				Array.Copy(_signal[ch], fft, _state.FFTLength);
-				if (_state.FFTWindowFunction != "rectangular")
+				var fft = new float[State.FFTLength + 2];
+				Array.Copy(Signal[ch], fft, State.FFTLength);
+				if (State.FFTWindowFunction != "rectangular")
 				{
-					for (int i = 0; i < _state.FFTLength; i++)
-						fft[i] *= _fftWindowFunction[i];
+					for (int i = 0; i < State.FFTLength; i++)
+						fft[i] *= FFTWindowFunction[i];
 				}
-				Fourier.ForwardReal(fft, _state.FFTLength);
+				Fourier.ForwardReal(fft, State.FFTLength);
 
-				var newWeight = 1.0 / (_acquiredFFTs[ch] + 1);
-				if (_state.FFTAveragingDurationInMilliseconds == 0)
+				var newWeight = 1.0 / (AcquiredFFTs[ch] + 1);
+				if (State.FFTAveragingDurationInMilliseconds == 0)
 				{
 					newWeight = 1.0;
 				}
-				else if (_state.FFTAveragingDurationInMilliseconds > 0)
+				else if (State.FFTAveragingDurationInMilliseconds > 0)
 				{
-					newWeight = Math.Max(newWeight, 1 - Math.Exp(-_updateInterval / _state.FFTAveragingDurationInMilliseconds * 1000));
+					newWeight = Math.Max(newWeight, 1 - Math.Exp(-UpdateInterval / State.FFTAveragingDurationInMilliseconds * 1000));
 				}
 				var oldWeight = 1.0 - newWeight;
-				for (int i = 0; i < _state.FFTLength / 2 + 1; i++)
+				for (int i = 0; i < State.FFTLength / 2 + 1; i++)
 				{
 					var val = Convert.ToDouble(fft[i * 2] * fft[i * 2] + fft[i * 2 + 1] * fft[i * 2 + 1]);
 					val *= 1 / df;
-					if (_state.FFTAveragingMode == "prefer-display")
+					if (State.FFTAveragingMode == "prefer-display")
 					{
 						val = Math.Log10(val) * 10;
 					}
-					_fftStorage[ch][i] = _fftStorage[ch][i] * oldWeight + val * newWeight;
+					FFTStorage[ch][i] = FFTStorage[ch][i] * oldWeight + val * newWeight;
 				}
-				_acquiredFFTs[ch]++;
+				AcquiredFFTs[ch]++;
 
-				switch (_state.TimeMode)
+				switch (State.DisplayMode)
 				{
 					case "time":
-						channelData[ch] = _signal[ch];
+						channelData[ch] = Signal[ch];
 						break;
 					case "fft":
-						var data = new float[_state.FFTLength / 2 + 1];
-						for (int i = 0; i < _state.FFTLength / 2 + 1; i++)
+						var data = new float[State.FFTLength / 2 + 1];
+						for (int i = 0; i < State.FFTLength / 2 + 1; i++)
 							data[i] = Convert.ToSingle(
-								_state.FFTAveragingMode == "prefer-display" ?
-									_fftStorage[ch][i] :
-									Math.Log10(_fftStorage[ch][i]) * 10
+								State.FFTAveragingMode == "prefer-display" ?
+									FFTStorage[ch][i] :
+									Math.Log10(FFTStorage[ch][i]) * 10
 							);
 						channelData[ch] = data;
 						break;
@@ -226,18 +226,18 @@ public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>, IOscill
 		}
 		double xMax = 0;
 		int length = 0;
-		switch (_state.TimeMode)
+		switch (State.DisplayMode)
 		{
 			case "time":
-				xMax = dt * (_state.FFTLength - 1);
-				length = _state.FFTLength;
+				xMax = dt * (State.FFTLength - 1);
+				length = State.FFTLength;
 				break;
 			case "fft":
 				xMax = 1 / (2 * dt);
-				length = _state.FFTLength / 2 + 1;
+				length = State.FFTLength / 2 + 1;
 				break;
 		}
-		_deviceManager?.SendStreamData(_deviceManager.GetDeviceId(this), (data, customization) =>
+		DeviceManager?.SendStreamData(DeviceManager.GetDeviceId(this), (data, customization) =>
 		{
 			var xMinWish = customization == null ? data.XMin : Convert.ToSingle(customization["xMin"]);
 			var xMaxWish = customization == null ? data.XMax : Convert.ToSingle(customization["xMax"]);
@@ -254,60 +254,60 @@ public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>, IOscill
 				return decimation.signal;
 			}).ToArray();
 			return new { data.XMin, data.XMax, XMinDecimated = xMin, XMaxDecimated = xMax, data.Mode, Length = length, Data = reducedData };
-		}, new { XMin = 0f, XMax = (float)xMax, Mode = _state.TimeMode, Length = length, Data = channelData });
+		}, new { XMin = 0f, XMax = (float)xMax, Mode = State.DisplayMode, Length = length, Data = channelData });
 	}
 
 	public void SetFFTFrequency(float frequency)
 	{
-		_state.FFTFrequency = frequency;
+		State.FFTFrequency = frequency;
 	}
 
 	public void SetFFTAveragingDuration(int durationInMilliseconds)
 	{
-		_state.FFTAveragingDurationInMilliseconds = durationInMilliseconds;
+		State.FFTAveragingDurationInMilliseconds = durationInMilliseconds;
 	}
 
 	public void SetFFTWindowFunction(string windowFuction)
 	{
-		_state.FFTWindowFunction = windowFuction;
+		State.FFTWindowFunction = windowFuction;
 		ResetFFTWindow();
 	}
 
 	public void SetTestSignalFrequency(float frequency)
 	{
-		_state.TestSignalFrequency = frequency;
+		State.TestSignalFrequency = frequency;
 	}
 
 	public override object? OnSaveSnapshot(ZipArchive archive, string deviceId)
 	{
 		var savedAnyTraces = false;
-		for (var ch = 0; ch < _state.Channels.Length; ch++)
+		for (var ch = 0; ch < State.Channels.Length; ch++)
 		{
-			if (!_state.Channels[ch].ChannelActive) continue;
+			if (!State.Channels[ch].ChannelActive) continue;
 
 			using (var traceFile = archive.CreateEntry($"{deviceId}_C{ch + 1}").Open())
 			{
-				np.Save(_signal[ch], traceFile);
+				np.Save(Signal[ch], traceFile);
 			}
 
 			using (var fftFile = archive.CreateEntry($"{deviceId}_F{ch + 1}").Open())
 			{
-				np.Save(_fftStorage[ch], fftFile);
+				np.Save(FFTStorage[ch], fftFile);
 			}
 
 			savedAnyTraces = true;
 		}
 		if (!savedAnyTraces) return null;
 
-		var dt = 1 / _state.FFTFrequency * (1 / 2 + 1);
-		var t = Enumerable.Range(0, _state.FFTLength).Select(i => (float)(i * dt)).ToArray();
+		var dt = 1 / State.FFTFrequency * (1 / 2 + 1);
+		var t = Enumerable.Range(0, State.FFTLength).Select(i => (float)(i * dt)).ToArray();
 		using (var tFile = archive.CreateEntry($"{deviceId}_t").Open())
 		{
 			np.Save(t, tFile);
 		}
 
-		var df = _state.FFTFrequency / (_state.FFTLength / 2 + 1);
-		var f = Enumerable.Range(0, _state.FFTLength / 2 + 1).Select(i => (float)(i * df)).ToArray();
+		var df = State.FFTFrequency / (State.FFTLength / 2 + 1);
+		var f = Enumerable.Range(0, State.FFTLength / 2 + 1).Select(i => (float)(i * df)).ToArray();
 		using (var fFile = archive.CreateEntry($"{deviceId}_f").Open())
 		{
 			np.Save(f, fFile);
@@ -320,11 +320,11 @@ public class OscilloscopeHandler : DeviceHandlerBase<OscilloscopeState>, IOscill
 	{
 		if (coupling != "AC" && coupling != "DC")
 			throw new ArgumentException($"Invalid mode {coupling}");
-		_state.Channels[channel].Coupling = coupling;
+		State.Channels[channel].Coupling = coupling;
 	}
 
 	public void SetDatapointsToSnapshot(int datapoints)
 	{
-		_state.DatapointsToSnapshot = datapoints;
+		State.DatapointsToSnapshot = datapoints;
 	}
 }

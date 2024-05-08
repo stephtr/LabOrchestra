@@ -15,44 +15,44 @@ public class OscilloscopeStreamData
 
 public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, IOscilloscope
 {
-	protected CircularBuffer<float>[] _buffer = [new(100_000_000), new(100_000_000), new(100_000_000), new(100_000_000)];
-	protected double[][] _fftStorage = [Array.Empty<double>(), Array.Empty<double>(), Array.Empty<double>(), Array.Empty<double>()];
-	protected float[] _fftWindowFunction = Array.Empty<float>();
-	protected int[] _acquiredFFTs = { 0, 0, 0, 0 };
-	protected double _dt = 0;
-	protected double _df = 0;
-	private ReaderWriterLockSlim _fftLock = new();
+	protected CircularBuffer<float>[] Buffer = [new(100_000_000), new(100_000_000), new(100_000_000), new(100_000_000)];
+	protected double[][] FFTStorage = [Array.Empty<double>(), Array.Empty<double>(), Array.Empty<double>(), Array.Empty<double>()];
+	protected float[] FFTWindowFunction = Array.Empty<float>();
+	protected int[] AcquiredFFTs = { 0, 0, 0, 0 };
+	protected double Dt = 0;
+	protected double Df = 0;
+	private ReaderWriterLockSlim FFTLock = new();
 
 	public OscilloscopeWithStreaming()
 	{
 		FFTSManager.LoadAppropriateDll(FFTSManager.InstructionType.Auto);
 	}
 
-	virtual public void UpdateRange(int channel, int rangeInMillivolts)
+	virtual public void SetRange(int channel, int rangeInMillivolts)
 	{
-		_state.Channels[channel].RangeInMillivolts = rangeInMillivolts;
+		State.Channels[channel].RangeInMillivolts = rangeInMillivolts;
 	}
 
-	virtual public void ChannelActive(int channel, bool active)
+	virtual public void SetChannelActive(int channel, bool active)
 	{
-		_state.Channels[channel].ChannelActive = active;
+		State.Channels[channel].ChannelActive = active;
 	}
 
 	public void SetFFTFrequency(float freq)
 	{
-		var wasRunning = _state.Running;
+		var wasRunning = State.Running;
 		if (wasRunning)
 		{
 			Stop();
 		}
-		_fftLock.TryEnterWriteLock(-1);
+		FFTLock.TryEnterWriteLock(-1);
 		try
 		{
-			_state.FFTFrequency = freq;
+			State.FFTFrequency = freq;
 		}
 		finally
 		{
-			_fftLock.ExitWriteLock();
+			FFTLock.ExitWriteLock();
 		}
 		if (wasRunning)
 		{
@@ -62,71 +62,71 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 
 	public void ResetFFTStorage()
 	{
-		for (int i = 0; i < _fftStorage.Length; i++)
-			_fftStorage[i] = new double[_state.FFTLength / 2 + 1];
-		_acquiredFFTs = [0, 0, 0, 0];
-		_fftWindowFunction = new float[_state.FFTLength];
+		for (int i = 0; i < FFTStorage.Length; i++)
+			FFTStorage[i] = new double[State.FFTLength / 2 + 1];
+		AcquiredFFTs = [0, 0, 0, 0];
+		FFTWindowFunction = new float[State.FFTLength];
 		ResetFFTWindow();
 	}
 
 	protected void ResetFFTWindow()
 	{
-		var length = _state.FFTLength;
-		var N = _state.FFTLength - 1;
-		switch (_state.FFTWindowFunction)
+		var length = State.FFTLength;
+		var N = State.FFTLength - 1;
+		switch (State.FFTWindowFunction)
 		{
 			case "rectangular":
 				for (int n = 0; n < length; n++)
-					_fftWindowFunction[n] = 1;
+					FFTWindowFunction[n] = 1;
 				break;
 			case "hann":
 				for (int n = 0; n < length; n++)
 				{
 					var sin = Math.Sin(Math.PI * n / N);
-					_fftWindowFunction[n] = (float)(sin * sin);
+					FFTWindowFunction[n] = (float)(sin * sin);
 				}
 				break;
 			case "blackman":
 				for (int n = 0; n < length; n++)
-					_fftWindowFunction[n] = (float)(0.42 - 0.5 * Math.Cos(2 * Math.PI * n / N) + 0.08 * Math.Cos(4 * Math.PI * n / N));
+					FFTWindowFunction[n] = (float)(0.42 - 0.5 * Math.Cos(2 * Math.PI * n / N) + 0.08 * Math.Cos(4 * Math.PI * n / N));
 				break;
 			case "nuttall":
 				for (int n = 0; n < length; n++)
-					_fftWindowFunction[n] = (float)(0.355768 - 0.487396 * Math.Cos(2 * Math.PI * n / N) + 0.144232 * Math.Cos(4 * Math.PI * n / N) - 0.012604 * Math.Cos(6 * Math.PI * n / N));
+					FFTWindowFunction[n] = (float)(0.355768 - 0.487396 * Math.Cos(2 * Math.PI * n / N) + 0.144232 * Math.Cos(4 * Math.PI * n / N) - 0.012604 * Math.Cos(6 * Math.PI * n / N));
 				break;
 			default:
-				throw new ArgumentException($"Invalid window function {_state.FFTWindowFunction}");
+				throw new ArgumentException($"Invalid window function {State.FFTWindowFunction}");
 		}
 		var sum = 0f;
 		for (int n = 0; n < length; n++)
 		{
-			sum += _fftWindowFunction[n] * _fftWindowFunction[n];
+			sum += FFTWindowFunction[n] * FFTWindowFunction[n];
 		}
 		var normalizationFactor = length / (float)Math.Sqrt(sum);
 		for (int n = 0; n < length; n++)
 		{
-			_fftWindowFunction[n] *= normalizationFactor;
+			FFTWindowFunction[n] *= normalizationFactor;
 		}
 	}
 
-	public void SetTimeMode(string mode)
+	public void SetDisplayMode(string mode)
 	{
 		if (mode != "time" && mode != "fft")
 			throw new ArgumentException($"Invalid mode {mode}");
-		_state.TimeMode = mode;
+		State.DisplayMode = mode;
 	}
 
 	public void SetFFTBinCount(int length)
 	{
-		_fftLock.TryEnterWriteLock(-1);
+		FFTLock.TryEnterWriteLock(-1);
 		try
 		{
-			_state.FFTLength = length;
+			State.FFTLength = length;
 			ResetFFTStorage();
 		}
 		finally
 		{
-			_fftLock.ExitWriteLock();
+			FFTLock.ExitWriteLock();
 		}
 	}
 
@@ -134,33 +134,33 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 	{
 		if (mode != "prefer-data" && mode != "prefer-display")
 			throw new ArgumentException($"Invalid mode {mode}");
-		_state.FFTAveragingMode = mode;
+		State.FFTAveragingMode = mode;
 		ResetFFTStorage();
 	}
 
 	public void SetFFTAveragingDuration(int durationInMilliseconds)
 	{
-		_state.FFTAveragingDurationInMilliseconds = durationInMilliseconds;
+		State.FFTAveragingDurationInMilliseconds = durationInMilliseconds;
 	}
 
 	public void SetFFTWindowFunction(string windowFuction)
 	{
-		_fftLock.TryEnterWriteLock(-1);
+		FFTLock.TryEnterWriteLock(-1);
 		try
 		{
-			_state.FFTWindowFunction = windowFuction;
+			State.FFTWindowFunction = windowFuction;
 			ResetFFTWindow();
 		}
 		finally
 		{
-			_fftLock.ExitWriteLock();
+			FFTLock.ExitWriteLock();
 		}
 	}
 
 	private bool WasRunningBeforeSnapshot = false;
 	public override void OnBeforeSaveSnapshot()
 	{
-		WasRunningBeforeSnapshot = _state.Running;
+		WasRunningBeforeSnapshot = State.Running;
 		Stop();
 	}
 
@@ -171,18 +171,18 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 
 	public override object? OnSaveSnapshot(ZipArchive archive, string deviceId)
 	{
-		if (_dt == 0) return null;
-		var wasRunning = _state.Running;
+		if (Dt == 0) return null;
+		var wasRunning = State.Running;
 		if (wasRunning) Stop();
 		Thread.Sleep(10);
 		var traceLength = -1;
-		for (var ch = 0; ch < _state.Channels.Length; ch++)
+		for (var ch = 0; ch < State.Channels.Length; ch++)
 		{
-			if (!_state.Channels[ch].ChannelActive) continue;
+			if (!State.Channels[ch].ChannelActive) continue;
 
-			var hasBufferRolledOver = _buffer[ch].HasRolledOver;
-			var pointsToRead = Math.Min(hasBufferRolledOver ? _buffer[ch].Capacity : _buffer[ch].Count, _state.DatapointsToSnapshot);
-			var trace = _buffer[ch].PeekHead(pointsToRead, readPastTail: hasBufferRolledOver);
+			var hasBufferRolledOver = Buffer[ch].HasRolledOver;
+			var pointsToRead = Math.Min(hasBufferRolledOver ? Buffer[ch].Capacity : Buffer[ch].Count, State.DatapointsToSnapshot);
+			var trace = Buffer[ch].PeekHead(pointsToRead, readPastTail: hasBufferRolledOver);
 			if (traceLength == -1) traceLength = trace.Length;
 			if (traceLength != trace.Length) throw new Exception("The traces should all have the same length.");
 			using (var traceFile = archive.CreateEntry($"{deviceId}_C{ch + 1}").Open())
@@ -192,19 +192,19 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 
 			using (var fftFile = archive.CreateEntry($"{deviceId}_F{ch + 1}").Open())
 			{
-				np.Save(Array.ConvertAll(_fftStorage[ch], Convert.ToSingle), fftFile);
+				np.Save(Array.ConvertAll(FFTStorage[ch], Convert.ToSingle), fftFile);
 			}
 
 		}
 		if (traceLength == -1) return null;
 
-		var t = Enumerable.Range(0, traceLength).Select(i => (float)(i * _dt)).ToArray();
+		var t = Enumerable.Range(0, traceLength).Select(i => (float)(i * Dt)).ToArray();
 		using (var tFile = archive.CreateEntry($"{deviceId}_t").Open())
 		{
 			np.Save(t, tFile);
 		}
 
-		var f = Enumerable.Range(0, _state.FFTLength / 2 + 1).Select(i => (float)(i * _df)).ToArray();
+		var f = Enumerable.Range(0, State.FFTLength / 2 + 1).Select(i => (float)(i * Df)).ToArray();
 		using (var fFile = archive.CreateEntry($"{deviceId}_f").Open())
 		{
 			np.Save(f, fFile);
@@ -212,7 +212,7 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 
 		if (wasRunning) Start();
 
-		return new { dt = _dt, df = _df };
+		return new { dt = Dt, df = Df };
 	}
 
 	protected int _runId = 0;
@@ -222,48 +222,48 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 		var localRunId = _runId;
 		ResetFFTStorage();
 
-		_state.Running = true;
+		State.Running = true;
 
 		Task.Run(() =>
 		{
 			while (true)
 			{
-				var length = _state.FFTLength;
-				var fftFactor = (float)(2 * _dt / length);
+				var length = State.FFTLength;
+				var fftFactor = (float)(2 * Dt / length);
 				var fftIn = new float[length];
 				var fftOut = new float[length + 2];
 				var ffts = FFTS.Real(FFTS.Forward, length);
-				while (_state.FFTLength == length)
+				while (State.FFTLength == length)
 				{
 					bool didSomeWork;
-					if (!_state.Running || _runId != localRunId) return;
+					if (!State.Running || _runId != localRunId) return;
 
-					_fftLock.TryEnterReadLock(-1);
+					FFTLock.TryEnterReadLock(-1);
 					try
 					{
 						// let's do a loop such that we don't have to constantly re-lock
 						for (var i = 0; i < 500_000; i += length)
 						{
 							didSomeWork = false;
-							var prefersDisplayMode = _state.FFTAveragingMode == "prefer-display";
+							var prefersDisplayMode = State.FFTAveragingMode == "prefer-display";
 							for (var ch = 0; ch < 4; ch++)
 							{
-								if (_state.Channels[ch].ChannelActive && _buffer[ch].Count > length)
+								if (State.Channels[ch].ChannelActive && Buffer[ch].Count > length)
 								{
 									didSomeWork = true;
-									_buffer[ch].Pop(length, fftIn);
-									for (var j = 0; j < length; j++) fftIn[j] *= _fftWindowFunction[j];
+									Buffer[ch].Pop(length, fftIn);
+									for (var j = 0; j < length; j++) fftIn[j] *= FFTWindowFunction[j];
 									ffts.Execute(fftIn, fftOut);
 
 									for (var j = 0; j < length / 2 + 1; j++) fftOut[j] = (fftOut[2 * j] * fftOut[2 * j] + fftOut[2 * j + 1] * fftOut[2 * j + 1]) * fftFactor;
-									var newWeight = 1.0 / (_acquiredFFTs[ch] + 1);
-									if (_state.FFTAveragingDurationInMilliseconds == 0)
+									var newWeight = 1.0 / (AcquiredFFTs[ch] + 1);
+									if (State.FFTAveragingDurationInMilliseconds == 0)
 									{
 										newWeight = 1.0;
 									}
-									else if (_state.FFTAveragingDurationInMilliseconds > 0)
+									else if (State.FFTAveragingDurationInMilliseconds > 0)
 									{
-										newWeight = Math.Max(newWeight, 1 - (double)Math.Exp(-_dt * length / _state.FFTAveragingDurationInMilliseconds * 1000));
+										newWeight = Math.Max(newWeight, 1 - (double)Math.Exp(-Dt * length / State.FFTAveragingDurationInMilliseconds * 1000));
 									}
 									var oldWeight = 1.0 - newWeight;
 
@@ -272,17 +272,17 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 										for (var j = 0; j < length / 2 + 1; j++)
 											fftOut[j] = (float)Math.Log10(fftOut[j]) * 10;
 									}
-									var storage = _fftStorage[ch];
+									var storage = FFTStorage[ch];
 									for (var j = 0; j < length / 2 + 1; j++) storage[j] = storage[j] * oldWeight + fftOut[j] * newWeight;
-									_acquiredFFTs[ch]++;
+									AcquiredFFTs[ch]++;
 								}
 							}
-							if (!didSomeWork || !_state.Running || _runId != localRunId) break;
+							if (!didSomeWork || !State.Running || _runId != localRunId) break;
 						}
 					}
 					finally
 					{
-						_fftLock.ExitReadLock();
+						FFTLock.ExitReadLock();
 					}
 					Thread.Sleep(1);
 				}
@@ -291,16 +291,16 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 
 		Task.Run(() =>
 		{
-			var getSignalLength = () => _state.TimeMode switch
+			var getSignalLength = () => State.DisplayMode switch
 				{
-					"time" => _state.FFTLength,
-					"fft" => _state.FFTLength / 2 + 1,
-					_ => throw new ArgumentException($"Invalid time mode {_state.TimeMode}")
+					"time" => State.FFTLength,
+					"fft" => State.FFTLength / 2 + 1,
+					_ => throw new ArgumentException($"Invalid time mode {State.DisplayMode}")
 				};
 			while (true)
 			{
 				var length = getSignalLength();
-				var channelData = new float[_state.Channels.Length][];
+				var channelData = new float[State.Channels.Length][];
 				for (var i = 0; i < channelData.Length; i++)
 				{
 					channelData[i] = new float[length];
@@ -314,47 +314,47 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 						Thread.Sleep(5);
 						continue;
 					}
-					_fftLock.TryEnterReadLock(-1);
+					FFTLock.TryEnterReadLock(-1);
 					try
 					{
-						if (length != getSignalLength()) break; if (!_state.Running || _runId != localRunId) return;
+						if (length != getSignalLength()) break; if (!State.Running || _runId != localRunId) return;
 						double xMax = 0;
-						switch (_state.TimeMode)
+						switch (State.DisplayMode)
 						{
 							case "time":
 								for (var ch = 0; ch < channelData.Length; ch++)
 								{
-									if (_state.Channels[ch].ChannelActive)
+									if (State.Channels[ch].ChannelActive)
 									{
-										_buffer[ch].PeekHead(_state.FFTLength, channelData[ch], readPastTail: true);
+										Buffer[ch].PeekHead(State.FFTLength, channelData[ch], readPastTail: true);
 									}
 								}
-								xMax = _dt * (_state.FFTLength - 1);
+								xMax = Dt * (State.FFTLength - 1);
 								break;
 							case "fft":
-								var preferDisplay = _state.FFTAveragingMode == "prefer-display";
+								var preferDisplay = State.FFTAveragingMode == "prefer-display";
 								for (var ch = 0; ch < channelData.Length; ch++)
 								{
-									if (_state.Channels[ch].ChannelActive)
+									if (State.Channels[ch].ChannelActive)
 									{
 										if (preferDisplay)
 										{
 											for (var j = 0; j < length; j++)
-												channelData[ch][j] = (float)_fftStorage[ch][j];
+												channelData[ch][j] = (float)FFTStorage[ch][j];
 										}
 										else
 										{
 											for (var j = 0; j < length; j++)
 											{
-												channelData[ch][j] = (float)Math.Log10(_fftStorage[ch][j]) * 10;
+												channelData[ch][j] = (float)Math.Log10(FFTStorage[ch][j]) * 10;
 											}
 										}
 									}
 								}
-								xMax = 1 / (2 * _dt);
+								xMax = 1 / (2 * Dt);
 								break;
 						}
-						_deviceManager?.SendStreamData(_deviceManager.GetDeviceId(this), (data, customization) =>
+						DeviceManager?.SendStreamData(DeviceManager.GetDeviceId(this), (data, customization) =>
 						{
 							var xMinWish = customization == null ? data.XMin : Convert.ToSingle(customization["xMin"]);
 							var xMaxWish = customization == null ? data.XMax : Convert.ToSingle(customization["xMax"]);
@@ -363,7 +363,7 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 							var length = 0;
 							var reducedData = data.Data.Select((d, i) =>
 							{
-								if (d == null || !_state.Channels[i].ChannelActive) return null;
+								if (d == null || !State.Channels[i].ChannelActive) return null;
 								var decimation = SignalUtils.DecimateSignal(d, data.XMin, data.XMax, xMinWish, xMaxWish, 1000);
 								xMin = decimation.xMin;
 								xMax = decimation.xMax;
@@ -380,12 +380,12 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 								Length = length,
 								Data = reducedData
 							};
-						}, new OscilloscopeStreamData { XMin = 0f, XMax = (float)xMax, Mode = _state.TimeMode, Length = length, Data = channelData });
+						}, new OscilloscopeStreamData { XMin = 0f, XMax = (float)xMax, Mode = State.DisplayMode, Length = length, Data = channelData });
 						lastTransmission = DateTime.UtcNow;
 					}
 					finally
 					{
-						_fftLock.ExitReadLock();
+						FFTLock.ExitReadLock();
 					}
 
 				}
@@ -395,28 +395,28 @@ public class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, I
 
 	virtual public void Stop()
 	{
-		_state.Running = false;
+		State.Running = false;
 	}
 
 	virtual public void SetCoupling(int channel, string coupling)
 	{
 		if (coupling != "AC" && coupling != "DC")
 			throw new ArgumentException($"Invalid mode {coupling}");
-		_state.Channels[channel].Coupling = coupling;
+		State.Channels[channel].Coupling = coupling;
 	}
 
 	public void SetDatapointsToSnapshot(int datapoints)
 	{
-		_state.DatapointsToSnapshot = datapoints;
+		State.DatapointsToSnapshot = datapoints;
 	}
 
 	virtual public void SetTestSignalFrequency(float frequency)
 	{
-		_state.TestSignalFrequency = frequency;
+		State.TestSignalFrequency = frequency;
 	}
 
 	public override void Dispose()
 	{
-		_state.Running = false;
+		State.Running = false;
 	}
 }

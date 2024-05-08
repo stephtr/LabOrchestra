@@ -1,7 +1,7 @@
 /* eslint-disable no-constant-condition */
 export interface OscilloscopeState {
 	running: boolean;
-	timeMode: 'time' | 'fft';
+	displayMode: 'time' | 'fft';
 	fftFrequency: number;
 	fftLength: number;
 	fftAveragingMode: 'prefer-data' | 'prefer-display';

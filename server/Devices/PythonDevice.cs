@@ -4,43 +4,43 @@ using Python.Runtime;
 
 public class PythonDevice : IDeviceHandler
 {
-	private readonly Dictionary<string, PyObject> _methodCache = new();
-	private event Action<object>? _onStateUpdate;
-	private event Action<object>? _onStreamEvent;
-	protected DeviceManager? _deviceManager;
-	private PyModule _pyModule;
+	private readonly Dictionary<string, PyObject> MethodCache = new();
+	private event Action<object>? OnStateUpdate;
+	private event Action<object>? OnStreamEvent;
+	protected DeviceManager? DeviceManager;
+	private PyModule PyModule;
 	public PythonDevice(string filename)
 	{
 		using (Py.GIL())
 		{
-			_pyModule = Py.CreateScope();
-			_pyModule.Import("json", "_json");
-			_pyModule.Set("_send_status_update", new Action<string>(SendStateUpdate));
-			_pyModule.Exec("def send_status_update(partial_state=None): _send_status_update(_json.dumps(partial_state if partial_state else state))");
-			_pyModule.Exec("def _get_state(): return _json.dumps(state)");
+			PyModule = Py.CreateScope();
+			PyModule.Import("json", "_json");
+			PyModule.Set("_send_status_update", new Action<string>(SendStateUpdate));
+			PyModule.Exec("def send_status_update(partial_state=None): _send_status_update(_json.dumps(partial_state if partial_state else state))");
+			PyModule.Exec("def _get_state(): return _json.dumps(state)");
 
 			var script = File.ReadAllText(filename);
-			_pyModule.Exec(script);
+			PyModule.Exec(script);
 
 			dynamic inspect = Py.Import("inspect");
-			foreach (var name in _pyModule.Dir())
+			foreach (var name in PyModule.Dir())
 			{
 				var functionName = name.ToString();
 				if (functionName == null) continue;
-				var function = _pyModule.Get(functionName);
+				var function = PyModule.Get(functionName);
 				if (inspect.isfunction(function).As<bool>())
 				{
-					_methodCache[functionName.ToLower()] = function;
+					MethodCache[functionName.ToLower()] = function;
 				}
 			}
 		}
-		if (_methodCache.ContainsKey("main"))
+		if (MethodCache.ContainsKey("main"))
 		{
 			Task.Run(() =>
 			{
 				using (Py.GIL())
 				{
-					_methodCache["main"].Invoke();
+					MethodCache["main"].Invoke();
 				}
 			});
 		}
@@ -50,7 +50,7 @@ public class PythonDevice : IDeviceHandler
 	{
 		using (Py.GIL())
 		{
-			string stateJson = _methodCache["_get_state"].Invoke().As<string>();
+			string stateJson = MethodCache["_get_state"].Invoke().As<string>();
 			return JsonSerializer.Deserialize<dynamic>(stateJson) ?? new object();
 		}
 	}
@@ -58,7 +58,7 @@ public class PythonDevice : IDeviceHandler
 	public object HandleActionAsync(DeviceAction action)
 	{
 		var actionName = action.ActionName.ToLower();
-		if (_methodCache.TryGetValue(actionName, out var method))
+		if (MethodCache.TryGetValue(actionName, out var method))
 		{
 			try
 			{
@@ -80,32 +80,32 @@ public class PythonDevice : IDeviceHandler
 
 	public void SubscribeToStateUpdates(Action<object> onStateUpdate)
 	{
-		_onStateUpdate += onStateUpdate;
+		OnStateUpdate += onStateUpdate;
 	}
 
 	public void SubscribeToStreamEvents(Action<object> onStreamEvent)
 	{
-		_onStreamEvent += onStreamEvent;
+		OnStreamEvent += onStreamEvent;
 	}
 
 	public void SendStateUpdate(string serializedPartialState)
 	{
-		_onStateUpdate?.Invoke(JsonSerializer.Deserialize<dynamic>(serializedPartialState)!);
+		OnStateUpdate?.Invoke(JsonSerializer.Deserialize<dynamic>(serializedPartialState)!);
 	}
 
 	public void SendStreamData(object data)
 	{
-		_onStreamEvent?.Invoke(data);
+		OnStreamEvent?.Invoke(data);
 	}
 
 	public void SetDeviceManager(DeviceManager deviceManager)
 	{
-		_deviceManager = deviceManager;
+		DeviceManager = deviceManager;
 	}
 
 	public void Dispose()
 	{
-		_pyModule.Dispose();
+		PyModule.Dispose();
 	}
 
 	public object? OnSaveSnapshot(ZipArchive archive, string deviceId) { return null; }

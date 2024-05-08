@@ -3,19 +3,19 @@ using PS4000AImports;
 
 public class Picoscope4000aOscilloscope : OscilloscopeWithStreaming
 {
-	private short _handle;
+	private short Handle;
 	public Picoscope4000aOscilloscope()
 	{
-		var status = Imports.OpenUnit(out _handle, null!);
+		var status = Imports.OpenUnit(out Handle, null!);
 		if (status == PicoStatus.StatusCodes.PICO_POWER_SUPPLY_NOT_CONNECTED || status == PicoStatus.StatusCodes.PICO_USB3_0_DEVICE_NON_USB3_0_PORT)
 		{
-			status = Imports.ps4000aChangePowerSource(_handle, status);
+			status = Imports.ps4000aChangePowerSource(Handle, status);
 		}
 		if (status != PicoStatus.StatusCodes.PICO_OK)
 		{
 			throw new Exception("Failed to open Picoscope device");
 		}
-		Imports.SetDeviceResolution(_handle, Imports.DeviceResolution.PS4000A_DR_14BIT);
+		Imports.SetDeviceResolution(Handle, Imports.DeviceResolution.PS4000A_DR_14BIT);
 	}
 
 	private void SetChannel(int channel, int rangeInMillivolts, bool active, string coupling)
@@ -37,7 +37,7 @@ public class Picoscope4000aOscilloscope : OscilloscopeWithStreaming
 		};
 		lock (this)
 		{
-			var status = Imports.SetChannel(_handle, (Imports.Channel)channel, active ? (short)1 : (short)0, coupling == "AC" ? Imports.Coupling.AC : Imports.Coupling.DC, range, 0);
+			var status = Imports.SetChannel(Handle, (Imports.Channel)channel, active ? (short)1 : (short)0, coupling == "AC" ? Imports.Coupling.AC : Imports.Coupling.DC, range, 0);
 			if (status != PicoStatus.StatusCodes.PICO_OK)
 			{
 				throw new Exception("Failed to set channel range");
@@ -45,31 +45,31 @@ public class Picoscope4000aOscilloscope : OscilloscopeWithStreaming
 		}
 	}
 
-	override public void UpdateRange(int channel, int rangeInMillivolts)
+	override public void SetRange(int channel, int rangeInMillivolts)
 	{
-		var wasRunning = _state.Running;
+		var wasRunning = State.Running;
 		if (wasRunning) Stop();
-		SetChannel(channel, rangeInMillivolts, _state.Channels[channel].ChannelActive, _state.Channels[channel].Coupling);
-		base.UpdateRange(channel, rangeInMillivolts);
+		SetChannel(channel, rangeInMillivolts, State.Channels[channel].ChannelActive, State.Channels[channel].Coupling);
+		base.SetRange(channel, rangeInMillivolts);
 		if (wasRunning) Start();
 	}
 
-	override public void ChannelActive(int channel, bool active)
+	override public void SetChannelActive(int channel, bool active)
 	{
-		var wasRunning = _state.Running;
+		var wasRunning = State.Running;
 		if (wasRunning) Stop();
-		SetChannel(channel, _state.Channels[channel].RangeInMillivolts, active, _state.Channels[channel].Coupling);
-		base.ChannelActive(channel, active);
+		SetChannel(channel, State.Channels[channel].RangeInMillivolts, active, State.Channels[channel].Coupling);
+		base.SetChannelActive(channel, active);
 		if (wasRunning) Start();
 	}
 
 	override public void SetCoupling(int channel, string coupling)
 	{
-		var wasRunning = _state.Running;
+		var wasRunning = State.Running;
 		if (wasRunning) Stop();
 		if (coupling != "AC" && coupling != "DC")
 			throw new ArgumentException($"Invalid mode {coupling}");
-		SetChannel(channel, _state.Channels[channel].RangeInMillivolts, _state.Channels[channel].ChannelActive, coupling);
+		SetChannel(channel, State.Channels[channel].RangeInMillivolts, State.Channels[channel].ChannelActive, coupling);
 		base.SetCoupling(channel, coupling);
 		if (wasRunning) Start();
 	}
@@ -84,20 +84,29 @@ public class Picoscope4000aOscilloscope : OscilloscopeWithStreaming
 		var GCHandles = new GCHandle[4];
 		for (int ch = 0; ch < 4; ch++)
 		{
-			_buffer[ch].Clear();
+			Buffer[ch].Clear();
 			GCHandles[ch] = GCHandle.Alloc(buffers[ch], GCHandleType.Pinned);
-			Imports.SetDataBuffer(_handle, (Imports.Channel)ch, buffers[ch], (int)buffer_length, 0, Imports.DownSamplingMode.None);
+			Imports.SetDataBuffer(Handle, (Imports.Channel)ch, buffers[ch], (int)buffer_length, 0, Imports.DownSamplingMode.None);
 		}
-		var sampleInterval = (uint)(1e9 / 2 / _state.FFTFrequency);
-		Imports.MaximumValue(_handle, out var maxValue);
-		Imports.SetSimpleTrigger(_handle, 0, 0, 0, Imports.ThresholdDirection.None, 0, 0);
-		var status = Imports.RunStreaming(_handle, ref sampleInterval, Imports.ReportedTimeUnits.NanoSeconds, 0, buffer_length, 0, 1, Imports.DownSamplingMode.None, buffer_length);
+		void cleanupHandles()
+		{
+			for (int ch = 0; ch < 4; ch++)
+			{
+				GCHandles[ch].Free();
+			}
+		}
+
+		var sampleInterval = (uint)(1e9 / 2 / State.FFTFrequency);
+		Imports.MaximumValue(Handle, out var maxValue);
+		Imports.SetSimpleTrigger(Handle, 0, 0, 0, Imports.ThresholdDirection.None, 0, 0);
+		var status = Imports.RunStreaming(Handle, ref sampleInterval, Imports.ReportedTimeUnits.NanoSeconds, 0, buffer_length, 0, 1, Imports.DownSamplingMode.None, buffer_length);
 		if (status != PicoStatus.StatusCodes.PICO_OK)
 		{
+			cleanupHandles();
 			throw new Exception($"Failed to start acquisition ({status:X})");
 		}
-		_dt = sampleInterval * 1e-9;
-		_df = 1 / (2 * _dt) / (_state.FFTLength - 1);
+		Dt = sampleInterval * 1e-9;
+		Df = 1 / (2 * Dt) / (State.FFTLength - 1);
 
 		Task.Run(() =>
 		{
@@ -111,17 +120,17 @@ public class Picoscope4000aOscilloscope : OscilloscopeWithStreaming
 				triggerCount += 1;
 				if (autoStop != 0)
 				{
-					_state.Running = false;
+					State.Running = false;
 					SendStateUpdate(new { Running = false });
 				}
 				if (noOfSamples > 0)
 				{
 					for (int ch = 0; ch < 4; ch++)
 					{
-						if (_state.Channels[ch].ChannelActive)
+						if (State.Channels[ch].ChannelActive)
 						{
 							var buffer = buffers[ch];
-							var conversionFactor = _state.Channels[ch].RangeInMillivolts / (maxValue * 1000f);
+							var conversionFactor = State.Channels[ch].RangeInMillivolts / (maxValue * 1000f);
 							unsafe
 							{
 								fixed (short* bufferPtr = buffer)
@@ -135,26 +144,28 @@ public class Picoscope4000aOscilloscope : OscilloscopeWithStreaming
 									}
 								}
 							}
-							_buffer[ch].Push(values, noOfSamples);
+							Buffer[ch].Push(values, noOfSamples);
 						}
 					}
 				}
 			}
-
-			while (_state.Running && _runId == localRunId)
+			try
 			{
-				lock (this)
+				while (State.Running && _runId == localRunId)
 				{
-					for (var i = 0; i < 1000; i++)
+					lock (this)
 					{
-						Imports.GetStreamingLatestValues(_handle, StreamingCallback, IntPtr.Zero);
-						Thread.Sleep(0);
+						for (var i = 0; i < 1000; i++)
+						{
+							Imports.GetStreamingLatestValues(Handle, StreamingCallback, IntPtr.Zero);
+							Thread.Sleep(0);
+						}
 					}
 				}
 			}
-			for (int ch = 0; ch < 4; ch++)
+			finally
 			{
-				GCHandles[ch].Free();
+				cleanupHandles();
 			}
 		});
 	}
@@ -164,7 +175,7 @@ public class Picoscope4000aOscilloscope : OscilloscopeWithStreaming
 		base.Stop();
 		lock (this)
 		{
-			Imports.Stop(_handle);
+			Imports.Stop(Handle);
 		}
 	}
 
@@ -180,8 +191,8 @@ public class Picoscope4000aOscilloscope : OscilloscopeWithStreaming
 	{
 		base.Dispose();
 
-		Imports.Stop(_handle);
-		Imports.CloseUnit(_handle);
-		_handle = -1;
+		Imports.Stop(Handle);
+		Imports.CloseUnit(Handle);
+		Handle = -1;
 	}
 }

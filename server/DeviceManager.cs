@@ -10,18 +10,18 @@ public record DeviceAction(string DeviceId, string? ChannelId, string ActionName
 
 public class DeviceManager : IDisposable
 {
-	private readonly IHubContext<ControlHub> _controlHub;
-	private readonly IHubContext<StreamingHub> _streamingHub;
-	private Dictionary<string, IDeviceHandler> _deviceHandlers = new();
-	private List<string> _updateQueue = new();
-	private Timer? _updateTimer = null;
-	private const float _maxUpdateDelay = 0.05f;
+	private readonly IHubContext<ControlHub> ControlHub;
+	private readonly IHubContext<StreamingHub> StreamingHub;
+	private Dictionary<string, IDeviceHandler> DeviceHandlers = new();
+	private List<string> UpdateQueue = new();
+	private Timer? UpdateTimer = null;
+	private const float MaxUpdateDelay = 0.05f;
 	internal ConcurrentDictionary<string, Dictionary<string, Dictionary<object, object>>> StreamingContexts = new();
 
 	public DeviceManager(IHubContext<ControlHub> controlHub, IHubContext<StreamingHub> streamingHub)
 	{
-		_controlHub = controlHub;
-		_streamingHub = streamingHub;
+		ControlHub = controlHub;
+		StreamingHub = streamingHub;
 		RegisterDevice("het", new OscilloscopeHandler());
 		RegisterDevice("split", new OscilloscopeHandler());
 		RegisterDevice("main", new MainDevice());
@@ -31,7 +31,7 @@ public class DeviceManager : IDisposable
 
 	public void RegisterDevice(string deviceId, IDeviceHandler deviceHandler)
 	{
-		_deviceHandlers.Add(deviceId, deviceHandler);
+		DeviceHandlers.Add(deviceId, deviceHandler);
 		deviceHandler.SetDeviceManager(this);
 		deviceHandler.SubscribeToStateUpdates(state =>
 		{
@@ -47,18 +47,18 @@ public class DeviceManager : IDisposable
 
 	public void Action(DeviceAction action)
 	{
-		_deviceHandlers[action.DeviceId].HandleActionAsync(action);
-		_updateQueue.Add(action.DeviceId);
-		if (_updateTimer == null)
+		DeviceHandlers[action.DeviceId].HandleActionAsync(action);
+		UpdateQueue.Add(action.DeviceId);
+		if (UpdateTimer == null)
 		{
-			_updateTimer = new Timer(UpdateDevices, null, TimeSpan.FromSeconds(_maxUpdateDelay), TimeSpan.Zero);
+			UpdateTimer = new Timer(UpdateDevices, null, TimeSpan.FromSeconds(MaxUpdateDelay), TimeSpan.Zero);
 		}
 	}
 
 	public Dictionary<string, object> GetFullState()
 	{
 		var state = new Dictionary<string, object>();
-		foreach (var (deviceId, device) in _deviceHandlers)
+		foreach (var (deviceId, device) in DeviceHandlers)
 		{
 			state[deviceId] = device.GetState();
 		}
@@ -67,17 +67,17 @@ public class DeviceManager : IDisposable
 
 	public void SendPartialStateUpdateAsync(object partialState)
 	{
-		_controlHub.Clients.All.SendAsync("PartialStateUpdate", partialState);
+		ControlHub.Clients.All.SendAsync("PartialStateUpdate", partialState);
 	}
 
 	public void SendStreamData(string deviceId, object data)
 	{
-		_streamingHub.Clients.All.SendAsync("StreamData", deviceId, data);
+		StreamingHub.Clients.All.SendAsync("StreamData", deviceId, data);
 	}
 
 	public string GetDeviceId(IDeviceHandler deviceHandler)
 	{
-		return _deviceHandlers.FirstOrDefault(x => x.Value == deviceHandler).Key;
+		return DeviceHandlers.FirstOrDefault(x => x.Value == deviceHandler).Key;
 	}
 
 	public void SendStreamData<T>(string deviceId, Func<T, Dictionary<object, object>?, object> filter, T data)
@@ -86,24 +86,24 @@ public class DeviceManager : IDisposable
 		{
 			if (customizations.TryGetValue(deviceId, out var customization))
 			{
-				_streamingHub.Clients.Client(connectionId).SendAsync("StreamData", deviceId, filter(data, customization));
+				StreamingHub.Clients.Client(connectionId).SendAsync("StreamData", deviceId, filter(data, customization));
 			}
 			else
 			{
-				_streamingHub.Clients.Client(connectionId).SendAsync("StreamData", deviceId, filter(data, null));
+				StreamingHub.Clients.Client(connectionId).SendAsync("StreamData", deviceId, filter(data, null));
 			}
 		}
 	}
 
 	public void UpdateDevices(object? _ = null)
 	{
-		_updateTimer = null;
+		UpdateTimer = null;
 		var state = new Dictionary<string, object>();
-		foreach (var deviceId in _updateQueue)
+		foreach (var deviceId in UpdateQueue)
 		{
-			state[deviceId] = _deviceHandlers[deviceId].GetState();
+			state[deviceId] = DeviceHandlers[deviceId].GetState();
 		}
-		_updateQueue.Clear();
+		UpdateQueue.Clear();
 		SendPartialStateUpdateAsync(state);
 	}
 
@@ -111,11 +111,11 @@ public class DeviceManager : IDisposable
 	{
 		using var npzFile = new ZipArchive(new FileStream($"{baseFilepath}.npz", FileMode.CreateNew), ZipArchiveMode.Create);
 		var yamlFile = new Dictionary<string, object>();
-		foreach (var (_, device) in _deviceHandlers)
+		foreach (var (_, device) in DeviceHandlers)
 		{
 			device.OnBeforeSaveSnapshot();
 		}
-		foreach (var (deviceId, device) in _deviceHandlers)
+		foreach (var (deviceId, device) in DeviceHandlers)
 		{
 			var stateToWrite = device.OnSaveSnapshot(npzFile, deviceId);
 			if (stateToWrite != null)
@@ -123,7 +123,7 @@ public class DeviceManager : IDisposable
 				yamlFile[deviceId] = stateToWrite;
 			}
 		}
-		foreach (var (_, device) in _deviceHandlers)
+		foreach (var (_, device) in DeviceHandlers)
 		{
 			device.OnAfterSaveSnapshot();
 		}
@@ -136,7 +136,7 @@ public class DeviceManager : IDisposable
 	private void SaveSettings()
 	{
 		var state = new Dictionary<string, dynamic>();
-		foreach (var (deviceId, device) in _deviceHandlers)
+		foreach (var (deviceId, device) in DeviceHandlers)
 		{
 			var setting = device.GetSettings();
 			if (setting != null)
@@ -157,9 +157,9 @@ public class DeviceManager : IDisposable
 			foreach (var (deviceId, settingObject) in settings)
 			{
 				dynamic setting = settingObject;
-				if (_deviceHandlers.ContainsKey(deviceId))
+				if (DeviceHandlers.ContainsKey(deviceId))
 				{
-					_deviceHandlers[deviceId].LoadSettings(setting);
+					DeviceHandlers[deviceId].LoadSettings(setting);
 				}
 			}
 		}
@@ -172,10 +172,10 @@ public class DeviceManager : IDisposable
 	public void Dispose()
 	{
 		SaveSettings();
-		foreach (var (_, device) in _deviceHandlers)
+		foreach (var (_, device) in DeviceHandlers)
 		{
 			device.Dispose();
 		}
-		_deviceHandlers.Clear();
+		DeviceHandlers.Clear();
 	}
 }

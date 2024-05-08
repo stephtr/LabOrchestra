@@ -18,33 +18,33 @@ public interface IDeviceHandler : IDisposable
 
 public abstract class DeviceHandlerBase<TState> : IDeviceHandler where TState : class, new()
 {
-	private readonly Dictionary<string, MethodInfo> _methodCache = new();
-	protected TState _state = new TState();
-	private event Action<object>? _onStateUpdate;
-	private event Action<object>? _onStreamEvent;
-	protected DeviceManager? _deviceManager;
+	private readonly Dictionary<string, MethodInfo> MethodCache = new();
+	protected TState State = new TState();
+	private event Action<object>? OnStateUpdate;
+	private event Action<object>? OnStreamEvent;
+	protected DeviceManager? DeviceManager;
 	protected DeviceHandlerBase()
 	{
 		// Populate the method cache with the derived type's methods
 		var methods = GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance);
 		foreach (var method in methods)
 		{
-			if (!_methodCache.ContainsKey(method.Name.ToLower()))
+			if (!MethodCache.ContainsKey(method.Name.ToLower()))
 			{
-				_methodCache[method.Name.ToLower()] = method;
+				MethodCache[method.Name.ToLower()] = method;
 			}
 		}
 	}
 
 	public object GetState()
 	{
-		return _state;
+		return State;
 	}
 
 	public object HandleActionAsync(DeviceAction action)
 	{
 		var actionName = action.ActionName.ToLower();
-		if (_methodCache.TryGetValue(actionName, out var method))
+		if (MethodCache.TryGetValue(actionName, out var method))
 		{
 			try
 			{
@@ -87,22 +87,22 @@ public abstract class DeviceHandlerBase<TState> : IDeviceHandler where TState : 
 
 	public void SubscribeToStateUpdates(Action<object> onStateUpdate)
 	{
-		_onStateUpdate += onStateUpdate;
+		OnStateUpdate += onStateUpdate;
 	}
 
 	public void SubscribeToStreamEvents(Action<object> onStreamEvent)
 	{
-		_onStreamEvent += onStreamEvent;
+		OnStreamEvent += onStreamEvent;
 	}
 
 	public void SendStateUpdate(object partialState)
 	{
-		_onStateUpdate?.Invoke(partialState);
+		OnStateUpdate?.Invoke(partialState);
 	}
 
 	public void SendStreamData(object data)
 	{
-		_onStreamEvent?.Invoke(data);
+		OnStreamEvent?.Invoke(data);
 	}
 
 	private static object ConvertJsonElement(JsonElement element, Type targetType)
@@ -125,7 +125,7 @@ public abstract class DeviceHandlerBase<TState> : IDeviceHandler where TState : 
 
 	public void SetDeviceManager(DeviceManager deviceManager)
 	{
-		_deviceManager = deviceManager;
+		DeviceManager = deviceManager;
 	}
 
 	virtual public void Dispose() { }

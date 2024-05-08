@@ -87,7 +87,7 @@ export function ChannelButton({
 		<ButtonGroup variant="flat" className="w-full mt-2">
 			<Button
 				className={`w-full h-12 flex-1 border-l-8 ${borderClass} ${state?.channelActive ? '' : 'border-opacity-20'}`}
-				onPress={() => action('channelActive', !state.channelActive)}
+				onPress={() => action('setChannelActive', !state.channelActive)}
 				isDisabled={!state}
 			>
 				{label}
@@ -113,7 +113,7 @@ export function ChannelButton({
 						value={currentRange}
 						onChange={(v) => setCurrentRange(v as number)}
 						onChangeEnd={(v) => {
-							action('updateRange', ranges[v as number]);
+							action('setRange', ranges[v as number]);
 							if (state)
 								setCurrentRange(
 									ranges.indexOf(state.rangeInMillivolts),
