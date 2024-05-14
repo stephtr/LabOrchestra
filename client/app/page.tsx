@@ -24,7 +24,7 @@ interface MainState {
 export default function Home() {
 	const { isConnected, action, state } = useControl<MainState>('main');
 	return (
-		<div className="[&_.dock-panel]:bg-transparent h-full">
+		<div className="[&_.dock-panel]:dark:bg-slate-950 h-full">
 			<DockLayout
 				style={{ width: '100%', height: '100%' }}
 				defaultLayout={{
