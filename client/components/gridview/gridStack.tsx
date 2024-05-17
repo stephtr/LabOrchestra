@@ -94,7 +94,9 @@ export function GridStack({
 						style={
 							isLastChild || !fractions[index]
 								? { flex: '1' }
-								: { height: `${fractions[index][1] * 100}%` }
+								: {
+										height: `calc(${fractions[index][1] * 100}% - ${0.5 * (1 - 1 / children.length)}rem)`,
+									}
 						}
 						className="overflow-hidden"
 					>
