@@ -19,13 +19,13 @@
 		"framer-motion": "^11.0.25",
 		"lodash": "^4.17.21",
 		"next": "14.2.3",
-		"rc-dock": "^3.2.19",
 		"react": "^18",
 		"react-chartjs-2": "^5.2.0",
 		"react-dom": "^18",
 		"react-split-pane": "^2.0.3",
 		"uplot": "^1.6.30",
-		"uplot-react": "^1.1.5"
+		"uplot-react": "^1.1.5",
+		"use-resize-observer": "^9.1.0"
 	},
 	"devDependencies": {
 		"@next/eslint-plugin-next": "^14.2.2",
