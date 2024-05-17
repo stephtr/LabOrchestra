@@ -20,9 +20,11 @@ function Splitter({ onMove }: { onMove: (position: number) => void }) {
 	return (
 		// eslint-disable-next-line jsx-a11y/no-static-element-interactions
 		<div
-			className="splitter h-2 cursor-ns-resize bg-zinc-900 hover:bg-zinc-800 select-none"
+			className="splitter h-2 cursor-ns-resize bg-zinc-900 hover:bg-zinc-800 text-zinc-600 hover:text-zinc-500 select-none text-center leading-[0.5rem]"
 			onMouseDown={startDragging}
-		/>
+		>
+			•••
+		</div>
 	);
 }
 
