@@ -109,28 +109,58 @@ public class DeviceManager : IDisposable
 
 	public void SaveSnapshot(string baseFilepath)
 	{
-		using var npzFile = new ZipArchive(new FileStream($"{baseFilepath}.npz", FileMode.CreateNew), ZipArchiveMode.Create);
 		var yamlFile = new Dictionary<string, object>();
 		foreach (var (_, device) in DeviceHandlers)
 		{
 			device.OnBeforeSaveSnapshot();
 		}
-		foreach (var (deviceId, device) in DeviceHandlers)
+		var fileStreams = new ConcurrentDictionary<string, FileStream>();
+		Stream getStream(string filename)
 		{
-			var stateToWrite = device.OnSaveSnapshot(npzFile, deviceId);
+			fileStreams[filename] = new FileStream(Path.GetTempFileName(), FileMode.OpenOrCreate);
+			return fileStreams[filename];
+		}
+		Parallel.ForEach(DeviceHandlers, (kvp) =>
+		{
+			var (deviceId, device) = kvp;
+			var stateToWrite = device.OnSaveSnapshot(getStream, deviceId);
 			if (stateToWrite != null)
 			{
 				yamlFile[deviceId] = stateToWrite;
 			}
-		}
+		});
 		foreach (var (_, device) in DeviceHandlers)
 		{
 			device.OnAfterSaveSnapshot();
 		}
-		if (yamlFile.Count == 0) return;
 		var serializer = new SerializerBuilder().WithNamingConvention(CamelCaseNamingConvention.Instance).Build();
 		var yaml = serializer.Serialize(yamlFile);
 		File.WriteAllText($"{baseFilepath}.yaml", yaml);
+
+		if (fileStreams.Count == 0) return;
+		Task.Run(() =>
+		{
+			Console.WriteLine("Saving snapshot to npz...");
+			try
+			{
+				using var npzFile = new ZipArchive(new FileStream($"{baseFilepath}.npz", FileMode.CreateNew), ZipArchiveMode.Create);
+				fileStreams.Where((s) => s.Value.Length > 0).ToList().ForEach(x =>
+				{
+					x.Value.Position = 0;
+					var entry = npzFile.CreateEntry(x.Key);
+					var entryStream = entry.Open();
+					x.Value.CopyTo(entryStream);
+					entryStream.Dispose();
+					x.Value.Dispose();
+					File.Delete(x.Value.Name);
+				});
+				Console.WriteLine("Snapshot saved.");
+			}
+			catch (Exception e)
+			{
+				Console.WriteLine("Error saving snapshot: " + e.Message);
+			}
+		});
 	}
 
 	private void SaveSettings()

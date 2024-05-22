@@ -177,7 +177,7 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 		if (WasRunningBeforeSnapshot) Start();
 	}
 
-	public override object? OnSaveSnapshot(ZipArchive archive, string deviceId)
+	public override object? OnSaveSnapshot(Func<string, Stream> getStream, string deviceId)
 	{
 		if (Dt == 0) return null;
 		var wasRunning = State.Running;
@@ -193,30 +193,22 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 			var trace = Buffer[ch].PeekHead(pointsToRead, readPastTail: hasBufferRolledOver);
 			if (traceLength == -1) traceLength = trace.Length;
 			if (traceLength != trace.Length) throw new Exception("The traces should all have the same length.");
-			using (var traceFile = archive.CreateEntry($"{deviceId}_C{ch + 1}").Open())
-			{
-				np.Save(trace, traceFile);
-			}
 
-			using (var fftFile = archive.CreateEntry($"{deviceId}_F{ch + 1}").Open())
-			{
-				np.Save(Array.ConvertAll(FFTStorage[ch], Convert.ToSingle), fftFile);
-			}
+			var traceFile = getStream($"{deviceId}_C{ch + 1}");
+			np.Save(trace, traceFile);
 
+			var fftFile = getStream($"{deviceId}_F{ch + 1}");
+			np.Save(Array.ConvertAll(FFTStorage[ch], Convert.ToSingle), fftFile);
 		}
 		if (traceLength == -1) return null;
 
 		var t = Enumerable.Range(0, traceLength).Select(i => (float)(i * Dt)).ToArray();
-		using (var tFile = archive.CreateEntry($"{deviceId}_t").Open())
-		{
-			np.Save(t, tFile);
-		}
+		var tFile = getStream($"{deviceId}_t");
+		np.Save(t, tFile);
 
 		var f = Enumerable.Range(0, State.FFTLength / 2 + 1).Select(i => (float)(i * Df)).ToArray();
-		using (var fFile = archive.CreateEntry($"{deviceId}_f").Open())
-		{
-			np.Save(f, fFile);
-		}
+		var fFile = getStream($"{deviceId}_f");
+		np.Save(f, fFile);
 
 		if (wasRunning) Start();
 
