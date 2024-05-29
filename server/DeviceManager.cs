@@ -55,6 +55,11 @@ public class DeviceManager : IDisposable
 		}
 	}
 
+	public object Request(DeviceAction action)
+	{
+		return DeviceHandlers[action.DeviceId].HandleActionAsync(action);
+	}
+
 	public Dictionary<string, object> GetFullState()
 	{
 		var state = new Dictionary<string, object>();

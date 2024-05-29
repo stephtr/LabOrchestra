@@ -14,6 +14,10 @@ public class ControlHub : Hub
         DeviceManager.Action(action);
     }
 
+	public object Request(DeviceAction action) {
+		return DeviceManager.Request(action);
+	}
+
     public Dictionary<string, object> GetFullState()
     {
         return DeviceManager.GetFullState();

@@ -2,8 +2,8 @@ public class DemoOscilloscope : OscilloscopeWithStreaming
 {
 	override protected void OnStart(CancellationToken cancellationToken)
 	{
-		Dt = 1e-6f;
-		Df = 1 / (2 * Dt) / (State.FFTLength - 1);
+		Dt = 1 / 2f / State.FFTFrequency;
+		Df = 1 / (2 * Dt) / (State.FFTLength / 2);
 
 		var buffer_length = 65536u;
 

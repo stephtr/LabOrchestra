@@ -1,6 +1,5 @@
 using NumSharp;
 using System.Numerics;
-using System.IO.Compression;
 
 #if _WINDOWS
 using PetterPet.FFTSSharp;
@@ -17,6 +16,13 @@ public class OscilloscopeStreamData
 	public required string Mode { get; set; }
 	public required int Length { get; set; }
 	public required float[]?[] Data { get; set; }
+}
+
+public class OscilloscopeFFTData
+{
+	public required double fMin { get; set; }
+	public required double fMax { get; set; }
+	public required float[][] data { get; set; }
 }
 
 public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, IOscilloscope
@@ -402,6 +408,41 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 				}
 			}
 		});
+	}
+
+	public OscilloscopeFFTData GetFFTData(double fMin, double fMax)
+	{
+		FFTLock.TryEnterReadLock(-1);
+		try
+		{
+			var iMin = (int)(fMin / Df);
+			var iMax = (int)Math.Ceiling(fMax / Df);
+			iMin = Math.Max(0, iMin);
+			iMax = Math.Min(State.FFTLength / 2, fMax == 0 ? int.MaxValue : iMax);
+			fMin = iMin * Df;
+			fMax = iMax * Df;
+			var preferDisplay = State.FFTAveragingMode == "prefer-display";
+			var data = FFTStorage.Select((d, ch) =>
+			{
+				var dataFrom = d.Skip(iMin).Take(iMax - iMin + 1).ToArray();
+				var dataTo = new float[dataFrom.Length];
+				if (preferDisplay)
+				{
+					for (var j = 0; j < dataFrom.Length; j++)
+						dataTo[j] = (float)dataFrom[j];
+				}
+				else
+				{
+					for (var j = 0; j < dataFrom.Length; j++)
+					{
+						dataTo[j] = dataFrom[j] == 0 ? (float)dataFrom[j] : (float)Math.Log10(dataFrom[j]) * 10;
+					}
+				}
+				return dataTo;
+			}).ToArray();
+			return new OscilloscopeFFTData { fMin = fMin, fMax = fMax, data = data };
+		}
+		finally { FFTLock.ExitReadLock(); }
 	}
 
 	abstract protected void OnStart(CancellationToken token);
