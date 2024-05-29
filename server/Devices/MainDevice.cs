@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 public class MainState
 {
 	public string SaveDirectory { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Experiment");
-	public string LastFilename { get; set; } = "";
+	public string Filename { get; set; } = "";
 }
 
 public class MainDevice : DeviceHandlerBase<MainState>
@@ -14,9 +14,9 @@ public class MainDevice : DeviceHandlerBase<MainState>
 		State.SaveDirectory = directory;
 	}
 
-	public void SetLastFilename(string filename)
+	public void SetFilename(string filename)
 	{
-		State.LastFilename = filename;
+		State.Filename = filename;
 	}
 
 	public void Save()
@@ -32,7 +32,7 @@ public class MainDevice : DeviceHandlerBase<MainState>
 			var captures = Regex.Match(Path.GetFileName(f), @"^(\d+)\s").Captures;
 			return captures.Count > 0 ? int.Parse(captures[0].Value) : 0;
 		}).Prepend(0).Max();
-		var baseFilepath = Path.Combine(path, $"{currentIndex + 1} {State.LastFilename}");
+		var baseFilepath = Path.Combine(path, $"{currentIndex + 1} {State.Filename}");
 
 		DeviceManager!.SaveSnapshot(baseFilepath);
 	}
@@ -42,13 +42,13 @@ public class MainDevice : DeviceHandlerBase<MainState>
 		return new
 		{
 			State.SaveDirectory,
-			State.LastFilename,
+			State.Filename,
 		};
 	}
 
 	public override void LoadSettings(JsonElement settings)
 	{
 		State.SaveDirectory = settings.GetProperty("SaveDirectory").GetString()!;
-		State.LastFilename = settings.GetProperty("LastFilename").GetString()!;
+		State.Filename = settings.GetProperty("LastFilename").GetString()!;
 	}
 }

@@ -17,7 +17,7 @@ import {
 
 interface MainState {
 	saveDirectory: string;
-	lastFilename: string;
+	filename: string;
 }
 
 export default function Home() {
@@ -35,8 +35,8 @@ export default function Home() {
 							isDisabled={!isConnected}
 							state={state}
 							action={action}
-							actionName="setLastFilename"
-							variableName="lastFilename"
+							actionName="setFilename"
+							variableName="filename"
 						/>
 						<StateButton
 							className="ml-2"
