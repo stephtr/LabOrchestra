@@ -190,6 +190,7 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 		if (wasRunning) Stop();
 		Thread.Sleep(10);
 		var traceLength = -1;
+		var buffer = new float[State.FFTLength / 2 + 1];
 		for (var ch = 0; ch < State.Channels.Length; ch++)
 		{
 			if (!State.Channels[ch].ChannelActive) continue;
@@ -204,7 +205,20 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 			np.Save(trace, traceFile);
 
 			var fftFile = getStream($"{deviceId}_F{ch + 1}");
-			np.Save(Array.ConvertAll(FFTStorage[ch], Convert.ToSingle), fftFile);
+			var preferDisplay = State.FFTAveragingMode == "prefer-display";
+			if (preferDisplay)
+			{
+				for (var j = 0; j < FFTStorage[ch].Length; j++)
+					buffer[j] = (float)FFTStorage[ch][j];
+			}
+			else
+			{
+				for (var j = 0; j < FFTStorage[ch].Length; j++)
+				{
+					buffer[j] = FFTStorage[ch][j] == 0 ? (float)FFTStorage[ch][j] : (float)Math.Log10(FFTStorage[ch][j]) * 10;
+				}
+			}
+			np.Save(buffer, fftFile);
 		}
 		if (traceLength == -1) return null;
 
