@@ -196,8 +196,8 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 			if (!State.Channels[ch].ChannelActive) continue;
 
 			var hasBufferRolledOver = Buffer[ch].HasRolledOver;
-			var pointsToRead = Math.Min(hasBufferRolledOver ? Buffer[ch].Capacity : Buffer[ch].Count, State.DatapointsToSnapshot);
-			var trace = Buffer[ch].PeekHead(pointsToRead, readPastTail: hasBufferRolledOver);
+			var pointsToRead = Math.Min(Buffer[ch].CountIncludingAlreadyReadItems, State.DatapointsToSnapshot);
+			var trace = Buffer[ch].PeekHead(pointsToRead, readPastTail: true);
 			if (traceLength == -1) traceLength = trace.Length;
 			if (traceLength != trace.Length) throw new Exception("The traces should all have the same length.");
 

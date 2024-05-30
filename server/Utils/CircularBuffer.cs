@@ -121,6 +121,7 @@ public class CircularBuffer<T>
 	}
 
 	public long Count => Head >= Tail ? Head - Tail : Capacity - Tail + Head;
+	public long CountIncludingAlreadyReadItems => HasRolledOver ? Capacity : Head;
 
 	public T[] ToArray(bool readPastTail = false)
 	{
