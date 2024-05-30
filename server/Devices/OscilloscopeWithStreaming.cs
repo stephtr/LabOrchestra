@@ -215,7 +215,7 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 			{
 				for (var j = 0; j < FFTStorage[ch].Length; j++)
 				{
-					buffer[j] = FFTStorage[ch][j] == 0 ? (float)FFTStorage[ch][j] : (float)Math.Log10(FFTStorage[ch][j]) * 10;
+					buffer[j] = (float)Math.Log10(FFTStorage[ch][j]) * 10;
 				}
 			}
 			np.Save(buffer, fftFile);
