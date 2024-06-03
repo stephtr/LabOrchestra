@@ -101,6 +101,7 @@ export function GridStack({
 									}
 						}
 						className="overflow-hidden"
+						key={key}
 					>
 						{child}
 					</div>
@@ -110,7 +111,7 @@ export function GridStack({
 					: [
 							wrappedChild,
 							<Splitter
-								key={key}
+								key={`${key}splitter`}
 								onMove={(delta) => moveSeparator(index, delta)}
 							/>,
 						];
