@@ -7,9 +7,17 @@ interface Props {
 	series: uPlot.Series[];
 	scales: uPlot.Scales;
 	data: uPlot.AlignedData;
+	plugins?: uPlot.Plugin[];
 }
 
-export function UPlot({ className = '', axes, series, scales, data }: Props) {
+export function UPlot({
+	className = '',
+	axes,
+	series,
+	scales,
+	data,
+	plugins = [],
+}: Props) {
 	const ref = useRef<HTMLDivElement>(null);
 	const [plot, setPlot] = useState<uPlot | null>(null);
 	useEffect(() => {
@@ -17,6 +25,7 @@ export function UPlot({ className = '', axes, series, scales, data }: Props) {
 		const options: uPlot.Options = {
 			width: ref.current.offsetWidth,
 			height: ref.current.offsetHeight,
+			plugins,
 			series,
 			axes,
 			scales,
