@@ -276,7 +276,14 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 								if (State.Channels[ch].ChannelActive && Buffer[ch].Count > length)
 								{
 									Buffer[ch].Pop(length, fftIn);
-									for (var j = 0; j < length; j++) fftIn[j] *= FFTWindowFunction[j];
+									var vectorSize = Vector<float>.Count;
+									Parallel.For(0, length / vectorSize, idx => {
+										var i = idx * vectorSize;
+										var v1 = new Vector<float>(fftIn, i);
+										var v2 = new Vector<float>(FFTWindowFunction, i);
+										v1 *= v2;
+										v1.CopyTo(fftIn, i);
+									});
 #if _WINDOWS
 									ffts.Execute(fftIn, fftOut);
 									for (var j = 0; j < length / 2 + 1; j++) fftOut[j] = (fftOut[2 * j] * fftOut[2 * j] + fftOut[2 * j + 1] * fftOut[2 * j + 1]) * fftFactor;
@@ -302,6 +309,14 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 											fftOut[j] = (float)Math.Log10(fftOut[j]) * 10;
 									}
 									var storage = FFTStorage[ch];
+									/* Parallel.For(0, length / 2 / vectorSize, idx => {
+										var i = idx * vectorSize;
+										var v1 = new Vector<double>(storage, i);
+										var v2 = new Vector<float>(fftOut, i);
+										v1 *= oldWeight;
+										v1 += v2 * newWeight;
+										v1.CopyTo(fftIn, i);
+									}); */
 									for (var j = 0; j < length / 2 + 1; j++) storage[j] = storage[j] * oldWeight + fftOut[j] * newWeight;
 									AcquiredFFTs[ch]++;
 								}
