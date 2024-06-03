@@ -101,12 +101,14 @@ export function OscilloscopeChart({
 	);
 
 	const series = useMemo<uPlot.Series[]>(
-		() =>
-			validChannels.map<uPlot.Series>((i) => ({
+		() => [
+			{},
+			...validChannels.map<uPlot.Series>((i) => ({
 				label: `Channel ${i}`,
 				stroke: colors[i],
 				scale: `y${i}`,
 			})),
+		],
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 		[validChannels.join('')],
 	);
