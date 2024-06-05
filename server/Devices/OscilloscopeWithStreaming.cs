@@ -289,9 +289,9 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 									ffts.Execute(fftData, fftOut);
 									Parallel.For(0, length / 2 + 1, j => { fftData[j] = (fftOut[2 * j] * fftOut[2 * j] + fftOut[2 * j + 1] * fftOut[2 * j + 1]) * fftFactor; });
 #else
-									for (var j = 0; j < length; j++) fftComplex[j] = fftIn[j];
+									for (var j = 0; j < length; j++) fftComplex[j] = fftData[j];
 									FourierTransform2.FFT(fftComplex, Accord.Math.FourierTransform.Direction.Forward);
-									for (var j = 0; j < length / 2 + 1; j++) fftIn[j] = (float)(fftComplex[j].Real * fftComplex[j].Real + fftComplex[j].Imaginary * fftComplex[j].Imaginary) * fftFactor;
+									for (var j = 0; j < length / 2 + 1; j++) fftData[j] = (float)(fftComplex[j].Real * fftComplex[j].Real + fftComplex[j].Imaginary * fftComplex[j].Imaginary) * fftFactor;
 #endif
 									var newWeight = 1.0 / (AcquiredFFTs[ch] + 1);
 									if (State.FFTAveragingDurationInMilliseconds == 0)
