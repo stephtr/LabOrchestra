@@ -29,8 +29,8 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 {
 	protected CircularBuffer<float>[] Buffer = [new(100_000_000), new(100_000_000), new(100_000_000), new(100_000_000)];
 	protected double[][] FFTStorage = [Array.Empty<double>(), Array.Empty<double>(), Array.Empty<double>(), Array.Empty<double>()];
-	protected float[][] FFTPeakStorage = [new float[500], new float[500], new float[500], new float[500]];
-	protected float[] FFTPeakWindow = new float[500];
+	protected float[][] FFTPeakStorage = [new float[2000], new float[2000], new float[2000], new float[2000]];
+	protected float[] FFTPeakWindow = new float[2000];
 	protected int[] NextFFTPeakStorageIndex = [0, 0, 0, 0];
 	protected float[] FFTWindowFunction = Array.Empty<float>();
 	protected int[] AcquiredFFTs = { 0, 0, 0, 0 };
@@ -376,7 +376,7 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 				{
 					"time" => State.FFTLength,
 					"fft" => State.FFTLength / 2 + 1,
-					"het" => FFTPeakStorage[0].Length,
+					"het" => FFTPeakStorage[0].Length / 2 + 1,
 					_ => throw new ArgumentException($"Invalid time mode {State.DisplayMode}")
 				};
 #if _WINDOWS
@@ -443,28 +443,29 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 								break;
 							case "het":
 								var fftFactor = (float)(2 * Dt / length * State.FFTLength);
+								var originalLength = (length - 1) * 2;
 								for (var ch = 0; ch < channelData.Length; ch++)
 								{
 									if (State.Channels[ch].ChannelActive)
 									{
-										float[] data = new float[length];
-										float[] fftOut = new float[length];
+										float[] data = new float[originalLength];
+										float[] fftOut = new float[originalLength + 2];
 										var i = NextFFTPeakStorageIndex[ch];
 										FFTPeakStorage[ch].CopyTo(data, 0);
-										for (var j = 0; j < length; j++)
+										for (var j = 0; j < originalLength; j++)
 										{
-											data[j] *= FFTPeakWindow[(j - i + length) % length];
+											data[j] *= FFTPeakWindow[(j - i + originalLength) % originalLength];
 										}
 #if _WINDOWS
 										ffts.Execute(data, fftOut);
-										for (var j = 0; j < length / 2 + 1; j++)
+										for (var j = 0; j < length; j++)
 										{
 											channelData[ch][j] = (fftOut[2 * j] * fftOut[2 * j] + fftOut[2 * j + 1] * fftOut[2 * j + 1]) * fftFactor;
 										}
 #else
-										for (var j = 0; j < length; j++) fftComplex[j] = data[j];
+										for (var j = 0; j < originalLength; j++) fftComplex[j] = data[j];
 										FourierTransform2.FFT(fftComplex, Accord.Math.FourierTransform.Direction.Forward);
-										for (var j = 0; j < length / 2 + 1; j++) channelData[ch][j] = (float)(fftComplex[j].Real * fftComplex[j].Real + fftComplex[j].Imaginary * fftComplex[j].Imaginary) * fftFactor;
+										for (var j = 0; j < length; j++) channelData[ch][j] = (float)(fftComplex[j].Real * fftComplex[j].Real + fftComplex[j].Imaginary * fftComplex[j].Imaginary) * fftFactor;
 #endif
 										for (var j = 0; j < length; j++)
 										{
