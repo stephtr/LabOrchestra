@@ -61,8 +61,10 @@ export function Oscilloscope({
 				>
 					<Tab title="Time trace" key="time" />
 					<Tab title="FFT" key="fft" />
+					<Tab title="Het" key="het" />
 				</Tabs>
-				{state?.displayMode === 'fft' && (
+				{(state?.displayMode === 'fft' ||
+					state?.displayMode === 'het') && (
 					<ButtonGroup variant="flat">
 						<Button
 							className="w-full h-12"

@@ -112,8 +112,14 @@ export function OscilloscopeChart({
 						{
 							type: 'linear',
 							position: axisCountLeft > 2 ? 'right' : 'left',
-							min: data.Mode === 'fft' ? -120 : -c.range / 1000,
-							max: data.Mode === 'fft' ? 0 : +c.range / 1000,
+							min:
+								data.Mode === 'fft' || data.Mode === 'het'
+									? -120
+									: -c.range / 1000,
+							max:
+								data.Mode === 'fft' || data.Mode === 'het'
+									? 0
+									: +c.range / 1000,
 							grid: { color: '#555', tickColor: colors[c.id] },
 							ticks: {
 								color: colors[c.id],
@@ -138,14 +144,14 @@ export function OscilloscopeChart({
 					type: 'linear',
 					grid: { color: '#555' },
 					ticks: {
-						callback: (data.Mode === 'fft'
+						callback: (data.Mode === 'fft' || data.Mode === 'het'
 							? frequencyFormatterFactory(data.XMax)
 							: timeFormatterFactory(data.XMax)) as any,
 					},
 					min: data.XMin,
 					max: data.XMax,
 				},
-				...(data.Mode === 'fft' ? yFFT : yTime),
+				...(data.Mode === 'fft' || data.Mode === 'het' ? yFFT : yTime),
 			},
 			resizeDelay: 10,
 			maintainAspectRatio: false,
@@ -198,7 +204,10 @@ export function OscilloscopeChart({
 								.map(([d, i]) => ({
 									label: i.toString(),
 									yAxisID:
-										data.Mode === 'fft' ? 'yFFT' : `y${i}`,
+										data.Mode === 'fft' ||
+										data.Mode === 'het'
+											? 'yFFT'
+											: `y${i}`,
 									data: isStreamConnected ? d : [],
 									pointRadius: 0,
 									borderWidth: 2,
