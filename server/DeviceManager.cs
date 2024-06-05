@@ -22,8 +22,8 @@ public class DeviceManager : IDisposable
 	{
 		ControlHub = controlHub;
 		StreamingHub = streamingHub;
-		RegisterDevice("het", new DemoOscilloscope());
-		RegisterDevice("split", new DemoOscilloscope());
+		RegisterDevice("het", new Picoscope5000aOscilloscope());
+		RegisterDevice("split", new Picoscope4000aOscilloscope());
 		RegisterDevice("main", new MainDevice());
 		LoadSettings();
 		//RegisterDevice("myPressure", new PythonDevice("pressure.py"));

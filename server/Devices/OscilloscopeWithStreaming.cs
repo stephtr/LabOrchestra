@@ -38,7 +38,7 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 	public OscilloscopeWithStreaming()
 	{
 #if _WINDOWS
-			FFTSManager.LoadAppropriateDll(FFTSManager.InstructionType.Auto);
+		FFTSManager.LoadAppropriateDll(FFTSManager.InstructionType.Auto);
 #endif
 	}
 
@@ -253,7 +253,7 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 			{
 				var length = State.FFTLength;
 				var fftFactor = (float)(2 * Dt / length);
-				var fftIn = new float[length];
+				var fftData = new float[length];
 				var fftOut = new float[length + 2];
 #if _WINDOWS
 				var ffts = FFTS.Real(FFTS.Forward, length);
@@ -275,22 +275,23 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 							{
 								if (State.Channels[ch].ChannelActive && Buffer[ch].Count > length)
 								{
-									Buffer[ch].Pop(length, fftIn);
+									Buffer[ch].Pop(length, fftData);
 									var vectorSize = Vector<float>.Count;
-									Parallel.For(0, length / vectorSize, idx => {
+									Parallel.For(0, length / vectorSize, idx =>
+									{
 										var i = idx * vectorSize;
-										var v1 = new Vector<float>(fftIn, i);
+										var v1 = new Vector<float>(fftData, i);
 										var v2 = new Vector<float>(FFTWindowFunction, i);
 										v1 *= v2;
-										v1.CopyTo(fftIn, i);
+										v1.CopyTo(fftData, i);
 									});
 #if _WINDOWS
-									ffts.Execute(fftIn, fftOut);
-									for (var j = 0; j < length / 2 + 1; j++) fftOut[j] = (fftOut[2 * j] * fftOut[2 * j] + fftOut[2 * j + 1] * fftOut[2 * j + 1]) * fftFactor;
+									ffts.Execute(fftData, fftOut);
+									Parallel.For(0, length / 2 + 1, j => { fftData[j] = (fftOut[2 * j] * fftOut[2 * j] + fftOut[2 * j + 1] * fftOut[2 * j + 1]) * fftFactor; });
 #else
 									for (var j = 0; j < length; j++) fftComplex[j] = fftIn[j];
 									FourierTransform2.FFT(fftComplex, Accord.Math.FourierTransform.Direction.Forward);
-									for (var j = 0; j < length / 2 + 1; j++) fftOut[j] = (float)(fftComplex[j].Real * fftComplex[j].Real + fftComplex[j].Imaginary * fftComplex[j].Imaginary) * fftFactor;
+									for (var j = 0; j < length / 2 + 1; j++) fftIn[j] = (float)(fftComplex[j].Real * fftComplex[j].Real + fftComplex[j].Imaginary * fftComplex[j].Imaginary) * fftFactor;
 #endif
 									var newWeight = 1.0 / (AcquiredFFTs[ch] + 1);
 									if (State.FFTAveragingDurationInMilliseconds == 0)
@@ -306,7 +307,7 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 									if (prefersDisplayMode)
 									{
 										for (var j = 0; j < length / 2 + 1; j++)
-											fftOut[j] = (float)Math.Log10(fftOut[j]) * 10;
+											fftData[j] = (float)Math.Log10(fftData[j]) * 10;
 									}
 									var storage = FFTStorage[ch];
 									/* Parallel.For(0, length / 2 / vectorSize, idx => {
@@ -317,7 +318,7 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 										v1 += v2 * newWeight;
 										v1.CopyTo(fftIn, i);
 									}); */
-									for (var j = 0; j < length / 2 + 1; j++) storage[j] = storage[j] * oldWeight + fftOut[j] * newWeight;
+									Parallel.For(0, length / 2 + 1, (j) => { storage[j] = storage[j] * oldWeight + fftData[j] * newWeight; });
 									AcquiredFFTs[ch]++;
 								}
 							}
