@@ -176,10 +176,6 @@ export function OscilloscopeChart({
 							min: data.XMin,
 							max: data.XMax,
 						},
-						y: {
-							min: -1,
-							max: 1,
-						},
 					},
 				},
 			},
