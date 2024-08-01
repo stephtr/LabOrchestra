@@ -160,6 +160,7 @@ export function OscilloscopeChart({
 					pan: {
 						enabled: true,
 						mode: 'x',
+						scaleMode: 'y',
 						onPan: onPanOrZoom,
 					},
 					zoom: {
@@ -167,6 +168,7 @@ export function OscilloscopeChart({
 							enabled: true,
 						},
 						mode: 'x',
+						scaleMode: 'y',
 						onZoom: onPanOrZoom,
 					},
 					limits: {
