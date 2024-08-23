@@ -42,7 +42,7 @@ function frequencyFormatterFactory(maxVal: number) {
 	return (val: number) => `${formatter.format(val / 1e-3)} mHz`;
 }
 
-const colors = ['blue', 'red', 'green', 'yellow'];
+const colors = ['deepskyblue', 'red', 'green', 'yellow'];
 
 export function OscilloscopeChart({
 	state,
