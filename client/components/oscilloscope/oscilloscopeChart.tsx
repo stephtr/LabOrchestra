@@ -93,7 +93,8 @@ export function OscilloscopeChart({
 				type: 'linear',
 				min: -80,
 				max: 10,
-				grid: { color: '#555' },
+				grid: { color: '#999' },
+				ticks: { color: '#999' },
 			},
 		};
 		let axisCountLeft = 0;
@@ -114,7 +115,7 @@ export function OscilloscopeChart({
 							position: axisCountLeft > 2 ? 'right' : 'left',
 							min: data.Mode === 'fft' ? -120 : -c.range / 1000,
 							max: data.Mode === 'fft' ? 0 : +c.range / 1000,
-							grid: { color: '#555', tickColor: colors[c.id] },
+							grid: { color: '#999', tickColor: colors[c.id] },
 							ticks: {
 								color: colors[c.id],
 							},
@@ -136,8 +137,9 @@ export function OscilloscopeChart({
 			scales: {
 				x: {
 					type: 'linear',
-					grid: { color: '#555' },
+					grid: { color: '#999' },
 					ticks: {
+						color: '#999',
 						callback: (data.Mode === 'fft'
 							? frequencyFormatterFactory(data.XMax)
 							: timeFormatterFactory(data.XMax)) as any,
