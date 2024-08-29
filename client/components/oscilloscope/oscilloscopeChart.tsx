@@ -91,8 +91,8 @@ export function OscilloscopeChart({
 		const yFFT = {
 			yFFT: {
 				type: 'linear',
-				min: -120,
-				max: 0,
+				min: -80,
+				max: 10,
 				grid: { color: '#555' },
 			},
 		};
