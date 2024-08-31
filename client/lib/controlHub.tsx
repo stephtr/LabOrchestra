@@ -66,7 +66,8 @@ export function useControl<T = any>(deviceId: string) {
 
 export function useStream(deviceId: string, callback: (data: any) => void) {
 	const onStream = useCallback(
-		(streamDeviceId: string, data: any) => {
+		// NOTE: payload and deviceId are switched in order to not have a varying byte offset of the payload (and potential 4-byte-alignment issues)
+		(data: any, streamDeviceId: string) => {
 			if (streamDeviceId === deviceId) {
 				callback(data);
 			}

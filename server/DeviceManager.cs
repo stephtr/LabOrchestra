@@ -89,13 +89,14 @@ public class DeviceManager : IDisposable
 	{
 		foreach (var (connectionId, customizations) in StreamingContexts)
 		{
+			// NOTE: payload and deviceId are switched in order to not have a varying byte offset of the payload (and potential 4-byte-alignment issues)
 			if (customizations.TryGetValue(deviceId, out var customization))
 			{
-				StreamingHub.Clients.Client(connectionId).SendAsync("StreamData", deviceId, filter(data, customization));
+				StreamingHub.Clients.Client(connectionId).SendAsync("StreamData", filter(data, customization), deviceId);
 			}
 			else
 			{
-				StreamingHub.Clients.Client(connectionId).SendAsync("StreamData", deviceId, filter(data, null));
+				StreamingHub.Clients.Client(connectionId).SendAsync("StreamData", filter(data, null), deviceId);
 			}
 		}
 	}
