@@ -63,7 +63,19 @@ export function OscilloscopeChart({
 
 	const { isConnected: isStreamConnected, setCustomization } = useStream(
 		deviceId,
-		useCallback((newData: OscilloscopeStreamData) => setData(newData), []),
+		useCallback((newData: OscilloscopeStreamData) => {
+			newData.Data = newData.Data.map((d) =>
+				d
+					? new Float32Array(
+							d.buffer.slice(
+								d.byteOffset,
+								d.byteOffset + d.byteLength,
+							),
+						)
+					: null,
+			);
+			setData(newData);
+		}, []),
 	);
 	const labels = useMemo(
 		() =>

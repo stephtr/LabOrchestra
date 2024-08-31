@@ -15,7 +15,7 @@ public class OscilloscopeStreamData
 	public float XMaxDecimated { get; set; } = 0f;
 	public required string Mode { get; set; }
 	public required int Length { get; set; }
-	public required float[]?[] Data { get; set; }
+	public required byte[]?[] Data { get; set; }
 }
 
 public class OscilloscopeFFTData
@@ -416,7 +416,9 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 								xMin = decimation.xMin;
 								xMax = decimation.xMax;
 								length = decimation.signal.Length;
-								return decimation.signal;
+								var bytes = new byte[length * sizeof(float)];
+								System.Buffer.BlockCopy(decimation.signal, 0, bytes, 0, bytes.Length);
+								return bytes;
 							}).ToArray();
 							return new OscilloscopeStreamData
 							{
@@ -428,7 +430,7 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 								Length = length,
 								Data = reducedData
 							};
-						}, new OscilloscopeStreamData { XMin = 0f, XMax = (float)xMax, Mode = State.DisplayMode, Length = length, Data = channelData });
+						}, new { XMin = 0f, XMax = (float)xMax, Mode = State.DisplayMode, Length = length, Data = channelData });
 						lastTransmission = DateTime.UtcNow;
 					}
 					finally

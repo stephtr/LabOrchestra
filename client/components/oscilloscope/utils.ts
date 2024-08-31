@@ -23,7 +23,7 @@ export type OscilloscopeStreamData = {
 	XMaxDecimated: number;
 	Mode: 'time' | 'fft';
 	Length: number;
-	Data: Array<number[] | null>;
+	Data: Array<Float32Array | null>;
 };
 
 export const fftLengthValues = [
