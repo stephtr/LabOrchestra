@@ -241,6 +241,7 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 		if (State.Running) return;
 		runCancellationTokenSource = new();
 		ResetFFTStorage();
+		foreach (var buffer in Buffer) buffer.Clear();
 
 		State.Running = true;
 

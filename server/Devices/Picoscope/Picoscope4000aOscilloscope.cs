@@ -81,7 +81,6 @@ public class Picoscope4000aOscilloscope : OscilloscopeWithStreaming
 		var GCHandles = new GCHandle[4];
 		for (int ch = 0; ch < 4; ch++)
 		{
-			Buffer[ch].Clear();
 			GCHandles[ch] = GCHandle.Alloc(buffers[ch], GCHandleType.Pinned);
 			Imports.SetDataBuffer(Handle, (Imports.Channel)ch, buffers[ch], (int)buffer_length, 0, Imports.DownSamplingMode.None);
 		}
