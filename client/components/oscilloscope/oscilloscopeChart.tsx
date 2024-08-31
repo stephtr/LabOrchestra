@@ -64,16 +64,23 @@ export function OscilloscopeChart({
 	const { isConnected: isStreamConnected, setCustomization } = useStream(
 		deviceId,
 		useCallback((newData: OscilloscopeStreamData) => {
-			newData.Data = newData.Data.map((d) =>
-				d
-					? new Float32Array(
-							d.buffer.slice(
-								d.byteOffset,
-								d.byteOffset + d.byteLength,
-							),
-						)
-					: null,
-			);
+			const buffer = (newData as any).Data as Uint8Array;
+			const channelsInData = (newData as any).ChannelsInData as number[];
+			newData.Data = new Array(4).fill(0).map((_, i) => {
+				const indexInBuffer = channelsInData.indexOf(i);
+				if (indexInBuffer !== -1) {
+					return new Float32Array(
+						buffer.buffer,
+						buffer.byteOffset +
+							(indexInBuffer * buffer.byteLength) /
+								channelsInData.length,
+						Math.floor(
+							buffer.byteLength / channelsInData.length / 4,
+						),
+					);
+				}
+				return null;
+			});
 			setData(newData);
 		}, []),
 	);

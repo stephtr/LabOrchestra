@@ -9,13 +9,17 @@ using Accord.Math.Transforms;
 
 public class OscilloscopeStreamData
 {
+	// The padding is required to make the data align with the 32-bit boundary
+	public byte _Padd { get; set; }
+	// Important for alignment: No other porperties should be before _Padding/Data
+	public required byte[] Data { get; set; }
+	public required int[] ChannelsInData { get; set; }
 	public required float XMin { get; set; }
 	public required float XMax { get; set; }
 	public float XMinDecimated { get; set; } = 0f;
 	public float XMaxDecimated { get; set; } = 0f;
 	public required string Mode { get; set; }
 	public required int Length { get; set; }
-	public required byte[]?[] Data { get; set; }
 }
 
 public class OscilloscopeFFTData
@@ -409,6 +413,7 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 							var xMin = 0f;
 							var xMax = 0f;
 							var length = 0;
+							var activeChannels = 0;
 							var reducedData = data.Data.Select((d, i) =>
 							{
 								if (d == null || !State.Channels[i].ChannelActive) return null;
@@ -416,19 +421,26 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 								xMin = decimation.xMin;
 								xMax = decimation.xMax;
 								length = decimation.signal.Length;
-								var bytes = new byte[length * sizeof(float)];
-								System.Buffer.BlockCopy(decimation.signal, 0, bytes, 0, bytes.Length);
-								return bytes;
+								activeChannels++;
+								return decimation.signal;
 							}).ToArray();
+							var buffer = new byte[length * sizeof(float) * activeChannels];
+							var offset = 0;
+							foreach (var floatArray in reducedData.Where(d => d != null))
+							{
+								System.Buffer.BlockCopy(floatArray!, 0, buffer, offset * length * sizeof(float), length * sizeof(float));
+								offset++;
+							}
 							return new OscilloscopeStreamData
 							{
 								XMin = data.XMin,
 								XMax = data.XMax,
 								XMinDecimated = xMin,
 								XMaxDecimated = xMax,
+								Data = buffer,
+								ChannelsInData = reducedData.Select((d, i) => d == null ? -1 : i).Where(i => i != -1).ToArray(),
 								Mode = data.Mode,
 								Length = length,
-								Data = reducedData
 							};
 						}, new { XMin = 0f, XMax = (float)xMax, Mode = State.DisplayMode, Length = length, Data = channelData });
 						lastTransmission = DateTime.UtcNow;
