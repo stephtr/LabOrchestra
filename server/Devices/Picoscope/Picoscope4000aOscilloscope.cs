@@ -76,7 +76,7 @@ public class Picoscope4000aOscilloscope : OscilloscopeWithStreaming
 
 	override protected void OnStart(CancellationToken cancellationToken)
 	{
-		var buffer_length = 65536u * 50;
+		var buffer_length = 65536u * 10;
 		var buffers = new[] { new short[buffer_length], new short[buffer_length], new short[buffer_length], new short[buffer_length] };
 		var GCHandles = new GCHandle[4];
 		for (int ch = 0; ch < 4; ch++)
