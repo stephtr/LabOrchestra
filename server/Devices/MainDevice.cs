@@ -5,10 +5,23 @@ public class MainState
 {
 	public string SaveDirectory { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Experiment");
 	public string Filename { get; set; } = "";
+	public int PendingActions { get; set; } = 0;
+	public bool IsRecording { get; set; } = false;
 }
 
 public class MainDevice : DeviceHandlerBase<MainState>
 {
+	public void AddPendingAction()
+	{
+		State.PendingActions++;
+		SendStateUpdate(new { State.PendingActions });
+	}
+	public void FinishPendingAction()
+	{
+		State.PendingActions--;
+		SendStateUpdate(new { State.PendingActions });
+	}
+
 	public void SetSaveDirectory(string directory)
 	{
 		State.SaveDirectory = directory;
@@ -19,7 +32,7 @@ public class MainDevice : DeviceHandlerBase<MainState>
 		State.Filename = filename;
 	}
 
-	public void Save()
+	private string GetSaveFilepath()
 	{
 		var date = DateTime.Now - TimeSpan.FromHours(4); // in case it's after midnight
 		var path = State.SaveDirectory.Replace("{year}", date.ToString("yyyy")).Replace("{date}", date.ToString("yyyy-MM-dd"));
@@ -32,9 +45,28 @@ public class MainDevice : DeviceHandlerBase<MainState>
 			var captures = Regex.Match(Path.GetFileName(f), @"^(\d+)\s").Captures;
 			return captures.Count > 0 ? int.Parse(captures[0].Value) : 0;
 		}).Prepend(0).Max();
-		var baseFilepath = Path.Combine(path, $"{currentIndex + 1} {State.Filename}");
+		return Path.Combine(path, $"{currentIndex + 1} {State.Filename}");
+	}
 
-		DeviceManager!.SaveSnapshot(baseFilepath);
+	public void SaveSnapshot()
+	{
+		var filepath = GetSaveFilepath();
+		DeviceManager!.SaveSnapshot(filepath);
+	}
+
+	public void StartRecording()
+	{
+		SendStateUpdate(new { State.IsRecording });
+		var filepath = GetSaveFilepath();
+		DeviceManager!.StartRecording(filepath);
+		State.IsRecording = true;
+	}
+
+	public void StopRecording()
+	{
+		DeviceManager!.StopRecording();
+		State.IsRecording = false;
+		SendStateUpdate(new { State.IsRecording });
 	}
 
 	override public object? GetSettings()

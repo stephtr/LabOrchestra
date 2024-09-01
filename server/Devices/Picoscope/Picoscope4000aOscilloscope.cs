@@ -141,10 +141,12 @@ public class Picoscope4000aOscilloscope : OscilloscopeWithStreaming
 								}
 							}
 							Buffer[ch].Push(values, noOfSamples);
+							RecordingBuffer[ch].Push(values, noOfSamples);
 						}
 					}
 				}
 			}
+
 			try
 			{
 				while (!cancellationToken.IsCancellationRequested)

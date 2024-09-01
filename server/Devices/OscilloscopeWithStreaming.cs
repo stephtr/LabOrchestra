@@ -32,6 +32,7 @@ public class OscilloscopeFFTData
 public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, IOscilloscope
 {
 	protected CircularBuffer<float>[] Buffer = [new(100_000_000), new(100_000_000), new(100_000_000), new(100_000_000)];
+	protected CircularBuffer<float>[] RecordingBuffer = [new(1_000_000), new(1_000_000), new(1_000_000), new(1_000_000)];
 	protected double[][] FFTStorage = [Array.Empty<double>(), Array.Empty<double>(), Array.Empty<double>(), Array.Empty<double>()];
 	protected float[] FFTWindowFunction = Array.Empty<float>();
 	protected int[] AcquiredFFTs = { 0, 0, 0, 0 };
@@ -187,9 +188,13 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 		if (WasRunningBeforeSnapshot) Start();
 	}
 
-	public override object? OnSaveSnapshot(Func<string, Stream> getStream, string deviceId)
+	public override object? OnSaveSnapshot(Func<string, Stream>? getStream, string deviceId)
 	{
 		if (Dt == 0) return null;
+
+		var returnObject = new { dt = Dt, df = Df };
+		if (getStream == null) return returnObject;
+
 		var wasRunning = State.Running;
 		if (wasRunning) Stop();
 		Thread.Sleep(10);
@@ -236,7 +241,75 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 
 		if (wasRunning) Start();
 
-		return new { dt = Dt, df = Df };
+		return returnObject;
+	}
+
+	private NPYStreamWriter<float>[]? RecordingStreams = null;
+	public override void OnStartRecording(Func<string, Stream> getStream, string deviceId)
+	{
+		if (Dt == 0) return;
+
+		RecordingStreams = new NPYStreamWriter<float>[State.Channels.Length];
+		for (var ch = 0; ch < State.Channels.Length; ch++)
+		{
+			RecordingBuffer[ch].Clear();
+			if (!State.Channels[ch].ChannelActive) continue;
+			RecordingStreams[ch] = new NPYStreamWriter<float>(getStream($"{deviceId}_C{ch + 1}"), false);
+		}
+
+		Task.Run(() =>
+		{
+			while (RecordingStreams != null)
+			{
+				for (var ch = 0; ch < State.Channels.Length; ch++)
+				{
+					if (!State.Channels[ch].ChannelActive) continue;
+					if (RecordingBuffer[ch].Count < 0.02 * RecordingBuffer[ch].Capacity)
+					{
+						Thread.Sleep(1);
+						continue;
+					}
+					if (RecordingBuffer[ch].Count > 0.8 * RecordingBuffer[ch].Capacity)
+					{
+						OnStopRecording(getStream, deviceId);
+						Console.WriteLine("Recording buffer is full. Stopping recording.");
+						throw new Exception("Recording buffer is full. This should not happen.");
+					}
+					var data = Buffer[ch].Pop(Buffer[ch].Count);
+					RecordingStreams[ch].WriteArray(data);
+				}
+			}
+		});
+	}
+
+	public override void OnStopRecording(Func<string, Stream> getStream, string deviceId)
+	{
+		if (RecordingStreams == null) return;
+		foreach (var stream in RecordingStreams)
+		{
+			stream?.Dispose();
+		}
+		var buffer = new float[State.FFTLength / 2 + 1];
+		for (var ch = 0; ch < State.Channels.Length; ch++)
+		{
+			if (!State.Channels[ch].ChannelActive) continue;
+			var fftFile = getStream($"{deviceId}_F{ch + 1}");
+			var preferDisplay = State.FFTAveragingMode == "prefer-display";
+			if (preferDisplay)
+			{
+				for (var j = 0; j < FFTStorage[ch].Length; j++)
+					buffer[j] = (float)FFTStorage[ch][j];
+			}
+			else
+			{
+				for (var j = 0; j < FFTStorage[ch].Length; j++)
+				{
+					buffer[j] = (float)Math.Log10(FFTStorage[ch][j]) * 10;
+				}
+			}
+			np.Save(buffer, fftFile);
+		}
+		RecordingStreams = null;
 	}
 
 	private CancellationTokenSource? runCancellationTokenSource = null;

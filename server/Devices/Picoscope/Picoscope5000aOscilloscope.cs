@@ -140,6 +140,7 @@ public class Picoscope5000aOscilloscope : OscilloscopeWithStreaming
 								}
 							}
 							Buffer[ch].Push(values, noOfSamples);
+							RecordingBuffer[ch].Push(values, noOfSamples);
 						}
 					}
 				}

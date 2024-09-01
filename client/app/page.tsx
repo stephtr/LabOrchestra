@@ -5,6 +5,7 @@ import { Oscilloscope } from '@/components/oscilloscope';
 import { StateButton } from '@/components/stateButton';
 import { StateInput } from '@/components/stateInput';
 import { useControl } from '@/lib/controlHub';
+import { faCircleDot, faStop } from '@/lib/fontawesome-regular';
 // import { Pressure } from '@/components/pressure';
 import { faGear, faSave } from '@/lib/fortawesome/pro-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -13,15 +14,19 @@ import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
+	Spinner,
 } from '@nextui-org/react';
 
 interface MainState {
 	saveDirectory: string;
 	filename: string;
+	pendingActions: number;
+	isRecording: boolean;
 }
 
 export default function Home() {
 	const { isConnected, action, state } = useControl<MainState>('main');
+	const hasPendingActions = (state?.pendingActions ?? 0) > 0;
 	return (
 		<GridStack className="h-full">
 			<Oscilloscope
@@ -38,15 +43,38 @@ export default function Home() {
 							actionName="setFilename"
 							variableName="filename"
 						/>
+						{state?.isRecording ? (
+							<Button
+								className="ml-2"
+								startContent={<FontAwesomeIcon icon={faStop} />}
+								onClick={() => action('stopRecording')}
+								isDisabled={!isConnected}
+							>
+								Stop recording
+							</Button>
+						) : (
+							<Button
+								className="ml-2"
+								startContent={
+									<FontAwesomeIcon icon={faCircleDot} />
+								}
+								onClick={() => action('startRecording')}
+								isDisabled={!isConnected}
+							>
+								Record
+							</Button>
+						)}
 						<StateButton
 							className="ml-2"
 							startContent={<FontAwesomeIcon icon={faSave} />}
 							state={state}
 							action={action}
-							actionName="Save"
+							actionName="SaveSnapshot"
+							isDisabled={!isConnected}
 						>
-							Save
+							Snapshot
 						</StateButton>
+						{hasPendingActions && <Spinner size="sm" />}
 						<div className="flex-1" />
 						{/* <Pressure /> */}
 						<Popover>

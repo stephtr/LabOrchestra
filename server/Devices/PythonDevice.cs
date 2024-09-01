@@ -1,4 +1,3 @@
-using System.IO.Compression;
 using System.Text.Json;
 using Python.Runtime;
 
@@ -108,9 +107,11 @@ public class PythonDevice : IDeviceHandler
 		PyModule.Dispose();
 	}
 
-	public object? OnSaveSnapshot(Func<string, Stream> getStream, string deviceId) { return null; }
+	public object? OnSaveSnapshot(Func<string, Stream>? getStream, string deviceId) { return null; }
 	virtual public void OnBeforeSaveSnapshot() { }
 	virtual public void OnAfterSaveSnapshot() { }
+	virtual public void OnStartRecording(Func<string, Stream> getStream, string deviceId) { }
+	virtual public void OnStopRecording(Func<string, Stream> getStream, string deviceId) { }
 	virtual public object? GetSettings() { return null; }
 	virtual public void LoadSettings(JsonElement settings) { }
 }

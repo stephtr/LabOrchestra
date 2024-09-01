@@ -28,6 +28,7 @@ public class DemoOscilloscope : OscilloscopeWithStreaming
 								values[j] = random.NextSingle();
 							}
 							Buffer[ch].Push(values, values.Length);
+							RecordingBuffer[ch].Push(values, values.Length);
 						}
 						Thread.Sleep(0);
 					}

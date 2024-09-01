@@ -17,6 +17,7 @@ public class DeviceManager : IDisposable
 	private Timer? UpdateTimer = null;
 	private const float MaxUpdateDelay = 0.05f;
 	internal ConcurrentDictionary<string, Dictionary<string, Dictionary<object, object>>> StreamingContexts = new();
+	private MainDevice MainDevice = new();
 
 	public DeviceManager(IHubContext<ControlHub> controlHub, IHubContext<StreamingHub> streamingHub)
 	{
@@ -147,6 +148,7 @@ public class DeviceManager : IDisposable
 		Task.Run(() =>
 		{
 			Console.WriteLine("Saving snapshot to npz...");
+			MainDevice.AddPendingAction();
 			try
 			{
 				using var npzFile = new ZipArchive(new FileStream($"{baseFilepath}.npz", FileMode.CreateNew), ZipArchiveMode.Create);
@@ -160,11 +162,96 @@ public class DeviceManager : IDisposable
 					x.Value.Dispose();
 					File.Delete(x.Value.Name);
 				});
+				MainDevice.FinishPendingAction();
 				Console.WriteLine("Snapshot saved.");
 			}
 			catch (Exception e)
 			{
 				Console.WriteLine("Error saving snapshot: " + e.Message);
+			}
+		});
+	}
+
+	public bool IsRecording = false;
+	private string RecordingBaseFilepath = "";
+	private ConcurrentDictionary<string, FileStream> RecordingStreams = new();
+	public void StartRecording(string baseFilepath)
+	{
+		if (IsRecording) throw new NotSupportedException("Already recording.");
+		IsRecording = true;
+		RecordingBaseFilepath = baseFilepath;
+		var yamlFile = new Dictionary<string, object>();
+		Parallel.ForEach(DeviceHandlers, (kvp) =>
+		{
+			var (deviceId, device) = kvp;
+			var stateToWrite = device.OnSaveSnapshot(null, deviceId);
+			if (stateToWrite != null)
+			{
+				yamlFile[deviceId] = stateToWrite;
+			}
+		});
+
+		var serializer = new SerializerBuilder().WithNamingConvention(CamelCaseNamingConvention.Instance).Build();
+		var yaml = serializer.Serialize(yamlFile);
+		File.WriteAllText($"{RecordingBaseFilepath}.yaml", yaml);
+
+		RecordingStreams.Clear();
+		Stream getStream(string filename)
+		{
+			RecordingStreams[filename] = new FileStream(Path.GetTempFileName(), FileMode.OpenOrCreate);
+			return RecordingStreams[filename];
+		}
+
+		foreach (var (deviceId, device) in DeviceHandlers)
+		{
+			device.OnStartRecording(getStream, deviceId);
+		}
+
+		if (RecordingStreams.Count == 0) return;
+	}
+
+	public void StopRecording()
+	{
+		if (!IsRecording) throw new NotSupportedException("Can't stop the recording, since there is no recording in progress.");
+		IsRecording = false;
+		Stream getStream(string filename)
+		{
+			RecordingStreams[filename] = new FileStream(Path.GetTempFileName(), FileMode.OpenOrCreate);
+			return RecordingStreams[filename];
+		}
+		foreach (var (deviceId, device) in DeviceHandlers)
+		{
+			device.OnStopRecording(getStream, deviceId);
+		}
+		var baseFilepath = RecordingBaseFilepath;
+		var streams = RecordingStreams;
+		RecordingBaseFilepath = "";
+		RecordingStreams = new();
+
+		if (streams.Count == 0) return;
+		Task.Run(() =>
+		{
+			Console.WriteLine("Saving recording to npz...");
+			MainDevice.AddPendingAction();
+			try
+			{
+				using var npzFile = new ZipArchive(new FileStream($"{baseFilepath}.npz", FileMode.CreateNew), ZipArchiveMode.Create);
+				streams.Where((s) => s.Value.Length > 0).ToList().ForEach(x =>
+				{
+					x.Value.Position = 0;
+					var entry = npzFile.CreateEntry(x.Key);
+					var entryStream = entry.Open();
+					x.Value.CopyTo(entryStream);
+					entryStream.Dispose();
+					x.Value.Dispose();
+					File.Delete(x.Value.Name);
+				});
+				MainDevice.FinishPendingAction();
+				Console.WriteLine("Recording saved.");
+			}
+			catch (Exception e)
+			{
+				Console.WriteLine("Error saving recording: " + e.Message);
 			}
 		});
 	}
