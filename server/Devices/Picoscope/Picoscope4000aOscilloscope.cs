@@ -189,8 +189,11 @@ public class Picoscope4000aOscilloscope : OscilloscopeWithStreaming
 	{
 		base.Dispose();
 
-		Imports.Stop(Handle);
-		Imports.CloseUnit(Handle);
+		lock (this)
+		{
+			Imports.Stop(Handle);
+			Imports.CloseUnit(Handle);
+		}
 		Handle = -1;
 	}
 }
