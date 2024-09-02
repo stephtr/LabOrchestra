@@ -189,15 +189,23 @@ public class Picoscope5000aOscilloscope : OscilloscopeWithStreaming
 		base.SetTestSignalFrequency(frequency);
 	}
 
+	public override void OnStartRecording(Func<string, Stream> getStream, string deviceId)
+	{
+		lock (this)
+		{
+			base.OnStartRecording(getStream, deviceId);
+		}
+	}
+
 	override public void Dispose()
 	{
 		base.Dispose();
 
-        lock (this)
-        {
-            Imports.Stop(Handle);
-            Imports.CloseUnit(Handle);
-        }
-        Handle = -1;
+		lock (this)
+		{
+			Imports.Stop(Handle);
+			Imports.CloseUnit(Handle);
+		}
+		Handle = -1;
 	}
 }

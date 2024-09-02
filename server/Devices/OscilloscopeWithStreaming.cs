@@ -64,7 +64,7 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
         {
             Stop();
         }
-        FFTLock.TryEnterWriteLock(-1);
+        FFTLock.EnterWriteLock();
         try
         {
             State.FFTFrequency = freq;
@@ -137,7 +137,7 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 
     public void SetFFTBinCount(int length)
     {
-        FFTLock.TryEnterWriteLock(-1);
+        FFTLock.EnterWriteLock();
         try
         {
             State.FFTLength = length;
@@ -164,7 +164,7 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 
     public void SetFFTWindowFunction(string windowFuction)
     {
-        FFTLock.TryEnterWriteLock(-1);
+        FFTLock.EnterWriteLock();
         try
         {
             State.FFTWindowFunction = windowFuction;
@@ -342,7 +342,7 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
                 {
                     if (token.IsCancellationRequested) return;
 
-                    FFTLock.TryEnterReadLock(-1);
+                    FFTLock.EnterReadLock();
                     var didWork = false;
                     try
                     {
@@ -433,7 +433,7 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
                         Thread.Sleep(5);
                         continue;
                     }
-                    FFTLock.TryEnterReadLock(-1);
+                    FFTLock.EnterReadLock();
                     try
                     {
                         if (length != getSignalLength()) break;
@@ -525,7 +525,7 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 
     public OscilloscopeFFTData GetFFTData(double fMin, double fMax)
     {
-        FFTLock.TryEnterReadLock(-1);
+        FFTLock.EnterReadLock();
         try
         {
             var iMin = (int)(fMin / Df);

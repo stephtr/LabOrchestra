@@ -185,6 +185,15 @@ public class Picoscope4000aOscilloscope : OscilloscopeWithStreaming
 		}
 	}
 
+	public override void OnStartRecording(Func<string, Stream> getStream, string deviceId)
+	{
+		lock (this)
+		{
+			base.OnStartRecording(getStream, deviceId);
+		}
+	}
+
+
 	override public void Dispose()
 	{
 		base.Dispose();
