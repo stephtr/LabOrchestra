@@ -23,8 +23,24 @@ public class DeviceManager : IDisposable
 	{
 		ControlHub = controlHub;
 		StreamingHub = streamingHub;
-		RegisterDevice("het", new Picoscope5000aOscilloscope());
-		RegisterDevice("split", new Picoscope4000aOscilloscope());
+		try
+		{
+			RegisterDevice("het", new Picoscope5000aOscilloscope());
+		}
+		catch
+		{
+			Console.WriteLine("Falling back to DemoOscilloscope");
+			RegisterDevice("het", new DemoOscilloscope());
+		}
+		try
+		{
+			RegisterDevice("split", new Picoscope4000aOscilloscope());
+		}
+		catch
+		{
+			Console.WriteLine("Falling back to DemoOscilloscope");
+			RegisterDevice("split", new DemoOscilloscope());
+		}
 		RegisterDevice("main", new MainDevice());
 		LoadSettings();
 		//RegisterDevice("myPressure", new PythonDevice("pressure.py"));
@@ -173,13 +189,10 @@ public class DeviceManager : IDisposable
 	}
 
 	public bool IsRecording = false;
-	private string RecordingBaseFilepath = "";
-	private ConcurrentDictionary<string, FileStream> RecordingStreams = new();
-	public void StartRecording(string baseFilepath)
+	public void Record(string baseFilepath, CancellationToken cancellationToken)
 	{
 		if (IsRecording) throw new NotSupportedException("Already recording.");
 		IsRecording = true;
-		RecordingBaseFilepath = baseFilepath;
 		var yamlFile = new Dictionary<string, object>();
 		Parallel.ForEach(DeviceHandlers, (kvp) =>
 		{
@@ -193,50 +206,37 @@ public class DeviceManager : IDisposable
 
 		var serializer = new SerializerBuilder().WithNamingConvention(CamelCaseNamingConvention.Instance).Build();
 		var yaml = serializer.Serialize(yamlFile);
-		File.WriteAllText($"{RecordingBaseFilepath}.yaml", yaml);
+		File.WriteAllText($"{baseFilepath}.yaml", yaml);
 
-		RecordingStreams.Clear();
+		var recordingStreams = new ConcurrentDictionary<string, FileStream>();
 		Stream getStream(string filename)
 		{
-			RecordingStreams[filename] = new FileStream(Path.GetTempFileName(), FileMode.OpenOrCreate);
-			return RecordingStreams[filename];
+			recordingStreams[filename] = new FileStream(Path.GetTempFileName(), FileMode.OpenOrCreate);
+			return recordingStreams[filename];
 		}
 
-		foreach (var (deviceId, device) in DeviceHandlers)
+		var recordingTasks = DeviceHandlers.Select((kvp, _) =>
 		{
-			device.OnStartRecording(getStream, deviceId);
-		}
+			var (deviceId, device) = kvp;
+			return device.OnRecord(getStream, deviceId, cancellationToken);
+		}).ToArray();
 
-		if (RecordingStreams.Count == 0) return;
-	}
-
-	public void StopRecording()
-	{
-		if (!IsRecording) throw new NotSupportedException("Can't stop the recording, since there is no recording in progress.");
-		IsRecording = false;
-		Stream getStream(string filename)
-		{
-			RecordingStreams[filename] = new FileStream(Path.GetTempFileName(), FileMode.OpenOrCreate);
-			return RecordingStreams[filename];
-		}
-		foreach (var (deviceId, device) in DeviceHandlers)
-		{
-			device.OnStopRecording(getStream, deviceId);
-		}
-		var baseFilepath = RecordingBaseFilepath;
-		var streams = RecordingStreams;
-		RecordingBaseFilepath = "";
-		RecordingStreams = new();
-
-		if (streams.Count == 0) return;
 		Task.Run(() =>
 		{
-			Console.WriteLine("Saving recording to npz...");
+			cancellationToken.WaitHandle.WaitOne();
+
+			IsRecording = false;
+
+			if (recordingStreams.Count == 0) return;
 			MainDevice.AddPendingAction();
+
+			Task.WaitAll(recordingTasks);
+
+			Console.WriteLine("Saving recording to npz...");
 			try
 			{
 				using var npzFile = new ZipArchive(new FileStream($"{baseFilepath}.npz", FileMode.CreateNew), ZipArchiveMode.Create);
-				streams.Where((s) => s.Value.Length > 0).ToList().ForEach(x =>
+				recordingStreams.Where((s) => s.Value.Length > 0).ToList().ForEach(x =>
 				{
 					x.Value.Position = 0;
 					var entry = npzFile.CreateEntry(x.Key);

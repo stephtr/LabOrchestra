@@ -110,8 +110,7 @@ public class PythonDevice : IDeviceHandler
 	public object? OnSaveSnapshot(Func<string, Stream>? getStream, string deviceId) { return null; }
 	virtual public void OnBeforeSaveSnapshot() { }
 	virtual public void OnAfterSaveSnapshot() { }
-	virtual public void OnStartRecording(Func<string, Stream> getStream, string deviceId) { }
-	virtual public void OnStopRecording(Func<string, Stream> getStream, string deviceId) { }
+	virtual public Task OnRecord(Func<string, Stream> getStream, string deviceId, CancellationToken cancellationToken) { return Task.CompletedTask; }
 	virtual public object? GetSettings() { return null; }
 	virtual public void LoadSettings(JsonElement settings) { }
 }

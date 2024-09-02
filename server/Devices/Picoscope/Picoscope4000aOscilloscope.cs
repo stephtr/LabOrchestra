@@ -117,32 +117,31 @@ public class Picoscope4000aOscilloscope : OscilloscopeWithStreaming
 				if (autoStop != 0)
 				{
 					State.Running = false;
-					SendStateUpdate(new { Running = false });
+					SendStateUpdate(new { State.Running });
 				}
-				if (noOfSamples > 0)
+				if (noOfSamples == 0) return;
+				var isRecording = IsRecording;
+				for (int ch = 0; ch < 4; ch++)
 				{
-					for (int ch = 0; ch < 4; ch++)
+					if (State.Channels[ch].ChannelActive)
 					{
-						if (State.Channels[ch].ChannelActive)
+						var buffer = buffers[ch];
+						var conversionFactor = State.Channels[ch].RangeInMillivolts / (maxValue * 1000f);
+						unsafe
 						{
-							var buffer = buffers[ch];
-							var conversionFactor = State.Channels[ch].RangeInMillivolts / (maxValue * 1000f);
-							unsafe
+							fixed (short* bufferPtr = buffer)
+							fixed (float* valuesPtr = values)
 							{
-								fixed (short* bufferPtr = buffer)
-								fixed (float* valuesPtr = values)
+								short* bufferStartPtr = bufferPtr + startIndex;
+								float* valuesStartPtr = valuesPtr;
+								for (long i = 0; i < noOfSamples; i++)
 								{
-									short* bufferStartPtr = bufferPtr + startIndex;
-									float* valuesStartPtr = valuesPtr;
-									for (long i = 0; i < noOfSamples; i++)
-									{
-										*valuesStartPtr++ = *bufferStartPtr++ * conversionFactor;
-									}
+									*valuesStartPtr++ = *bufferStartPtr++ * conversionFactor;
 								}
 							}
-							Buffer[ch].Push(values, noOfSamples);
-							RecordingBuffer[ch].Push(values, noOfSamples);
 						}
+						Buffer[ch].Push(values, noOfSamples);
+						if (isRecording) RecordingBuffer[ch].Push(values, noOfSamples);
 					}
 				}
 			}
@@ -185,11 +184,11 @@ public class Picoscope4000aOscilloscope : OscilloscopeWithStreaming
 		}
 	}
 
-	public override void OnStartRecording(Func<string, Stream> getStream, string deviceId)
+	public override Task OnRecord(Func<string, Stream> getStream, string deviceId, CancellationToken cancellationToken)
 	{
 		lock (this)
 		{
-			base.OnStartRecording(getStream, deviceId);
+			return base.OnRecord(getStream, deviceId, cancellationToken);
 		}
 	}
 

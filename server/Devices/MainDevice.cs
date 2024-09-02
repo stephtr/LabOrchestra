@@ -54,17 +54,21 @@ public class MainDevice : DeviceHandlerBase<MainState>
 		DeviceManager!.SaveSnapshot(filepath);
 	}
 
+	private CancellationTokenSource? RecordingCancellationTokenSource;
 	public void StartRecording()
 	{
+		if (RecordingCancellationTokenSource != null) return;
 		SendStateUpdate(new { State.IsRecording });
 		var filepath = GetSaveFilepath();
-		DeviceManager!.StartRecording(filepath);
+		RecordingCancellationTokenSource = new();
+		DeviceManager!.Record(filepath, RecordingCancellationTokenSource.Token);
 		State.IsRecording = true;
 	}
 
 	public void StopRecording()
 	{
-		DeviceManager!.StopRecording();
+		RecordingCancellationTokenSource?.Cancel();
+		RecordingCancellationTokenSource = null;
 		State.IsRecording = false;
 		SendStateUpdate(new { State.IsRecording });
 	}

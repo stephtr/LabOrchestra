@@ -11,8 +11,7 @@ public interface IDeviceHandler : IDisposable
 	void OnBeforeSaveSnapshot();
 	void OnAfterSaveSnapshot();
 	object? OnSaveSnapshot(Func<string, Stream>? getStream, string deviceId);
-	void OnStartRecording(Func<string, Stream> getStream, string deviceId);
-	void OnStopRecording(Func<string, Stream> getStream, string deviceId);
+	Task OnRecord(Func<string, Stream> getStream, string deviceId, CancellationToken cancellationToken);
 	object? GetSettings();
 	void LoadSettings(JsonElement settings);
 }
@@ -132,8 +131,7 @@ public abstract class DeviceHandlerBase<TState> : IDeviceHandler where TState : 
 	virtual public void Dispose() { }
 
 	virtual public object? OnSaveSnapshot(Func<string, Stream>? getStream, string deviceId) { return null; }
-	virtual public void OnStartRecording(Func<string, Stream> getStream, string deviceId) { }
-	virtual public void OnStopRecording(Func<string, Stream> getStream, string deviceId) { }
+	virtual public Task OnRecord(Func<string, Stream> getStream, string deviceId, CancellationToken cancellationToken) { return Task.CompletedTask; }
 	virtual public void OnBeforeSaveSnapshot() { }
 	virtual public void OnAfterSaveSnapshot() { }
 	virtual public object? GetSettings() { return null; }

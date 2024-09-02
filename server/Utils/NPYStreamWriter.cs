@@ -5,7 +5,7 @@ using System.Text;
 public class NPYStreamWriter<T> : IDisposable where T : unmanaged
 {
 	private readonly int TotalHeaderLength;
-	private readonly Stream BaseStream;
+	public readonly Stream BaseStream;
 	private bool CloseUnderlyingStream;
 
 	public NPYStreamWriter(Stream stream, bool closeUnderlyingStream = true)
@@ -37,8 +37,11 @@ public class NPYStreamWriter<T> : IDisposable where T : unmanaged
 
 	public NPYStreamWriter(string path) : this(File.OpenWrite(path)) { }
 
+	private bool IsDisposed = false;
 	public void Dispose()
 	{
+		if(IsDisposed) return;
+		IsDisposed = true;
 		var length = BaseStream.Length - TotalHeaderLength;
 		var itemCount = length / Marshal.SizeOf<T>();
 
@@ -55,6 +58,7 @@ public class NPYStreamWriter<T> : IDisposable where T : unmanaged
 
 	public void WriteArray(T[] array)
 	{
+		if(IsDisposed) throw new Exception("Can't write to an already disposed NPYStreamWriter");
 		int byteCount = array.Length * Marshal.SizeOf<T>();
 		unsafe
 		{

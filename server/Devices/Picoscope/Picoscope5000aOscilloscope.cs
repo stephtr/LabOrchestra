@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Text;
 using PS5000AImports;
 
 public class Picoscope5000aOscilloscope : OscilloscopeWithStreaming
@@ -6,6 +7,11 @@ public class Picoscope5000aOscilloscope : OscilloscopeWithStreaming
 	private short Handle;
 	public Picoscope5000aOscilloscope()
 	{
+		var serials = new StringBuilder(2048);
+		short serialsLength = (short)serials.Capacity;
+
+		Imports.EnumerateUnits(out var count, serials, ref serialsLength);
+
 		var status = Imports.OpenUnit(out Handle, null!, Imports.DeviceResolution.PS5000A_DR_14BIT);
 		if (status == PicoStatus.StatusCodes.PICO_POWER_SUPPLY_NOT_CONNECTED || status == PicoStatus.StatusCodes.PICO_USB3_0_DEVICE_NON_USB3_0_PORT)
 		{
@@ -116,32 +122,31 @@ public class Picoscope5000aOscilloscope : OscilloscopeWithStreaming
 				if (autoStop != 0)
 				{
 					State.Running = false;
-					SendStateUpdate(new { Running = false });
+					SendStateUpdate(new { State.Running });
 				}
-				if (noOfSamples > 0)
+				if (noOfSamples == 0) return;
+				var isRecording = IsRecording;
+				for (int ch = 0; ch < 4; ch++)
 				{
-					for (int ch = 0; ch < 4; ch++)
+					if (State.Channels[ch].ChannelActive)
 					{
-						if (State.Channels[ch].ChannelActive)
+						var buffer = buffers[ch];
+						var conversionFactor = State.Channels[ch].RangeInMillivolts / (maxValue * 1000f);
+						unsafe
 						{
-							var buffer = buffers[ch];
-							var conversionFactor = State.Channels[ch].RangeInMillivolts / (maxValue * 1000f);
-							unsafe
+							fixed (short* bufferPtr = buffer)
+							fixed (float* valuesPtr = values)
 							{
-								fixed (short* bufferPtr = buffer)
-								fixed (float* valuesPtr = values)
+								short* bufferStartPtr = bufferPtr + startIndex;
+								float* valuesStartPtr = valuesPtr;
+								for (long i = 0; i < noOfSamples; i++)
 								{
-									short* bufferStartPtr = bufferPtr + startIndex;
-									float* valuesStartPtr = valuesPtr;
-									for (long i = 0; i < noOfSamples; i++)
-									{
-										*valuesStartPtr++ = *bufferStartPtr++ * conversionFactor;
-									}
+									*valuesStartPtr++ = *bufferStartPtr++ * conversionFactor;
 								}
 							}
-							Buffer[ch].Push(values, noOfSamples);
-							RecordingBuffer[ch].Push(values, noOfSamples);
 						}
+						Buffer[ch].Push(values, noOfSamples);
+						if (isRecording) RecordingBuffer[ch].Push(values, noOfSamples);
 					}
 				}
 			}
@@ -189,11 +194,11 @@ public class Picoscope5000aOscilloscope : OscilloscopeWithStreaming
 		base.SetTestSignalFrequency(frequency);
 	}
 
-	public override void OnStartRecording(Func<string, Stream> getStream, string deviceId)
+	public override Task OnRecord(Func<string, Stream> getStream, string deviceId, CancellationToken cancellationToken)
 	{
 		lock (this)
 		{
-			base.OnStartRecording(getStream, deviceId);
+			return base.OnRecord(getStream, deviceId, cancellationToken);
 		}
 	}
 
