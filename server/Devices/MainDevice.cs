@@ -7,6 +7,7 @@ public class MainState
 	public string Filename { get; set; } = "";
 	public int PendingActions { get; set; } = 0;
 	public bool IsRecording { get; set; } = false;
+	public int RecordingTimeSeconds { get; set; } = 0;
 }
 
 public class MainDevice : DeviceHandlerBase<MainState>
@@ -63,6 +64,20 @@ public class MainDevice : DeviceHandlerBase<MainState>
 		RecordingCancellationTokenSource = new();
 		DeviceManager!.Record(filepath, RecordingCancellationTokenSource.Token);
 		State.IsRecording = true;
+		var startTime = DateTime.Now;
+		Task.Run(() =>
+		{
+			while (!RecordingCancellationTokenSource.IsCancellationRequested)
+			{
+				var seconds = (int)(DateTime.Now - startTime).TotalSeconds;
+				if (State.RecordingTimeSeconds != seconds)
+				{
+					State.RecordingTimeSeconds = seconds;
+					SendStateUpdate(new { State.RecordingTimeSeconds });
+				}
+				Thread.Sleep(100);
+			}
+		});
 	}
 
 	public void StopRecording()

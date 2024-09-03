@@ -22,6 +22,7 @@ interface MainState {
 	filename: string;
 	pendingActions: number;
 	isRecording: boolean;
+	recordingTimeSeconds: number;
 }
 
 export default function Home() {
@@ -50,7 +51,10 @@ export default function Home() {
 								onClick={() => action('stopRecording')}
 								isDisabled={!isConnected}
 							>
-								Stop recording
+								{Math.floor(state.recordingTimeSeconds / 60)}:{' '}
+								{(state.recordingTimeSeconds % 60)
+									.toString()
+									.padStart(2, '0')}
 							</Button>
 						) : (
 							<Button
