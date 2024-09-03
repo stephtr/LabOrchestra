@@ -59,13 +59,6 @@ public class NPYStreamWriter<T> : IDisposable where T : unmanaged
 	public void WriteArray(T[] array)
 	{
 		if(IsDisposed) throw new Exception("Can't write to an already disposed NPYStreamWriter");
-		int byteCount = array.Length * Marshal.SizeOf<T>();
-		unsafe
-		{
-			fixed (T* pData = array)
-			{
-				BaseStream.Write(new ReadOnlySpan<byte>((byte*)pData, byteCount));
-			}
-		}
+		BaseStream.Write(MemoryMarshal.AsBytes(new ReadOnlySpan<T>(array)));
 	}
 }

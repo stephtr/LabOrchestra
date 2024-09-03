@@ -271,35 +271,35 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 		{
 			try
 			{
-				while (!delayedCancellationSource.IsCancellationRequested)
+				Task.WaitAll(State.Channels.Select((channel, ch) => Task.Run(() =>
 				{
-					var significantWorkDone = false;
-					for (var ch = 0; ch < State.Channels.Length; ch++)
+					if (!channel.ChannelActive) return;
+					while (!delayedCancellationSource.IsCancellationRequested)
 					{
-						if (!State.Channels[ch].ChannelActive) continue;
 						if (RecordingBuffer[ch].Count < 300_000)
 						{
 							// we want to write large chunks in order to maintain an efficient data transfer to disk
+							Thread.Sleep(1);
 							continue;
 						}
-						significantWorkDone = true;
 						if (RecordingBuffer[ch].Count > 0.9 * RecordingBuffer[ch].Capacity)
 						{
 							Console.WriteLine("Recording buffer is full. Stopping recording.");
+							delayedCancellationSource.Cancel();
 							throw new Exception("Recording buffer is full. This should not happen.");
 						}
-						var data = RecordingBuffer[ch].Pop(RecordingBuffer[ch].Count);
-						RecordingStreams[ch].WriteArray(data);
+						RecordingStreams[ch].WriteArray(
+							RecordingBuffer[ch].Pop(RecordingBuffer[ch].Count)
+						);
 					}
-					if (!significantWorkDone) Thread.Sleep(1);
-				}
-				// after stopping the recording, dump the recording buffer one final time
-				for (var ch = 0; ch < State.Channels.Length; ch++)
-				{
-					if (!State.Channels[ch].ChannelActive || RecordingBuffer[ch].Count == 0) continue;
-					var data = RecordingBuffer[ch].Pop(RecordingBuffer[ch].Count);
-					RecordingStreams[ch].WriteArray(data);
-				}
+					// after stopping the recording, dump the recording buffer one final time
+					if (RecordingBuffer[ch].Count > 0)
+					{
+						RecordingStreams[ch].WriteArray(
+							RecordingBuffer[ch].Pop(RecordingBuffer[ch].Count)
+						);
+					}
+				})).ToArray());
 			}
 			finally
 			{
