@@ -277,11 +277,13 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 					for (var ch = 0; ch < State.Channels.Length; ch++)
 					{
 						if (!State.Channels[ch].ChannelActive) continue;
-						if (RecordingBuffer[ch].Count > 0.05 * RecordingBuffer[ch].Capacity)
+						if (RecordingBuffer[ch].Count < 300_000)
 						{
-							significantWorkDone = true;
+							// we want to write large chunks in order to maintain an efficient data transfer to disk
+							continue;
 						}
-						if (RecordingBuffer[ch].Count > 0.8 * RecordingBuffer[ch].Capacity)
+						significantWorkDone = true;
+						if (RecordingBuffer[ch].Count > 0.9 * RecordingBuffer[ch].Capacity)
 						{
 							Console.WriteLine("Recording buffer is full. Stopping recording.");
 							throw new Exception("Recording buffer is full. This should not happen.");
@@ -290,6 +292,13 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 						RecordingStreams[ch].WriteArray(data);
 					}
 					if (!significantWorkDone) Thread.Sleep(1);
+				}
+				// after stopping the recording, dump the recording buffer one final time
+				for (var ch = 0; ch < State.Channels.Length; ch++)
+				{
+					if (!State.Channels[ch].ChannelActive || RecordingBuffer[ch].Count == 0) continue;
+					var data = RecordingBuffer[ch].Pop(RecordingBuffer[ch].Count);
+					RecordingStreams[ch].WriteArray(data);
 				}
 			}
 			finally
