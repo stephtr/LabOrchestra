@@ -144,10 +144,12 @@ public class DeviceManager : IDisposable
 		{
 			device.OnBeforeSaveSnapshot();
 		}
+		var tmpFolderName = Path.Join(Path.GetTempPath(), Path.GetRandomFileName());
+		Directory.CreateDirectory(tmpFolderName);
 		var fileStreams = new ConcurrentDictionary<string, FileStream>();
 		Stream getStream(string filename)
 		{
-			fileStreams[filename] = new FileStream(Path.GetTempFileName(), FileMode.OpenOrCreate);
+			fileStreams[filename] = new FileStream(Path.Join(tmpFolderName, filename), FileMode.OpenOrCreate);
 			return fileStreams[filename];
 		}
 		Parallel.ForEach(DeviceHandlers, (kvp) =>
@@ -187,6 +189,7 @@ public class DeviceManager : IDisposable
 				});
 				MainDevice.FinishPendingAction();
 				Console.WriteLine("Snapshot saved.");
+				Directory.Delete(tmpFolderName);
 			}
 			catch (Exception e)
 			{
@@ -215,10 +218,12 @@ public class DeviceManager : IDisposable
 		var yaml = serializer.Serialize(yamlFile);
 		File.WriteAllText($"{baseFilepath}.yaml", yaml);
 
+		var tmpFolderName = Path.Join(Path.GetTempPath(), Path.GetRandomFileName());
+		Directory.CreateDirectory(tmpFolderName);
 		var recordingStreams = new ConcurrentDictionary<string, FileStream>();
 		Stream getStream(string filename)
 		{
-			recordingStreams[filename] = new FileStream(Path.GetTempFileName(), FileMode.OpenOrCreate);
+			recordingStreams[filename] = new FileStream(Path.Join(tmpFolderName, filename), FileMode.OpenOrCreate);
 			return recordingStreams[filename];
 		}
 
@@ -255,6 +260,7 @@ public class DeviceManager : IDisposable
 				});
 				MainDevice.FinishPendingAction();
 				Console.WriteLine("Recording saved.");
+				Directory.Delete(tmpFolderName);
 			}
 			catch (Exception e)
 			{
