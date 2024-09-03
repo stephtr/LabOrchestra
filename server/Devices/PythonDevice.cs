@@ -8,7 +8,7 @@ public class PythonDevice : IDeviceHandler
 	private event Action<object>? OnStreamEvent;
 	protected DeviceManager? DeviceManager;
 	private PyModule PyModule;
-	public PythonDevice(string filename)
+	public PythonDevice(string filename, object? arguments = null)
 	{
 		using (Py.GIL())
 		{
@@ -39,7 +39,7 @@ public class PythonDevice : IDeviceHandler
 			{
 				using (Py.GIL())
 				{
-					MethodCache["main"].Invoke();
+					MethodCache["main"].Invoke(arguments != null ? [PyModule.FromManagedObject(arguments)] : []);
 				}
 			});
 		}

@@ -41,9 +41,16 @@ public class DeviceManager : IDisposable
 			Console.WriteLine("Falling back to DemoOscilloscope");
 			RegisterDevice("split", new DemoOscilloscope());
 		}
+		try
+		{
+			RegisterDevice("cavity_detuning", new PythonDevice("Devices/RS_SMA100B.py", new { ipAddress = "192.168.x.x" }));
+		}
+		catch
+		{
+			Console.WriteLine("Can't connect to R&S SMA100B");
+		}
 		RegisterDevice("main", new MainDevice());
 		LoadSettings();
-		//RegisterDevice("myPressure", new PythonDevice("pressure.py"));
 	}
 
 	public void RegisterDevice(string deviceId, IDeviceHandler deviceHandler)
