@@ -1,5 +1,6 @@
 'use client';
 
+import { FrequencyGenerator } from '@/components/frequencyGenerator';
 import { GridStack } from '@/components/gridview/gridStack';
 import { Oscilloscope } from '@/components/oscilloscope';
 import { StateButton } from '@/components/stateButton';
@@ -108,7 +109,7 @@ export default function Home() {
 					</>
 				}
 			/>
-			<Oscilloscope deviceId="split" />
+			<Oscilloscope deviceId="split" topContent={<FrequencyGenerator />} />
 		</GridStack>
 	);
 }

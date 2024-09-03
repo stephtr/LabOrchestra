@@ -37,9 +37,16 @@ public class PythonDevice : IDeviceHandler
 		{
 			Task.Run(() =>
 			{
-				using (Py.GIL())
+				try
 				{
-					MethodCache["main"].Invoke(arguments != null ? [PyModule.FromManagedObject(arguments)] : []);
+					using (Py.GIL())
+					{
+						MethodCache["main"].Invoke(arguments != null ? [arguments.ToPython()] : []);
+					}
+				}
+				catch (PythonException e)
+				{
+					Console.WriteLine($"PythonDevice error: {e.Message}\n{e.StackTrace}");
 				}
 			});
 		}
@@ -104,7 +111,10 @@ public class PythonDevice : IDeviceHandler
 
 	public void Dispose()
 	{
-		PyModule.Dispose();
+		using (Py.GIL())
+		{
+			PyModule.Dispose();
+		}
 	}
 
 	public object? OnSaveSnapshot(Func<string, Stream>? getStream, string deviceId) { return null; }

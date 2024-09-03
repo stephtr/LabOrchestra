@@ -43,7 +43,7 @@ public class DeviceManager : IDisposable
 		}
 		try
 		{
-			RegisterDevice("cavity_detuning", new PythonDevice("Devices/RS_SMA100B.py", new { ipAddress = "192.168.x.x" }));
+			RegisterDevice("cavity_detuning", new PythonDevice("Devices/RS_SMA100B.py", new { ipAddress = "192.168.0.23" }));
 		}
 		catch
 		{
