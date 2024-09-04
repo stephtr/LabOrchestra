@@ -5,6 +5,7 @@ using ExperimentControl.Hubs;
 using Microsoft.AspNetCore.SignalR;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
+using YamlDotNet.System.Text.Json;
 
 public record DeviceAction(string DeviceId, string? ChannelId, string ActionName, object[]? Parameters);
 
@@ -47,7 +48,8 @@ public class DeviceManager : IDisposable
 		}
 		catch
 		{
-			Console.WriteLine("Can't connect to R&S SMA100B");
+			Console.WriteLine("Falling back to DemoRFGen");
+			RegisterDevice("cavity_detuning", new PythonDevice("Devices/DemoRFGen.py"));
 		}
 		RegisterDevice("main", new MainDevice());
 		LoadSettings();
@@ -67,6 +69,14 @@ public class DeviceManager : IDisposable
 		{
 			SendStreamData(deviceId, data);
 		});
+	}
+
+	public void UnregisterDevice(IDeviceHandler deviceHandler)
+	{
+		var deviceId = GetDeviceId(deviceHandler);
+		if (deviceId == null) return;
+		DeviceHandlers.Remove(deviceId);
+		deviceHandler.Dispose();
 	}
 
 	public void Action(DeviceAction action)
@@ -165,7 +175,10 @@ public class DeviceManager : IDisposable
 		{
 			device.OnAfterSaveSnapshot();
 		}
-		var serializer = new SerializerBuilder().WithNamingConvention(CamelCaseNamingConvention.Instance).Build();
+		var serializer = new SerializerBuilder()
+			.WithTypeConverter(new SystemTextJsonYamlTypeConverter())
+			.WithNamingConvention(CamelCaseNamingConvention.Instance)
+			.Build();
 		var yaml = serializer.Serialize(yamlFile);
 		File.WriteAllText($"{baseFilepath}.yaml", yaml);
 

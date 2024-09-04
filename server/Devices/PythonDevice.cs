@@ -17,9 +17,24 @@ public class PythonDevice : IDeviceHandler
 			PyModule.Set("_send_status_update", new Action<string>(SendStateUpdate));
 			PyModule.Exec("def send_status_update(partial_state=None): _send_status_update(_json.dumps(partial_state if partial_state else state))");
 			PyModule.Exec("def _get_state(): return _json.dumps(state)");
+			PyModule.Exec("def _on_save_snapshot(): return _json.dumps(on_save_snapshot())");
+
+			if (arguments != null)
+			{
+				PyModule.Set("argv", arguments.ToPython());
+			}
 
 			var script = File.ReadAllText(filename);
-			PyModule.Exec(script);
+			try
+			{
+				PyModule.Exec(script);
+			}
+			catch (PythonException e)
+			{
+				Console.WriteLine($"PythonDevice error: {e.Message}\n{e.StackTrace}");
+				Dispose();
+				throw;
+			}
 
 			dynamic inspect = Py.Import("inspect");
 			foreach (var name in PyModule.Dir())
@@ -41,12 +56,13 @@ public class PythonDevice : IDeviceHandler
 				{
 					using (Py.GIL())
 					{
-						MethodCache["main"].Invoke(arguments != null ? [arguments.ToPython()] : []);
+						MethodCache["main"].Invoke();
 					}
 				}
 				catch (PythonException e)
 				{
 					Console.WriteLine($"PythonDevice error: {e.Message}\n{e.StackTrace}");
+					Dispose();
 				}
 			});
 		}
@@ -111,13 +127,24 @@ public class PythonDevice : IDeviceHandler
 
 	public void Dispose()
 	{
+		DeviceManager?.UnregisterDevice(this);
 		using (Py.GIL())
 		{
 			PyModule.Dispose();
 		}
 	}
 
-	public object? OnSaveSnapshot(Func<string, Stream>? getStream, string deviceId) { return null; }
+	public object? OnSaveSnapshot(Func<string, Stream>? getStream, string deviceId)
+	{
+		using (Py.GIL())
+		{
+			// here we intentionally use the prefixed snapshot function to get the snapshot as JSON
+			var methodName = MethodCache.ContainsKey("on_save_snapshot") ? "_on_save_snapshot" : "_get_state";
+			var snapshotJson = MethodCache[methodName].Invoke().As<string>();
+			return JsonSerializer.Deserialize<dynamic>(snapshotJson) ?? null;
+		}
+	}
+
 	virtual public void OnBeforeSaveSnapshot() { }
 	virtual public void OnAfterSaveSnapshot() { }
 	virtual public Task OnRecord(Func<string, Stream> getStream, string deviceId, CancellationToken cancellationToken) { return Task.CompletedTask; }
