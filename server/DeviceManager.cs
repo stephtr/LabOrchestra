@@ -225,19 +225,8 @@ public class DeviceManager : IDisposable
 	{
 		if (IsRecording) throw new NotSupportedException("Already recording.");
 		IsRecording = true;
-		var yamlFile = new Dictionary<string, object>();
-		Parallel.ForEach(DeviceHandlers, (kvp) =>
-		{
-			var (deviceId, device) = kvp;
-			var stateToWrite = device.OnSaveSnapshot(null, deviceId);
-			if (stateToWrite != null)
-			{
-				yamlFile[deviceId] = stateToWrite;
-			}
-		});
 
-		var yaml = yamlSerializer.Serialize(yamlFile);
-		File.WriteAllText($"{baseFilepath}.yaml", yaml);
+		var yamlStream = new FileStream($"{baseFilepath}.yaml", FileMode.CreateNew);
 
 		var tmpFolderName = Path.Join(Path.GetTempPath(), Path.GetRandomFileName());
 		Directory.CreateDirectory(tmpFolderName);
@@ -255,26 +244,26 @@ public class DeviceManager : IDisposable
 		}).Append(Task.Run(() =>
 		{
 			var timestampStart = DateTime.Now;
-			var stream = getStream("state");
 			while (!cancellationToken.IsCancellationRequested)
 			{
 				var state = GetSnapshot();
 				var timestamp = DateTime.Now;
 				var elapsed = (timestamp - timestampStart).TotalSeconds;
 
-				stream.Write(
+				yamlStream.Write(
 					Encoding.UTF8.GetBytes(
 						yamlSerializer.Serialize(
 							new object[] { new {
 								time = timestamp.ToString("o", System.Globalization.CultureInfo.InvariantCulture),
 								t = elapsed,
-								state
+								state,
 							} }
 						)
 					)
 				);
 				Thread.Sleep(500);
 			}
+			yamlStream.Dispose();
 		})).ToArray();
 
 		Task.Run(() =>
