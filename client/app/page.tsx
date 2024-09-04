@@ -47,12 +47,12 @@ export default function Home() {
 						/>
 						{state?.isRecording ? (
 							<Button
-								className="ml-2"
+								className="ml-2 tabular-nums"
 								startContent={<FontAwesomeIcon icon={faStop} />}
 								onClick={() => action('stopRecording')}
 								isDisabled={!isConnected}
 							>
-								{Math.floor(state.recordingTimeSeconds / 60)}:{' '}
+								{Math.floor(state.recordingTimeSeconds / 60)}:
 								{(state.recordingTimeSeconds % 60)
 									.toString()
 									.padStart(2, '0')}
@@ -109,7 +109,10 @@ export default function Home() {
 					</>
 				}
 			/>
-			<Oscilloscope deviceId="split" topContent={<FrequencyGenerator />} />
+			<Oscilloscope
+				deviceId="split"
+				topContent={<FrequencyGenerator />}
+			/>
 		</GridStack>
 	);
 }
