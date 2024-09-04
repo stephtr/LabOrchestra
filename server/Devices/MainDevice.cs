@@ -46,7 +46,7 @@ public class MainDevice : DeviceHandlerBase<MainState>
 			var captures = Regex.Match(Path.GetFileName(f), @"^(\d+)\s").Captures;
 			return captures.Count > 0 ? int.Parse(captures[0].Value) : 0;
 		}).Prepend(0).Max();
-		return Path.Combine(path, $"{currentIndex + 1} {State.Filename}");
+		return Path.Combine(path, $"{currentIndex + 1}{State.Filename != "" ? $" {State.Filename}" : ""}");
 	}
 
 	public void SaveSnapshot()
