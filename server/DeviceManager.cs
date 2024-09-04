@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.IO.Compression;
+using System.Text;
 using System.Text.Json;
 using ExperimentControl.Hubs;
 using Microsoft.AspNetCore.SignalR;
@@ -19,6 +20,11 @@ public class DeviceManager : IDisposable
 	private const float MaxUpdateDelay = 0.05f;
 	internal ConcurrentDictionary<string, Dictionary<string, Dictionary<object, object>>> StreamingContexts = new();
 	private MainDevice MainDevice = new();
+
+	private ISerializer yamlSerializer = new SerializerBuilder()
+			.WithTypeConverter(new SystemTextJsonYamlTypeConverter())
+			.WithNamingConvention(CamelCaseNamingConvention.Instance)
+			.Build();
 
 	public DeviceManager(IHubContext<ControlHub> controlHub, IHubContext<StreamingHub> streamingHub)
 	{
@@ -147,9 +153,23 @@ public class DeviceManager : IDisposable
 		SendPartialStateUpdateAsync(state);
 	}
 
+	private Dictionary<string, object> GetSnapshot(Func<string, Stream>? getStream = null)
+	{
+		var snapshot = new Dictionary<string, object>();
+		Parallel.ForEach(DeviceHandlers, (kvp) =>
+		{
+			var (deviceId, device) = kvp;
+			var stateToWrite = device.OnSaveSnapshot(getStream, deviceId);
+			if (stateToWrite != null)
+			{
+				snapshot[deviceId] = stateToWrite;
+			}
+		});
+		return snapshot;
+	}
+
 	public void SaveSnapshot(string baseFilepath)
 	{
-		var yamlFile = new Dictionary<string, object>();
 		foreach (var (_, device) in DeviceHandlers)
 		{
 			device.OnBeforeSaveSnapshot();
@@ -162,24 +182,13 @@ public class DeviceManager : IDisposable
 			fileStreams[filename] = new FileStream(Path.Join(tmpFolderName, filename), FileMode.OpenOrCreate);
 			return fileStreams[filename];
 		}
-		Parallel.ForEach(DeviceHandlers, (kvp) =>
-		{
-			var (deviceId, device) = kvp;
-			var stateToWrite = device.OnSaveSnapshot(getStream, deviceId);
-			if (stateToWrite != null)
-			{
-				yamlFile[deviceId] = stateToWrite;
-			}
-		});
+		var state = GetSnapshot(getStream);
 		foreach (var (_, device) in DeviceHandlers)
 		{
 			device.OnAfterSaveSnapshot();
 		}
-		var serializer = new SerializerBuilder()
-			.WithTypeConverter(new SystemTextJsonYamlTypeConverter())
-			.WithNamingConvention(CamelCaseNamingConvention.Instance)
-			.Build();
-		var yaml = serializer.Serialize(yamlFile);
+
+		var yaml = yamlSerializer.Serialize(state);
 		File.WriteAllText($"{baseFilepath}.yaml", yaml);
 
 		if (fileStreams.Count == 0) return;
@@ -227,8 +236,7 @@ public class DeviceManager : IDisposable
 			}
 		});
 
-		var serializer = new SerializerBuilder().WithNamingConvention(CamelCaseNamingConvention.Instance).Build();
-		var yaml = serializer.Serialize(yamlFile);
+		var yaml = yamlSerializer.Serialize(yamlFile);
 		File.WriteAllText($"{baseFilepath}.yaml", yaml);
 
 		var tmpFolderName = Path.Join(Path.GetTempPath(), Path.GetRandomFileName());
@@ -244,7 +252,30 @@ public class DeviceManager : IDisposable
 		{
 			var (deviceId, device) = kvp;
 			return device.OnRecord(getStream, deviceId, cancellationToken);
-		}).ToArray();
+		}).Append(Task.Run(() =>
+		{
+			var timestampStart = DateTime.Now;
+			var stream = getStream("state");
+			while (!cancellationToken.IsCancellationRequested)
+			{
+				var state = GetSnapshot();
+				var timestamp = DateTime.Now;
+				var elapsed = (timestamp - timestampStart).TotalSeconds;
+
+				stream.Write(
+					Encoding.UTF8.GetBytes(
+						yamlSerializer.Serialize(
+							new object[] { new {
+								time = timestamp.ToString("o", System.Globalization.CultureInfo.InvariantCulture),
+								t = elapsed,
+								state
+							} }
+						)
+					)
+				);
+				Thread.Sleep(500);
+			}
+		})).ToArray();
 
 		Task.Run(() =>
 		{
