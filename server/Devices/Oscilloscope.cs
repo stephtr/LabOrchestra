@@ -8,11 +8,11 @@ public class OscilloscopeChannel
 public class OscilloscopeState
 {
 	public bool Running { get; set; } = true;
-	public string DisplayMode { get; set; } = "time"; // Default mode is "time"
+	public string DisplayMode { get; set; } = "fft";
 	public float FFTFrequency { get; set; } = 10e6f;
-	public int FFTLength { get; set; } = 32768;
+	public int FFTLength { get; set; } = 8192;
 	public string FFTAveragingMode { get; set; } = "prefer-data";
-	public int FFTAveragingDurationInMilliseconds { get; set; } = 0;
+	public int FFTAveragingDurationInMilliseconds { get; set; } = 200;
 	public string FFTWindowFunction { get; set; } = "blackman";
 	public float TestSignalFrequency { get; set; } = 1e6f;
 	public int DatapointsToSnapshot { get; set; } = 100_000_000;
