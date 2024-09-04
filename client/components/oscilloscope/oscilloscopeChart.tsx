@@ -47,9 +47,11 @@ const colors = ['deepskyblue', 'red', 'green', 'yellow'];
 export function OscilloscopeChart({
 	state,
 	deviceId,
+	frequencyOffset,
 }: {
 	state?: OscilloscopeState;
 	deviceId: string;
+	frequencyOffset: number;
 }) {
 	const [data, setData] = useState<OscilloscopeStreamData>({
 		XMin: 0,
@@ -60,6 +62,7 @@ export function OscilloscopeChart({
 		Mode: 'time',
 		Length: 0,
 	});
+	const xOffset = data.Mode === 'fft' ? frequencyOffset : 0;
 
 	const { isConnected: isStreamConnected, setCustomization } = useStream(
 		deviceId,
@@ -93,7 +96,8 @@ export function OscilloscopeChart({
 						(data.XMinDecimated ?? data.XMin) +
 						(i / (data.Length - 1)) *
 							((data.XMaxDecimated ?? data.XMax) -
-								(data.XMinDecimated ?? data.XMin)),
+								(data.XMinDecimated ?? data.XMin)) -
+						xOffset,
 				),
 		[
 			data.Length,
@@ -101,6 +105,7 @@ export function OscilloscopeChart({
 			data.XMax,
 			data.XMinDecimated,
 			data.XMaxDecimated,
+			xOffset,
 		],
 	);
 	const channelHash = state?.channels
@@ -144,9 +149,9 @@ export function OscilloscopeChart({
 		);
 		const onPanOrZoom = ({ chart }: { chart: any }) => {
 			// eslint-disable-next-line no-underscore-dangle
-			const xMin = chart._options.scales.x.min;
+			const xMin = chart._options.scales.x.min + xOffset;
 			// eslint-disable-next-line no-underscore-dangle
-			const xMax = chart._options.scales.x.max;
+			const xMax = chart._options.scales.x.max + xOffset;
 			const updatedXMin = (xMin + xMax) / 2 - (xMax - xMin) / 2;
 			const updatedXMax = (xMin + xMax) / 2 + (xMax - xMin) / 2;
 			setCustomization({ xMin: updatedXMin, xMax: updatedXMax });
@@ -163,8 +168,8 @@ export function OscilloscopeChart({
 							? frequencyFormatterFactory(data.XMax)
 							: timeFormatterFactory(data.XMax)) as any,
 					},
-					min: data.XMin,
-					max: data.XMax,
+					min: data.XMin - xOffset,
+					max: data.XMax - xOffset,
 				},
 				...(data.Mode === 'fft' ? yFFT : yTime),
 			},
@@ -194,15 +199,15 @@ export function OscilloscopeChart({
 					},
 					limits: {
 						x: {
-							min: data.XMin,
-							max: data.XMax,
+							min: data.XMin - xOffset,
+							max: data.XMax - xOffset,
 						},
 					},
 				},
 			},
 		} as ChartOptions<'line'>;
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [data.Mode, data.XMin, data.XMax, channelHash]);
+	}, [data.Mode, data.XMin, data.XMax, channelHash, xOffset]);
 	return (
 		<div className="h-full bg-white dark:bg-black dark:bg-opacity-50 rounded-lg p-2">
 			<div className="relative h-full">

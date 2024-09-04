@@ -33,6 +33,7 @@ export default function Home() {
 		<GridStack className="h-full">
 			<Oscilloscope
 				deviceId="het"
+				frequencyOffset={5e6}
 				topContent={
 					<>
 						<div className="flex-1" />

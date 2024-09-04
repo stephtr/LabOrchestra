@@ -32,9 +32,11 @@ import {
 export function Oscilloscope({
 	topContent,
 	deviceId,
+	frequencyOffset = 0,
 }: {
 	topContent?: React.ReactNode;
 	deviceId: string;
+	frequencyOffset?: number;
 }) {
 	const { isConnected, action, state } =
 		useControl<OscilloscopeState>(deviceId);
@@ -196,7 +198,11 @@ export function Oscilloscope({
 				{topContent}
 			</div>
 			<main className="col-start-2 row-start-2 overflow-hidden">
-				<OscilloscopeChart state={state} deviceId={deviceId} />
+				<OscilloscopeChart
+					state={state}
+					deviceId={deviceId}
+					frequencyOffset={frequencyOffset}
+				/>
 			</main>
 		</div>
 	);
