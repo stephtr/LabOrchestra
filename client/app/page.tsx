@@ -33,7 +33,7 @@ export default function Home() {
 	const hasPendingActions = (state?.pendingActions ?? 0) > 0;
 	return (
 		<div className="h-full grid grid-rows-[1fr_5em]">
-			<GridStack className="h-full">
+			<GridStack className="overflow-hidden">
 				<Oscilloscope
 					deviceId="het"
 					frequencyOffset={5e6}
