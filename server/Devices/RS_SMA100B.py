@@ -26,6 +26,10 @@ def set_power(channel, power):
     update_state()
 
 
+def on_save_snapshot():
+    return state["channels"]
+
+
 if not hasattr(argv, "ipAddress"):
     raise Exception("Missing 'ipAddress' in RS_SMA100B device parameters")
 

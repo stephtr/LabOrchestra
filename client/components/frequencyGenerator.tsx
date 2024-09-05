@@ -38,7 +38,11 @@ export function FrequencyGenerator() {
 					kHz
 					<Popover>
 						<PopoverTrigger>
-							<Button isIconOnly className="" variant="light">
+							<Button
+								isIconOnly
+								className="self-center"
+								variant="light"
+							>
 								<FontAwesomeIcon icon={faGear} />
 							</Button>
 						</PopoverTrigger>

@@ -3,6 +3,7 @@
 import { FrequencyGenerator } from '@/components/frequencyGenerator';
 import { GridStack } from '@/components/gridview/gridStack';
 import { Oscilloscope } from '@/components/oscilloscope';
+import { PressureSensor } from '@/components/pressureSensor';
 import { StateButton } from '@/components/stateButton';
 import { StateInput } from '@/components/stateInput';
 import { useControl } from '@/lib/controlHub';
@@ -127,6 +128,9 @@ export default function Home() {
 			</GridStack>
 			<div className="flex gap-2 items-center mx-2">
 				<FrequencyGenerator />
+				<div className="flex-1" />
+				<PressureSensor label="Vorvakuum" channel={0} />
+				<PressureSensor label="Kammer" channel={1} />
 			</div>
 		</div>
 	);

@@ -58,6 +58,15 @@ public class DeviceManager : IDisposable
 			Console.WriteLine("Falling back to DemoRFGen");
 			RegisterDevice("cavity_detuning", new PythonDevice("Devices/DemoRFGen.py"));
 		}
+		try
+		{
+			RegisterDevice("pressure", new PythonDevice("Devices/PfeifferPressureSensor.py", new { port = "COM4" }));
+		}
+		catch
+		{
+			Console.WriteLine("Falling back to DemoPressureSensor");
+			RegisterDevice("pressure", new PythonDevice("Devices/DemoPressureSensor.py"));
+		}
 		RegisterDevice("main", new MainDevice());
 		LoadSettings();
 	}

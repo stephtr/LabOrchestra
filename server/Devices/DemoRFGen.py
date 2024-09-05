@@ -23,4 +23,4 @@ def set_on(channel, isOn):
 
 
 def on_save_snapshot():
-    return state
+    return state["channels"]
