@@ -12,6 +12,7 @@ import { faGear, faSave } from '@/lib/fortawesome/pro-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
 	Button,
+	ButtonGroup,
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
@@ -59,27 +60,29 @@ export default function Home() {
 									.padStart(2, '0')}
 							</Button>
 						) : (
-							<Button
-								className="ml-2"
-								startContent={
-									<FontAwesomeIcon icon={faCircleDot} />
-								}
-								onClick={() => action('startRecording')}
-								isDisabled={!isConnected}
-							>
-								Record
-							</Button>
+							<ButtonGroup>
+								<Button
+									startContent={
+										<FontAwesomeIcon icon={faCircleDot} />
+									}
+									onClick={() => action('startRecording')}
+									isDisabled={!isConnected}
+								>
+									Record
+								</Button>
+								<StateButton
+									startContent={
+										<FontAwesomeIcon icon={faSave} />
+									}
+									state={state}
+									action={action}
+									actionName="SaveSnapshot"
+									isDisabled={!isConnected}
+								>
+									Snapshot
+								</StateButton>
+							</ButtonGroup>
 						)}
-						<StateButton
-							className="ml-2"
-							startContent={<FontAwesomeIcon icon={faSave} />}
-							state={state}
-							action={action}
-							actionName="SaveSnapshot"
-							isDisabled={!isConnected}
-						>
-							Snapshot
-						</StateButton>
 						{hasPendingActions && <Spinner size="sm" />}
 						<div className="flex-1" />
 						{/* <Pressure /> */}
