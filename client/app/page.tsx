@@ -4,6 +4,7 @@ import { FrequencyGenerator } from '@/components/frequencyGenerator';
 import { GridStack } from '@/components/gridview/gridStack';
 import { Oscilloscope } from '@/components/oscilloscope';
 import { PressureSensor } from '@/components/pressureSensor';
+import { StageChannel } from '@/components/stageChannel';
 import { StateButton } from '@/components/stateButton';
 import { StateInput } from '@/components/stateInput';
 import { useControl } from '@/lib/controlHub';
@@ -128,8 +129,24 @@ export default function Home() {
 			</GridStack>
 			<div className="flex gap-2 items-center mx-2">
 				<FrequencyGenerator />
+				<StageChannel
+					channel={0}
+					label="Tweezer QWP angle"
+					offsetVariableName="tweezerQWPOffset"
+				/>
+				<StageChannel
+					channel={1}
+					label="Tweezer HWP angle"
+					offsetVariableName="tweezerHWPOffset"
+				/>
+				<StageChannel channel={2} label="Detection HWP angle" />
+				<StageChannel channel={3} label="Detection QWP angle" />
 				<div className="flex-1" />
-				<PressureSensor label="Vorvakuum" channel={0} innerClassName='text-slate-400' />
+				<PressureSensor
+					label="Vorvakuum"
+					channel={0}
+					innerClassName="text-slate-400"
+				/>
 				<PressureSensor label="Kammer" channel={1} />
 			</div>
 		</div>

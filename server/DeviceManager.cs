@@ -67,6 +67,15 @@ public class DeviceManager : IDisposable
 			Console.WriteLine("Falling back to DemoPressureSensor");
 			RegisterDevice("pressure", new PythonDevice("Devices/DemoPressureSensor.py"));
 		}
+		try
+		{
+			RegisterDevice("elliptec", new PythonDevice("Devices/Elliptec.py", new { port = "COM3", channels = new object[] { new { type = "rotation", address = "A" }, new { type = "rotation", address = "B" }, new { type = "rotation", address = "C" }, new { type = "rotation", address = "D" } } }));
+		}
+		catch
+		{
+			Console.WriteLine("Falling back to DemoElliptec");
+			RegisterDevice("elliptec", new PythonDevice("Devices/DemoElliptec.py"));
+		}
 		RegisterDevice("main", new MainDevice());
 		LoadSettings();
 	}

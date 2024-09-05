@@ -1,15 +1,23 @@
+using System.Reflection;
 using System.Text.Json;
 
 public class CoherentScatteringConstantsState
 {
 	public double CavityDetuningGeneratorOffset { get; set; } = 0;
+	public float TweezerQWPOffset { get; set; } = 0;
+	public float TweezerHWPOffset { get; set; } = 0;
 }
 
 public class CoherentScatteringConstantsDevice : DeviceHandlerBase<CoherentScatteringConstantsState>
 {
-	public void SetCavityDetuningGeneratorOffset(double offset)
+	private Dictionary<string, PropertyInfo> StateProperties = typeof(CoherentScatteringConstantsState).GetProperties().ToDictionary(p => p.Name.ToLowerInvariant());
+
+	public void Set(string variableName, object value)
 	{
-		State.CavityDetuningGeneratorOffset = offset;
+		var property = StateProperties[variableName.ToLowerInvariant()];
+		if (property == null)
+			throw new ArgumentException($"Variable {variableName} not found");
+		property.SetValue(State, value);
 	}
 
 	public override object? GetSettings()

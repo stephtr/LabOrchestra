@@ -52,7 +52,8 @@ export function FrequencyGenerator() {
 								value={offset * 1e-3}
 								onChange={(value) => {
 									constantsAction(
-										'setCavityDetuningGeneratorOffset',
+										'set',
+										'cavityDetuningGeneratorOffset',
 										value * 1e3,
 									);
 								}}
