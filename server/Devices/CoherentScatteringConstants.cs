@@ -2,12 +2,12 @@ using System.Text.Json;
 
 public class CoherentScatteringConstantsState
 {
-	public int CavityDetuningGeneratorOffset { get; set; } = 0;
+	public double CavityDetuningGeneratorOffset { get; set; } = 0;
 }
 
 public class CoherentScatteringConstantsDevice : DeviceHandlerBase<CoherentScatteringConstantsState>
 {
-	public void SetCavityDetuningGeneratorOffset(int offset)
+	public void SetCavityDetuningGeneratorOffset(double offset)
 	{
 		State.CavityDetuningGeneratorOffset = offset;
 	}

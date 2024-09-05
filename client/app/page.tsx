@@ -129,7 +129,7 @@ export default function Home() {
 			<div className="flex gap-2 items-center mx-2">
 				<FrequencyGenerator />
 				<div className="flex-1" />
-				<PressureSensor label="Vorvakuum" channel={0} />
+				<PressureSensor label="Vorvakuum" channel={0} innerClassName='text-slate-400' />
 				<PressureSensor label="Kammer" channel={1} />
 			</div>
 		</div>

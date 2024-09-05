@@ -20,11 +20,13 @@ const formatter1mbar = new Intl.NumberFormat(undefined, {
 export function PressureSensor({
 	label,
 	channel = 0,
+	innerClassName = '',
 }: {
 	label?: React.ReactNode;
 	channel?: number;
+	innerClassName?: string;
 }) {
-	const { isConnected, state, action } =
+	const { state, action } =
 		useControl<PressureSensorState>('pressure');
 
 	let text = '-';
@@ -50,7 +52,9 @@ export function PressureSensor({
 	return (
 		<div className="bg-slate-800 h-14 rounded-xl px-4 flex flex-col justify-center">
 			{label && <div className="text-slate-500 text-sm">{label}</div>}
-			<div className="text-slate-200 text-xl">{text}</div>
+			<div className={`text-slate-200 text-xl ${innerClassName}`}>
+				{text}
+			</div>
 		</div>
 	);
 }
