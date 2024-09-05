@@ -3,7 +3,10 @@ using Python.Runtime;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSignalR()
-	.AddMessagePackProtocol();
+	.AddJsonProtocol(options =>
+	{
+		options.PayloadSerializerOptions.Converters.Add(new NaturalObjectConverter());
+	});
 builder.Services.AddCors(options =>
 	options.AddDefaultPolicy(builder =>
 		builder
