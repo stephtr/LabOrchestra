@@ -30,6 +30,7 @@ public class DeviceManager : IDisposable
 	{
 		ControlHub = controlHub;
 		StreamingHub = streamingHub;
+		RegisterDevice("constants", new CoherentScatteringConstantsDevice());
 		try
 		{
 			RegisterDevice("het", new Picoscope5000aOscilloscope());

@@ -83,6 +83,7 @@ interface FormattedNumericInputProps {
 	onChange: (value: number) => void;
 	startContent?: React.ReactNode;
 	endContent?: React.ReactNode;
+	label?: React.ReactNode;
 }
 
 export function FormattedNumericInput({
@@ -90,6 +91,7 @@ export function FormattedNumericInput({
 	onChange,
 	startContent,
 	endContent,
+	label,
 }: FormattedNumericInputProps) {
 	const [displayValue, setDisplayValue] = useState(
 		formatNumber(externalValue),
@@ -225,6 +227,7 @@ export function FormattedNumericInput({
 			onFocus={handleFocus}
 			startContent={startContent}
 			endContent={endContent}
+			label={label}
 		/>
 	);
 }

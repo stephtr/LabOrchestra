@@ -36,10 +36,7 @@ public abstract class DeviceHandlerBase<TState> : IDeviceHandler where TState : 
 		}
 	}
 
-	public object GetState()
-	{
-		return State;
-	}
+	public object GetState() => State;
 
 	public object HandleActionAsync(DeviceAction action)
 	{
@@ -130,10 +127,10 @@ public abstract class DeviceHandlerBase<TState> : IDeviceHandler where TState : 
 
 	virtual public void Dispose() { }
 
-	virtual public object? OnSaveSnapshot(Func<string, Stream>? getStream, string deviceId) { return null; }
-	virtual public Task OnRecord(Func<string, Stream> getStream, string deviceId, CancellationToken cancellationToken) { return Task.CompletedTask; }
+	virtual public object? OnSaveSnapshot(Func<string, Stream>? getStream, string deviceId) => State;
+	virtual public Task OnRecord(Func<string, Stream> getStream, string deviceId, CancellationToken cancellationToken) => Task.CompletedTask;
 	virtual public void OnBeforeSaveSnapshot() { }
 	virtual public void OnAfterSaveSnapshot() { }
-	virtual public object? GetSettings() { return null; }
+	virtual public object? GetSettings() => null;
 	virtual public void LoadSettings(JsonElement settings) { }
 }

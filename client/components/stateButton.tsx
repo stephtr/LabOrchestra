@@ -7,6 +7,7 @@ type Props = {
 	state: any;
 	action: (name: string) => Promise<void>;
 	actionName: string;
+	className?: string;
 } & ButtonProps;
 
 export function StateButton({
@@ -15,12 +16,13 @@ export function StateButton({
 	actionName,
 	startContent,
 	children,
+	className,
 	...props
 }: Props) {
 	const [isWaiting, setIsWaiting] = useState(false);
 	return (
 		<Button
-			className="ml-2"
+			className={className}
 			startContent={isWaiting ? <Spinner size="sm" /> : startContent}
 			isDisabled={!state || isWaiting}
 			// eslint-disable-next-line react/jsx-props-no-spreading
