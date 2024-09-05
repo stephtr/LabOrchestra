@@ -139,6 +139,7 @@ export function FormattedNumericInput({
 	};
 
 	const handleBlur = () => {
+		if(!isFocusedRef.current) return;
 		isFocusedRef.current = false;
 		const parsed = parseNumber(displayValue);
 		if (!Number.isNaN(parsed)) {
@@ -158,6 +159,8 @@ export function FormattedNumericInput({
 				updateExternalValue(parsed);
 			}
 			setDisplayValue(formatNumber(internalValue));
+			isFocusedRef.current = false;
+			inputRef.current!.blur();
 		} else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
 			e.preventDefault();
 			const cursorPos = inputRef.current?.selectionStart || 0;

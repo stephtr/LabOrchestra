@@ -53,7 +53,7 @@ export function StageChannel({
 	const scalingFactor = 10;
 	return (
 		<FormattedNumericInput
-			value={(channel.targetPosition - offset) * scalingFactor}
+			value={Math.round((channel.targetPosition - offset) * scalingFactor)}
 			onChange={(value) => {
 				action(
 					'set_position',
