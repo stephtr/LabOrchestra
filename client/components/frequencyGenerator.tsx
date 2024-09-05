@@ -31,6 +31,8 @@ export function FrequencyGenerator() {
 			onChange={(value) => {
 				action('set_frequency', 0, value * 1e3 + offset);
 			}}
+			className="max-w-48"
+			label="Cavity detuning (EOM)"
 			endContent={
 				<>
 					kHz
