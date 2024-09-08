@@ -6,7 +6,8 @@ builder.Services.AddSignalR()
 	.AddJsonProtocol(options =>
 	{
 		options.PayloadSerializerOptions.Converters.Add(new NaturalObjectConverter());
-	});
+	})
+	.AddMessagePackProtocol();
 builder.Services.AddCors(options =>
 	options.AddDefaultPolicy(builder =>
 		builder
