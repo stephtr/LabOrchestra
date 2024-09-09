@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Chart } from 'react-chartjs-2';
 import 'chart.js/auto';
 import { useStream } from '@/lib/controlHub';
@@ -28,17 +28,31 @@ function timeFormatterFactory(maxVal: number) {
 	return (val: number) => `${formatter.format(val * 1e9)} ns`;
 }
 
-function frequencyFormatterFactory(maxVal: number) {
-	const formatter = Intl.NumberFormat();
+function frequencyFormatterFactory(maxVal: number, spreadLog10: number) {
 	if (maxVal > 1.5e6) {
+		spreadLog10 -= 6;
+		const formatter = Intl.NumberFormat(undefined, {
+			maximumFractionDigits: Math.max(0, 2 - spreadLog10),
+		});
 		return (val: number) => `${formatter.format(val / 1e6)} MHz`;
 	}
 	if (maxVal > 1.5e3) {
+		spreadLog10 -= 3;
+		const formatter = Intl.NumberFormat(undefined, {
+			maximumFractionDigits: Math.max(0, 2 - spreadLog10),
+		});
 		return (val: number) => `${formatter.format(val / 1e3)} kHz`;
 	}
 	if (maxVal > 1.5) {
+		const formatter = Intl.NumberFormat(undefined, {
+			maximumFractionDigits: Math.max(0, 2 - spreadLog10),
+		});
 		return (val: number) => `${formatter.format(val)} Hz`;
 	}
+	spreadLog10 += 3;
+	const formatter = Intl.NumberFormat(undefined, {
+		maximumFractionDigits: Math.max(0, 2 - spreadLog10),
+	});
 	return (val: number) => `${formatter.format(val / 1e-3)} mHz`;
 }
 
@@ -87,6 +101,9 @@ export function OscilloscopeChart({
 			setData(newData);
 		}, []),
 	);
+
+	const chartRef = useRef<RawChart>(null);
+
 	const labels = useMemo(
 		() =>
 			new Array(data.Length)
@@ -111,6 +128,26 @@ export function OscilloscopeChart({
 	const channelHash = state?.channels
 		.map((c) => c.channelActive + c.rangeInMillivolts.toString())
 		.join('.');
+	const maxDecimatedXValueAbs = Math.max(
+		Math.abs(data.XMinDecimated - xOffset),
+		Math.abs(data.XMaxDecimated - xOffset),
+	);
+	const xValueSpreadLog10 =
+		(data.XMaxDecimated - data.XMinDecimated == 0)
+			? 0
+			: Math.round(Math.log10(data.XMaxDecimated - data.XMinDecimated));
+	useEffect(() => {
+		const xTicks = chartRef.current?.options.scales?.['x']?.ticks;
+		if (!xTicks) return;
+		xTicks.callback = (
+			data.Mode === 'fft'
+				? frequencyFormatterFactory(
+						maxDecimatedXValueAbs,
+						xValueSpreadLog10,
+					)
+				: timeFormatterFactory(data.XMax)
+		) as any;
+	}, [maxDecimatedXValueAbs, xValueSpreadLog10]);
 	const options = useMemo<ChartOptions<'line'>>(() => {
 		const yFFT = {
 			yFFT: {
@@ -165,7 +202,7 @@ export function OscilloscopeChart({
 					ticks: {
 						color: '#999',
 						callback: (data.Mode === 'fft'
-							? frequencyFormatterFactory(data.XMax)
+							? frequencyFormatterFactory(maxDecimatedXValueAbs, xValueSpreadLog10)
 							: timeFormatterFactory(data.XMax)) as any,
 					},
 					min: data.XMin - xOffset,
@@ -208,12 +245,14 @@ export function OscilloscopeChart({
 		} as ChartOptions<'line'>;
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [data.Mode, data.XMin, data.XMax, channelHash, xOffset]);
+
 	return (
 		<div className="h-full bg-white dark:bg-black dark:bg-opacity-50 rounded-lg p-2">
 			<div className="relative h-full">
 				<Chart
 					type="line"
 					options={options}
+					ref={chartRef as any}
 					data={{
 						datasets:
 							data.Data.map((d, i) => [d, i] as const)
