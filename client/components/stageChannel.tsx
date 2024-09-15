@@ -81,7 +81,7 @@ export function StageChannel({
 							<PopoverContent aria-label="Input settings">
 								<FormattedNumericInput
 									label="Offset"
-									value={offset * 1e-3}
+									value={offset * scalingFactor}
 									onChange={(value) => {
 										constantsAction(
 											'set',
