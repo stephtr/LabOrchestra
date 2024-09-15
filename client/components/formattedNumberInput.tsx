@@ -1,7 +1,20 @@
 'use client';
 
+import { NumberParser } from '@/lib/numberParser';
 import { Input } from '@nextui-org/react';
 import { useState, useRef, useEffect, useCallback } from 'react';
+
+// this is a temporary fix as long as the input can't handle non-integer numbers
+const numberFormatter = new Intl.NumberFormat(undefined, {
+	useGrouping: true,
+	maximumFractionDigits: 0, // for now
+});
+
+const numberParser = NumberParser(new Intl.NumberFormat(undefined, {
+	useGrouping: true,
+	maximumFractionDigits: 20, // for now
+}));
+
 
 const findDigitPositionToLeft = (value: string, cursorPos: number): number => {
 	for (let i = cursorPos - 1; i >= 0; i--) {
@@ -71,11 +84,7 @@ const findEquivalentCursorPosition = (
 };
 
 const formatNumber = (num: number): string => {
-	const formatter = new Intl.NumberFormat(undefined, {
-		useGrouping: true,
-		maximumFractionDigits: 20,
-	});
-	return num === 0 ? '0' : formatter.format(num);
+	return num === 0 ? '0' : numberFormatter.format(num);
 };
 
 interface FormattedNumericInputProps {
@@ -103,10 +112,6 @@ export function FormattedNumericInput({
 	const lastInputTimeRef = useRef<number>(Date.now());
 	const isFocusedRef = useRef<boolean>(false);
 
-	const parseNumber = (str: string): number => {
-		return str === '-' ? 0 : parseFloat(str.replace(/[^\d.-]/g, ''));
-	};
-
 	const updateExternalValue = useCallback(
 		(newValue: number) => {
 			setInternalValue(newValue);
@@ -117,7 +122,7 @@ export function FormattedNumericInput({
 
 	const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const input = e.target.value;
-		const parsed = parseNumber(input);
+		const parsed = numberParser(input);
 
 		if (!Number.isNaN(parsed) || input === '-') {
 			const formatted = formatNumber(parsed);
@@ -141,7 +146,7 @@ export function FormattedNumericInput({
 	const handleBlur = () => {
 		if(!isFocusedRef.current) return;
 		isFocusedRef.current = false;
-		const parsed = parseNumber(displayValue);
+		const parsed = numberParser(displayValue);
 		if (!Number.isNaN(parsed)) {
 			updateExternalValue(parsed);
 		}
@@ -154,7 +159,7 @@ export function FormattedNumericInput({
 
 	const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
 		if (e.key === 'Enter') {
-			const parsed = parseNumber(displayValue);
+			const parsed = numberParser(displayValue);
 			if (!Number.isNaN(parsed)) {
 				updateExternalValue(parsed);
 			}
@@ -175,13 +180,13 @@ export function FormattedNumericInput({
 			if (digitPos === -1) {
 				const multiplier =
 					10 ** unformattedValue.replace('-', '').length;
-				const currentNumber = parseNumber(formattedValue);
+				const currentNumber = numberParser(formattedValue);
 				newNumber = (currentNumber || 0) + increment * multiplier;
 			} else {
 				const multiplier =
 					10 **
 					(unformattedValue.replace('-', '').length - digitPos - 1);
-				const currentNumber = parseNumber(formattedValue);
+				const currentNumber = numberParser(formattedValue);
 				newNumber = currentNumber + increment * multiplier;
 			}
 
