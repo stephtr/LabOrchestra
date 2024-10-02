@@ -62,12 +62,13 @@ public class MainDevice : DeviceHandlerBase<MainState>
 		SendStateUpdate(new { State.IsRecording });
 		var filepath = GetSaveFilepath();
 		RecordingCancellationTokenSource = new();
-		DeviceManager!.Record(filepath, RecordingCancellationTokenSource.Token);
+		var token = RecordingCancellationTokenSource.Token;
+		DeviceManager!.Record(filepath, token);
 		State.IsRecording = true;
 		var startTime = DateTime.Now;
 		Task.Run(() =>
 		{
-			while (!RecordingCancellationTokenSource.IsCancellationRequested)
+			while (!token.IsCancellationRequested)
 			{
 				var seconds = (int)(DateTime.Now - startTime).TotalSeconds;
 				if (State.RecordingTimeSeconds != seconds)

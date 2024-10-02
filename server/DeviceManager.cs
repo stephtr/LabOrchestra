@@ -172,9 +172,9 @@ public class DeviceManager : IDisposable
 		SendPartialStateUpdateAsync(state);
 	}
 
-	private Dictionary<string, object> GetSnapshot(Func<string, Stream>? getStream = null)
+	private ConcurrentDictionary<string, object> GetSnapshot(Func<string, Stream>? getStream = null)
 	{
-		var snapshot = new Dictionary<string, object>();
+		var snapshot = new ConcurrentDictionary<string, object>();
 		Parallel.ForEach(DeviceHandlers, (kvp) =>
 		{
 			var (deviceId, device) = kvp;

@@ -1,6 +1,23 @@
 using ExperimentControl.Hubs;
 using Python.Runtime;
 
+TaskScheduler.UnobservedTaskException += (object? sender, UnobservedTaskExceptionEventArgs e) =>
+{
+	Console.WriteLine($"Unhandled {e.Exception}");
+	Console.WriteLine(e.Exception.Message);
+	Console.WriteLine(e.Exception.Source);
+};
+AppDomain.CurrentDomain.UnhandledException += (object sender, UnhandledExceptionEventArgs e) =>
+{
+	Console.WriteLine($"Unhandled {e.ExceptionObject}");
+	var exception = e.ExceptionObject as Exception;
+	if (exception != null)
+	{
+		Console.WriteLine(exception.Message);
+		Console.WriteLine(exception.Source);
+	}
+};
+
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSignalR()
 	.AddJsonProtocol(options =>

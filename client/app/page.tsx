@@ -9,7 +9,6 @@ import { StateButton } from '@/components/stateButton';
 import { StateInput } from '@/components/stateInput';
 import { useControl } from '@/lib/controlHub';
 import { faCircleDot, faStop } from '@/lib/fontawesome-regular';
-// import { Pressure } from '@/components/pressure';
 import { faGear, faSave } from '@/lib/fortawesome/pro-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
