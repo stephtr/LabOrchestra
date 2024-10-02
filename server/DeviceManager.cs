@@ -76,7 +76,7 @@ public class DeviceManager : IDisposable
 			Console.WriteLine("Falling back to DemoElliptec");
 			RegisterDevice("elliptec", new PythonDevice("Devices/DemoElliptec.py"));
 		}
-		RegisterDevice("main", new MainDevice());
+		RegisterDevice("main", MainDevice);
 		LoadSettings();
 	}
 
