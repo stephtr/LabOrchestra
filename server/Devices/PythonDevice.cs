@@ -80,6 +80,10 @@ public class PythonDevice : IDeviceHandler
 	public object HandleActionAsync(DeviceAction action)
 	{
 		var actionName = action.ActionName.ToLower();
+		if (actionName == "getstate")
+		{
+			return GetState();
+		}
 		if (MethodCache.TryGetValue(actionName, out var method))
 		{
 			try

@@ -32,13 +32,21 @@ if not hasattr(argv, "port"):
 ser = serial.Serial(
     argv.port, 9600, 8, serial.PARITY_NONE, serial.STOPBITS_ONE, timeout=5
 )
-request("RES")
-# sensorStatus = request("SEN").split(",")
-# sensorId = request("TID").split(",")
-pressureUnit = int(request("UNI"))
-if pressureUnit != 0 and pressureUnit != 4:  # mbar & hPa
-    raise Exception("Unsupported pressure unit")
-send("COM,1")
+
+for i in range(3):
+    try:
+        request("RES")
+        # sensorStatus = request("SEN").split(",")
+        # sensorId = request("TID").split(",")
+        pressureUnit = int(request("UNI"))
+        if pressureUnit != 0 and pressureUnit != 4:  # mbar & hPa
+            raise Exception("Unsupported pressure unit")
+        send("COM,1")
+        break
+    except:
+        continue
+else:
+    raise Exception("Couldn't initialize the pressure sensor.")
 
 
 def main():
