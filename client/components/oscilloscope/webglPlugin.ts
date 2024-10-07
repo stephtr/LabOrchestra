@@ -54,7 +54,15 @@ function initShaderProgram(
 		return null;
 	}
 
-	return shaderProgram;
+	return {
+		program: shaderProgram,
+		uTransformationMatrix: gl.getUniformLocation(
+			shaderProgram,
+			'uTransformationMatrix',
+		),
+		aVertexPosition: gl.getAttribLocation(shaderProgram, 'aVertexPosition'),
+		uColor: gl.getUniformLocation(shaderProgram, 'uColor'),
+	};
 }
 
 function createTransformationMatrix(
@@ -92,7 +100,7 @@ function createTransformationMatrix(
 export function createWebglPlugin(): Plugin<'line'> {
 	let canvas2: HTMLCanvasElement | null;
 	let gl: WebGLRenderingContext | null;
-	let shaderProgram: WebGLProgram | null;
+	let shaderProgram: ReturnType<typeof initShaderProgram> | null;
 	let positionBuffer: WebGLBuffer | null;
 	return {
 		id: 'webgl',
@@ -136,12 +144,8 @@ export function createWebglPlugin(): Plugin<'line'> {
 			const scales = chart.scales;
 			const xAxis = data.xAxisID ? scales[data.xAxisID] : scales.x;
 			const yAxis = data.yAxisID ? scales[data.yAxisID] : scales.y;
-			const matrixLocation = gl.getUniformLocation(
-				shaderProgram,
-				'uTransformationMatrix',
-			);
 			gl.uniformMatrix4fv(
-				matrixLocation,
+				shaderProgram.uTransformationMatrix,
 				false,
 				createTransformationMatrix(
 					xAxis.min,
@@ -173,27 +177,27 @@ export function createWebglPlugin(): Plugin<'line'> {
 				gl.STATIC_DRAW,
 			);
 			gl.vertexAttribPointer(
-				gl.getAttribLocation(shaderProgram, 'aVertexPosition'),
+				shaderProgram.aVertexPosition,
 				2,
 				gl.FLOAT,
 				false,
 				0,
 				0,
 			);
-			gl.enableVertexAttribArray(
-				gl.getAttribLocation(shaderProgram, 'aVertexPosition'),
-			);
+			gl.enableVertexAttribArray(shaderProgram.aVertexPosition);
 			const color = tinycolor(
 				data.borderColor && typeof data.borderColor === 'string'
 					? data.borderColor
 					: 'rgba(0.5, 0.5, 0.5, 1)',
 			).toRgb();
-			const colorLocation = gl.getUniformLocation(
-				shaderProgram,
-				'uColor',
+			const colorLocation = gl.uniform4f(
+				shaderProgram.uColor,
+				color.r,
+				color.g,
+				color.b,
+				color.a,
 			);
-			gl.uniform4f(colorLocation, color.r, color.g, color.b, color.a);
-			gl.useProgram(shaderProgram);
+			gl.useProgram(shaderProgram.program);
 			const drawArea = false;
 			gl.drawArrays(
 				drawArea ? gl.TRIANGLE_STRIP : gl.LINE_STRIP,
