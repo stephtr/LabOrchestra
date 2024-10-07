@@ -1,41 +1,34 @@
 import { Plugin, Point } from 'chart.js';
 import tinycolor from 'tinycolor2';
 
-const fsSource = `
-	precision lowp float;
-	uniform vec4 uColor;
-
-	void main() {
-		gl_FragColor = uColor;
-	}`;
-const vsSource = `
-	attribute vec4 aVertexPosition;
-	uniform mat4 uTransformationMatrix;
-
-	void main() {
-   		gl_Position = uTransformationMatrix * aVertexPosition;
-	}`;
-
 function loadShader(gl: WebGLRenderingContext, type: number, source: string) {
 	const shader = gl.createShader(type);
 	if (!shader) return null;
 	gl.shaderSource(shader, source);
 	gl.compileShader(shader);
 	if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-		alert(
+		throw new Error(
 			`An error occurred compiling the shaders: ${gl.getShaderInfoLog(shader)}`,
 		);
-		gl.deleteShader(shader);
-		return null;
 	}
 	return shader;
 }
 
-function initShaderProgram(
-	gl: WebGLRenderingContext,
-	vsSource: string,
-	fsSource: string,
-) {
+function initShaderProgram(gl: WebGLRenderingContext) {
+	const fsSource = `
+		precision lowp float;
+		uniform vec4 uColor;
+	
+		void main() {
+			gl_FragColor = uColor;
+		}`;
+	const vsSource = `
+		attribute vec4 aVertexPosition;
+		uniform mat4 uTransformationMatrix;
+	
+		void main() {
+			   gl_Position = uTransformationMatrix * aVertexPosition;
+		}`;
 	const vertexShader = loadShader(gl, gl.VERTEX_SHADER, vsSource);
 	const fragmentShader = loadShader(gl, gl.FRAGMENT_SHADER, fsSource);
 
@@ -46,12 +39,11 @@ function initShaderProgram(
 	gl.linkProgram(shaderProgram);
 
 	if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
-		alert(
+		throw new Error(
 			`Unable to initialize the shader program: ${gl.getProgramInfoLog(
 				shaderProgram,
 			)}`,
 		);
-		return null;
 	}
 
 	return {
@@ -77,24 +69,15 @@ function createTransformationMatrix(
 	const translateX = -((xMax + xMin) / 2) * scaleX;
 	const translateY = -((yMax + yMin) / 2) * scaleY;
 
-	return new Float32Array([
-		scaleX,
-		0,
-		0,
-		0,
-		0,
-		scaleY,
-		0,
-		0,
-		0,
-		0,
-		1,
-		0,
-		translateX,
-		translateY,
-		0,
-		1,
-	]);
+	return new Float32Array(
+		// prettier-ignore
+		[
+			scaleX, 0, 0, 0,
+			0, scaleY, 0, 0,
+			0,      0, 1, 0,
+			translateX, translateY, 0, 1,
+		],
+	);
 }
 
 export function createWebglPlugin(): Plugin<'line'> {
@@ -112,7 +95,7 @@ export function createWebglPlugin(): Plugin<'line'> {
 			canvas2.style.pointerEvents = 'none';
 			gl = canvas2.getContext('webgl');
 			if (!gl) return false;
-			shaderProgram = initShaderProgram(gl, vsSource, fsSource);
+			shaderProgram = initShaderProgram(gl);
 			positionBuffer = gl.createBuffer();
 		},
 		uninstall() {
@@ -126,7 +109,7 @@ export function createWebglPlugin(): Plugin<'line'> {
 			canvas2.style.width = `${width}px`;
 			canvas2.style.height = `${height}px`;
 		},
-		beforeDatasetsDraw(chart, args) {
+		beforeDatasetsDraw(chart) {
 			if (!gl || !shaderProgram) return;
 			const { left, top, right, bottom } = chart.chartArea;
 			const { height } = chart.canvas.getBoundingClientRect();
@@ -137,13 +120,12 @@ export function createWebglPlugin(): Plugin<'line'> {
 				(bottom - top) * window.devicePixelRatio,
 			);
 		},
-		beforeDatasetDraw(chart, { index, meta }) {
+		beforeDatasetDraw({ data, scales }, { index }) {
 			if (!gl || !shaderProgram) return;
-			const data = chart.data.datasets[index];
-			if (data.data.length === 0) return;
-			const scales = chart.scales;
-			const xAxis = data.xAxisID ? scales[data.xAxisID] : scales.x;
-			const yAxis = data.yAxisID ? scales[data.yAxisID] : scales.y;
+			const dataset = data.datasets[index];
+			if (dataset.data.length === 0) return;
+			const xAxis = dataset.xAxisID ? scales[dataset.xAxisID] : scales.x;
+			const yAxis = dataset.yAxisID ? scales[dataset.yAxisID] : scales.y;
 			gl.uniformMatrix4fv(
 				shaderProgram.uTransformationMatrix,
 				false,
@@ -155,18 +137,18 @@ export function createWebglPlugin(): Plugin<'line'> {
 				),
 			);
 			gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-			const positions = new Array(data.data.length * 2);
-			if ((data.data[0] as any).x) {
-				for (let i = 0; i < data.data.length; i++) {
-					const { x, y } = data.data[i] as Point;
+			const positions = new Array(dataset.data.length * 2);
+			if ((dataset.data[0] as any).x) {
+				for (let i = 0; i < dataset.data.length; i++) {
+					const { x, y } = dataset.data[i] as Point;
 					positions[2 * i] = x;
 					positions[2 * i + 1] = y;
 				}
 			} else {
-				const labels = chart.data.labels as Number[];
-				for (let i = 0; i < data.data.length; i++) {
+				const labels = data.labels as number[];
+				for (let i = 0; i < dataset.data.length; i++) {
 					const x = labels[i];
-					const y = data.data[i] as number;
+					const y = dataset.data[i] as number;
 					positions[2 * i] = x;
 					positions[2 * i + 1] = y;
 				}
@@ -186,8 +168,8 @@ export function createWebglPlugin(): Plugin<'line'> {
 			);
 			gl.enableVertexAttribArray(shaderProgram.aVertexPosition);
 			const color = tinycolor(
-				data.borderColor && typeof data.borderColor === 'string'
-					? data.borderColor
+				dataset.borderColor && typeof dataset.borderColor === 'string'
+					? dataset.borderColor
 					: 'rgba(0.5, 0.5, 0.5, 1)',
 			).toRgb();
 			gl.uniform4f(
