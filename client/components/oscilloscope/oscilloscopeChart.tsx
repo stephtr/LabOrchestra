@@ -7,6 +7,7 @@ import { useStream } from '@/lib/controlHub';
 
 import { ChartOptions, Chart as RawChart } from 'chart.js';
 import { OscilloscopeState, OscilloscopeStreamData } from './utils';
+import { createWebglPlugin } from './webglPlugin';
 
 if (typeof window !== 'undefined') {
 	// eslint-disable-next-line global-require
@@ -252,6 +253,7 @@ export function OscilloscopeChart({
 				<Chart
 					type="line"
 					options={options}
+					plugins={[createWebglPlugin()]}
 					ref={chartRef as any}
 					data={{
 						datasets:
