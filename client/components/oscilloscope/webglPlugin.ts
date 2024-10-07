@@ -190,7 +190,7 @@ export function createWebglPlugin(): Plugin<'line'> {
 					? data.borderColor
 					: 'rgba(0.5, 0.5, 0.5, 1)',
 			).toRgb();
-			const colorLocation = gl.uniform4f(
+			gl.uniform4f(
 				shaderProgram.uColor,
 				color.r,
 				color.g,
