@@ -11,9 +11,11 @@ const formatter100mbar = new Intl.NumberFormat(undefined, {
 	maximumFractionDigits: 0,
 });
 const formatter10mbar = new Intl.NumberFormat(undefined, {
+	minimumFractionDigits: 1,
 	maximumFractionDigits: 1,
 });
 const formatter1mbar = new Intl.NumberFormat(undefined, {
+	minimumFractionDigits: 2,
 	maximumFractionDigits: 2,
 });
 
@@ -26,10 +28,9 @@ export function PressureSensor({
 	channel?: number;
 	innerClassName?: string;
 }) {
-	const { state, action } =
-		useControl<PressureSensorState>('pressure');
+	const { state, action } = useControl<PressureSensorState>('pressure');
 
-	let text = '-';
+	let text: string | React.ReactElement = '-';
 	if (state) {
 		const pressure = state?.channels[channel].pressure;
 		let pressureText = '';
@@ -44,15 +45,21 @@ export function PressureSensor({
 			pressureText = formatter1mbar.format(+base) + ' e' + exponential;
 		}
 		text =
-			state.channels[channel].status == 'ok'
-				? `${pressureText} mbar`
-				: state.channels[channel].status;
+			state.channels[channel].status == 'ok' ? (
+				<>
+					<span className='tabular-nums'>{pressureText}</span> mbar
+				</>
+			) : (
+				state.channels[channel].status
+			);
 	}
 
 	return (
 		<div className="bg-slate-800 h-14 rounded-xl px-4 flex flex-col justify-center">
 			{label && <div className="text-slate-500 text-sm">{label}</div>}
-			<div className={`text-slate-200 text-xl ${innerClassName}`}>
+			<div
+				className={`text-slate-200 text-xl ${innerClassName}`}
+			>
 				{text}
 			</div>
 		</div>
