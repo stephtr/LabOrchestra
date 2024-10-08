@@ -511,7 +511,7 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 							var reducedData = data.Data.Select((d, i) =>
 							{
 								if (d == null || !State.Channels[i].ChannelActive) return null;
-								var decimation = SignalUtils.DecimateSignal(d, data.XMin, data.XMax, xMinWish, xMaxWish, 1000);
+								var decimation = SignalUtils.DecimateSignal(d, data.XMin, data.XMax, xMinWish, xMaxWish, 2000);
 								xMin = decimation.xMin;
 								xMax = decimation.xMax;
 								length = decimation.signal.Length;
