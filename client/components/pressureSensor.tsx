@@ -1,4 +1,6 @@
 import { useControl } from '@/lib/controlHub';
+import { Modal, ModalBody, ModalContent, ModalHeader } from '@nextui-org/react';
+import { useState } from 'react';
 
 interface PressureSensorState {
 	channels: Array<{
@@ -29,6 +31,7 @@ export function PressureSensor({
 	innerClassName?: string;
 }) {
 	const { state, action } = useControl<PressureSensorState>('pressure');
+	const [isShownAsModal, setIsShownAsModal] = useState(false);
 
 	let text: string | React.ReactElement = '-';
 	if (state) {
@@ -47,7 +50,7 @@ export function PressureSensor({
 		text =
 			state.channels[channel].status == 'ok' ? (
 				<>
-					<span className='tabular-nums'>{pressureText}</span> mbar
+					<span className="tabular-nums">{pressureText}</span> mbar
 				</>
 			) : (
 				state.channels[channel].status
@@ -55,13 +58,28 @@ export function PressureSensor({
 	}
 
 	return (
-		<div className="bg-slate-800 h-14 rounded-xl px-4 flex flex-col justify-center">
-			{label && <div className="text-slate-500 text-sm">{label}</div>}
-			<div
-				className={`text-slate-200 text-xl ${innerClassName}`}
+		<>
+			<Modal
+				isOpen={isShownAsModal}
+				onOpenChange={setIsShownAsModal}
+				size="4xl"
 			>
-				{text}
+				<ModalContent>
+					<ModalHeader>{label}</ModalHeader>
+					<ModalBody className="text-8xl pt-4 pb-12 text-center">
+						<div>{text}</div>
+					</ModalBody>
+				</ModalContent>
+			</Modal>
+			<div
+				className="bg-slate-800 h-14 rounded-xl px-4 flex flex-col justify-center"
+				onDoubleClick={() => setIsShownAsModal(true)}
+			>
+				{label && <div className="text-slate-500 text-sm">{label}</div>}
+				<div className={`text-slate-200 text-xl ${innerClassName}`}>
+					{text}
+				</div>
 			</div>
-		</div>
+		</>
 	);
 }
