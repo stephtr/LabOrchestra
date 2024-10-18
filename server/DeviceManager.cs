@@ -10,16 +10,23 @@ using YamlDotNet.System.Text.Json;
 
 public record DeviceAction(string DeviceId, string? ChannelId, string ActionName, object[]? Parameters);
 
+public interface IAddon
+{
+	void DoWork(DeviceManager deviceManager, CancellationToken cancellationToken);
+}
+
 public class DeviceManager : IDisposable
 {
 	private readonly IHubContext<ControlHub> ControlHub;
 	private readonly IHubContext<StreamingHub> StreamingHub;
-	private Dictionary<string, IDeviceHandler> DeviceHandlers = new();
+	public Dictionary<string, IDeviceHandler> Devices = new();
+	public List<IAddon> Addons = new();
 	private List<string> UpdateQueue = new();
 	private Timer? UpdateTimer = null;
 	private const float MaxUpdateDelay = 0.05f;
 	internal ConcurrentDictionary<string, Dictionary<string, Dictionary<object, object>>> StreamingContexts = new();
 	private MainDevice MainDevice = new();
+	private CancellationTokenSource GlobalCancellationTokenSource = new();
 
 	private ISerializer yamlSerializer = new SerializerBuilder()
 			.WithTypeConverter(new SystemTextJsonYamlTypeConverter())
@@ -77,12 +84,15 @@ public class DeviceManager : IDisposable
 			RegisterDevice("elliptec", new PythonDevice("Devices/DemoElliptec.py"));
 		}
 		RegisterDevice("main", MainDevice);
+
 		LoadSettings();
+
+		RegisterAddon(new PressureUploader("pressure", 1, "https://pressure.cavity.at/api/updatePressure", "my-api-key", TimeSpan.FromMinutes(1)));
 	}
 
 	public void RegisterDevice(string deviceId, IDeviceHandler deviceHandler)
 	{
-		DeviceHandlers.Add(deviceId, deviceHandler);
+		Devices.Add(deviceId, deviceHandler);
 		deviceHandler.SetDeviceManager(this);
 		deviceHandler.SubscribeToStateUpdates(state =>
 		{
@@ -96,17 +106,23 @@ public class DeviceManager : IDisposable
 		});
 	}
 
+	public void RegisterAddon(IAddon addon)
+	{
+		Addons.Add(addon);
+		Task.Run(() => addon.DoWork(this, GlobalCancellationTokenSource.Token));
+	}
+
 	public void UnregisterDevice(IDeviceHandler deviceHandler)
 	{
 		var deviceId = GetDeviceId(deviceHandler);
 		if (deviceId == null) return;
-		DeviceHandlers.Remove(deviceId);
+		Devices.Remove(deviceId);
 		deviceHandler.Dispose();
 	}
 
 	public void Action(DeviceAction action)
 	{
-		DeviceHandlers[action.DeviceId].HandleActionAsync(action);
+		Devices[action.DeviceId].HandleActionAsync(action);
 		UpdateQueue.Add(action.DeviceId);
 		if (UpdateTimer == null)
 		{
@@ -116,13 +132,13 @@ public class DeviceManager : IDisposable
 
 	public object Request(DeviceAction action)
 	{
-		return DeviceHandlers[action.DeviceId].HandleActionAsync(action);
+		return Devices[action.DeviceId].HandleActionAsync(action);
 	}
 
 	public Dictionary<string, object> GetFullState()
 	{
 		var state = new Dictionary<string, object>();
-		foreach (var (deviceId, device) in DeviceHandlers)
+		foreach (var (deviceId, device) in Devices)
 		{
 			state[deviceId] = device.GetState();
 		}
@@ -141,7 +157,7 @@ public class DeviceManager : IDisposable
 
 	public string GetDeviceId(IDeviceHandler deviceHandler)
 	{
-		return DeviceHandlers.FirstOrDefault(x => x.Value == deviceHandler).Key;
+		return Devices.FirstOrDefault(x => x.Value == deviceHandler).Key;
 	}
 
 	public void SendStreamData<T>(string deviceId, Func<T, Dictionary<object, object>?, object> filter, T data)
@@ -166,7 +182,7 @@ public class DeviceManager : IDisposable
 		var state = new Dictionary<string, object>();
 		foreach (var deviceId in UpdateQueue)
 		{
-			state[deviceId] = DeviceHandlers[deviceId].GetState();
+			state[deviceId] = Devices[deviceId].GetState();
 		}
 		UpdateQueue.Clear();
 		SendPartialStateUpdateAsync(state);
@@ -175,7 +191,7 @@ public class DeviceManager : IDisposable
 	private ConcurrentDictionary<string, object> GetSnapshot(Func<string, Stream>? getStream = null)
 	{
 		var snapshot = new ConcurrentDictionary<string, object>();
-		Parallel.ForEach(DeviceHandlers, (kvp) =>
+		Parallel.ForEach(Devices, (kvp) =>
 		{
 			var (deviceId, device) = kvp;
 			var stateToWrite = device.OnSaveSnapshot(getStream, deviceId);
@@ -189,7 +205,7 @@ public class DeviceManager : IDisposable
 
 	public void SaveSnapshot(string baseFilepath)
 	{
-		foreach (var (_, device) in DeviceHandlers)
+		foreach (var (_, device) in Devices)
 		{
 			device.OnBeforeSaveSnapshot();
 		}
@@ -202,7 +218,7 @@ public class DeviceManager : IDisposable
 			return fileStreams[filename];
 		}
 		var state = GetSnapshot(getStream);
-		foreach (var (_, device) in DeviceHandlers)
+		foreach (var (_, device) in Devices)
 		{
 			device.OnAfterSaveSnapshot();
 		}
@@ -256,7 +272,7 @@ public class DeviceManager : IDisposable
 			return recordingStreams[filename];
 		}
 
-		var recordingTasks = DeviceHandlers.Select((kvp, _) =>
+		var recordingTasks = Devices.Select((kvp, _) =>
 		{
 			var (deviceId, device) = kvp;
 			return device.OnRecord(getStream, deviceId, cancellationToken);
@@ -324,7 +340,7 @@ public class DeviceManager : IDisposable
 	private void SaveSettings()
 	{
 		var state = new Dictionary<string, dynamic>();
-		foreach (var (deviceId, device) in DeviceHandlers)
+		foreach (var (deviceId, device) in Devices)
 		{
 			var setting = device.GetSettings();
 			if (setting != null)
@@ -345,9 +361,9 @@ public class DeviceManager : IDisposable
 			foreach (var (deviceId, settingObject) in settings)
 			{
 				dynamic setting = settingObject;
-				if (DeviceHandlers.ContainsKey(deviceId))
+				if (Devices.ContainsKey(deviceId))
 				{
-					DeviceHandlers[deviceId].LoadSettings(setting);
+					Devices[deviceId].LoadSettings(setting);
 				}
 			}
 		}
@@ -359,11 +375,12 @@ public class DeviceManager : IDisposable
 
 	public void Dispose()
 	{
+		GlobalCancellationTokenSource.Cancel();
 		SaveSettings();
-		foreach (var (_, device) in DeviceHandlers)
+		foreach (var (_, device) in Devices)
 		{
 			device.Dispose();
 		}
-		DeviceHandlers.Clear();
+		Devices.Clear();
 	}
 }

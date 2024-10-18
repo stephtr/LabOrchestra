@@ -33,6 +33,9 @@ ser = serial.Serial(
     argv.port, 9600, 8, serial.PARITY_NONE, serial.STOPBITS_ONE, timeout=5
 )
 
+# Sometimes, the sensor is already sending data when trying to connect.
+# With some bad luck, the reset response is then delayed.
+# In this case, just try again.
 for i in range(3):
     try:
         request("RES")
