@@ -1,3 +1,4 @@
+using System.Net.Http.Headers;
 using System.Text.Json;
 
 public class PressureUploader : IAddon
@@ -21,13 +22,17 @@ public class PressureUploader : IAddon
 		List<float> PressureReadings = new();
 		var start = DateTime.UtcNow;
 		var client = new HttpClient();
+		client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ApiKey);
 		while (!cancellationToken.IsCancellationRequested)
 		{
 			try
 			{
-				dynamic? pressureState = deviceManager.Devices[DeviceName]?.GetState();
-				if (pressureState == null) continue;
-				var pressure = pressureState.channels[SelectedChannel];
+				var device = deviceManager.Devices[DeviceName];
+				if (device == null) throw new ArgumentException($"Device {DeviceName} doesn't exist.");
+				dynamic pressureState = device.GetState();
+				var pressure = (float)pressureState.channels[SelectedChannel].pressure;
+				var state = (string)pressureState.channels[SelectedChannel].status;
+				if(state != "ok") throw new Exception($"Unexpected data ({pressure} {state})");
 				PressureReadings.Add(pressure);
 				if (DateTime.UtcNow - start > TimeInterval)
 				{
@@ -39,12 +44,11 @@ public class PressureUploader : IAddon
 						pressure = PressureReadings.Average(),
 						channel = SelectedChannel,
 					}));
-					content.Headers.Add("Authorization", $"Bearer {ApiKey}");
-					client.PostAsync(UploadUrl, content);
+					_ = client.PostAsync(UploadUrl, content);
 					PressureReadings.Clear();
 				}
 			}
-			catch { }
+			catch {}
 			cancellationToken.WaitHandle.WaitOne(1000);
 		}
 	}

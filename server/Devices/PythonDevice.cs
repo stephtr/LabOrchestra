@@ -1,5 +1,55 @@
+using System.Dynamic;
 using System.Text.Json;
 using Python.Runtime;
+
+public static class JsonElementExtensions
+{
+	public static dynamic? ToDynamic(this JsonElement element)
+	{
+		if (element.ValueKind == JsonValueKind.Object)
+		{
+			var expando = new ExpandoObject() as IDictionary<string, object>;
+			foreach (var property in element.EnumerateObject())
+			{
+				expando.Add(property.Name, property.Value.ToDynamic());
+			}
+			return expando;
+		}
+		else if (element.ValueKind == JsonValueKind.Array)
+		{
+			var list = new List<object>();
+			foreach (var item in element.EnumerateArray())
+			{
+				list.Add(item.ToDynamic());
+			}
+			return list;
+		}
+		else if (element.ValueKind == JsonValueKind.Number)
+		{
+			if (element.TryGetInt32(out int intVal))
+			{
+				return intVal;
+			}
+			if (element.TryGetInt64(out long longVal))
+			{
+				return longVal;
+			}
+			return element.GetDouble();
+		}
+		else
+		{
+			return element.ValueKind switch
+			{
+				JsonValueKind.String => element.GetString(),
+				JsonValueKind.Number => element.GetDecimal(), // Change to GetInt32() or others if needed
+				JsonValueKind.True => true,
+				JsonValueKind.False => false,
+				JsonValueKind.Null => null,
+				_ => element,
+			};
+		}
+	}
+}
 
 public class PythonDevice : IDeviceHandler
 {
@@ -73,7 +123,7 @@ public class PythonDevice : IDeviceHandler
 		using (Py.GIL())
 		{
 			string stateJson = MethodCache["_get_state"].Invoke().As<string>();
-			return JsonSerializer.Deserialize<dynamic>(stateJson) ?? new object();
+			return JsonSerializer.Deserialize<JsonElement>(stateJson).ToDynamic() ?? new object();
 		}
 	}
 
