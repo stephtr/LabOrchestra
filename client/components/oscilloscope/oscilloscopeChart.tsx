@@ -223,7 +223,7 @@ export function OscilloscopeChart({
 				zoom: {
 					pan: {
 						enabled: true,
-						mode: 'x',
+						mode: 'xy',
 						scaleMode: 'y',
 						onPan: onPanOrZoom,
 					},
