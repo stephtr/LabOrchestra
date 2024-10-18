@@ -237,7 +237,7 @@ public class DeviceManager : IDisposable
 				fileStreams.Where((s) => s.Value.Length > 0).ToList().ForEach(x =>
 				{
 					x.Value.Position = 0;
-					var entry = npzFile.CreateEntry(x.Key, CompressionLevel.Fastest);
+					var entry = npzFile.CreateEntry(x.Key, CompressionLevel.NoCompression);
 					var entryStream = entry.Open();
 					x.Value.CopyTo(entryStream);
 					entryStream.Dispose();
@@ -319,7 +319,7 @@ public class DeviceManager : IDisposable
 				recordingStreams.Where((s) => s.Value.Length > 0).ToList().ForEach(x =>
 				{
 					x.Value.Position = 0;
-					var entry = npzFile.CreateEntry(x.Key, CompressionLevel.Fastest);
+					var entry = npzFile.CreateEntry(x.Key, CompressionLevel.NoCompression);
 					var entryStream = entry.Open();
 					x.Value.CopyTo(entryStream);
 					entryStream.Dispose();
