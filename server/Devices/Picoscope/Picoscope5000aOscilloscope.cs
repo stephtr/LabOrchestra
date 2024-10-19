@@ -107,7 +107,6 @@ public class Picoscope5000aOscilloscope : OscilloscopeWithStreaming
 			throw new Exception($"Failed to start acquisition ({status:X})");
 		}
 		Dt = sampleInterval * 1e-9;
-		Df = 1 / (2 * Dt) / (State.FFTLength / 2);
 
 		Task.Run(() =>
 		{

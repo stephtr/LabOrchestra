@@ -128,6 +128,35 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 		}
 	}
 
+	public float[][] GetFFT(int channel, float fMin, float fMax)
+	{
+		if (!State.Running || Df == 0) return [[], []];
+		var iMin = (int)Math.Ceiling(fMin / Df);
+		var iMax = (int)Math.Floor(fMax / Df);
+		var f = new float[iMax - iMin + 1];
+		var psd = new float[iMax - iMin + 1];
+		for (var i = 0; i <= iMax - iMin; i++)
+		{
+			f[i] = (float)((i + iMin) * Df);
+		}
+		var preferDisplay = State.FFTAveragingMode == "prefer-display";
+		if (preferDisplay)
+		{
+			for (var i = 0; i <= iMax - iMin; i++)
+			{
+				psd[i] = (float)FFTStorage[channel][i + iMin];
+			}
+		}
+		else
+		{
+			for (var i = 0; i <= iMax - iMin; i++)
+			{
+				psd[i] = (float)Math.Log10(FFTStorage[channel][i + iMin]) * 10;
+			}
+		}
+		return [f, psd];
+	}
+
 	public void SetDisplayMode(string mode)
 	{
 		if (mode != "time" && mode != "fft")
@@ -141,6 +170,7 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 		try
 		{
 			State.FFTLength = length;
+			Df = 1 / (2 * Dt) / (State.FFTLength / 2);
 			ResetFFTStorage();
 		}
 		finally
@@ -349,6 +379,7 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 		State.Running = true;
 
 		OnStart(runCancellationTokenSource.Token);
+		Df = 1 / (2 * Dt) / (State.FFTLength / 2);
 
 		Task.Run(() =>
 		{
