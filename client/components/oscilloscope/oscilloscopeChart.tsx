@@ -245,7 +245,7 @@ export function OscilloscopeChart({
 			},
 		} as ChartOptions<'line'>;
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [data.Mode, data.XMin, data.XMax, channelHash, xOffset]);
+	}, [data.Mode, data.XMin, data.XMax, state?.displayMode === 'fft' ? 'fft' : channelHash, xOffset]);
 
 	return (
 		<div className="h-full bg-white dark:bg-black dark:bg-opacity-50 rounded-lg p-2">
