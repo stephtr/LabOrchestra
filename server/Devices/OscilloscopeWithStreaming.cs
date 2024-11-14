@@ -128,41 +128,6 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 		}
 	}
 
-	public float[][] GetFFT(int channel, float fMin, float fMax)
-	{
-		if (!State.Running || Df == 0) return [[], []];
-
-		FFTLock.EnterReadLock();
-		try
-		{
-			var iMin = fMin == 0 ? 0 : (int)Math.Ceiling(fMin / Df);
-			var iMax = fMax == 0 ? State.FFTLength / 2 + 1 : (int)Math.Floor(fMax / Df);
-			var f = new float[iMax - iMin + 1];
-			var psd = new float[iMax - iMin + 1];
-			for (var i = 0; i <= iMax - iMin; i++)
-			{
-				f[i] = (float)((i + iMin) * Df);
-			}
-			var preferDisplay = State.FFTAveragingMode == "prefer-display";
-			if (preferDisplay)
-			{
-				for (var i = 0; i <= iMax - iMin; i++)
-				{
-					psd[i] = (float)FFTStorage[channel][i + iMin];
-				}
-			}
-			else
-			{
-				for (var i = 0; i <= iMax - iMin; i++)
-				{
-					psd[i] = (float)Math.Log10(FFTStorage[channel][i + iMin]) * 10;
-				}
-			}
-			return [f, psd];
-		}
-		finally { FFTLock.ExitReadLock(); }
-	}
-
 	public void SetDisplayMode(string mode)
 	{
 		if (mode != "time" && mode != "fft")
@@ -176,7 +141,6 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 		try
 		{
 			State.FFTLength = length;
-			Df = 1 / (2 * Dt) / (State.FFTLength / 2);
 			ResetFFTStorage();
 		}
 		finally
@@ -385,7 +349,6 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 		State.Running = true;
 
 		OnStart(runCancellationTokenSource.Token);
-		Df = 1 / (2 * Dt) / (State.FFTLength / 2);
 
 		Task.Run(() =>
 		{
@@ -584,6 +547,41 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 				}
 			}
 		});
+	}
+
+	public OscilloscopeFFTData GetFFTData(double fMin, double fMax)
+	{
+		FFTLock.EnterReadLock();
+		try
+		{
+			var iMin = (int)(fMin / Df);
+			var iMax = (int)Math.Ceiling(fMax / Df);
+			iMin = Math.Max(0, iMin);
+			iMax = Math.Min(State.FFTLength / 2, fMax == 0 ? int.MaxValue : iMax);
+			fMin = iMin * Df;
+			fMax = iMax * Df;
+			var preferDisplay = State.FFTAveragingMode == "prefer-display";
+			var data = FFTStorage.Select((d, ch) =>
+			{
+				var dataFrom = d.Skip(iMin).Take(iMax - iMin + 1).ToArray();
+				var dataTo = new float[dataFrom.Length];
+				if (preferDisplay)
+				{
+					for (var j = 0; j < dataFrom.Length; j++)
+						dataTo[j] = (float)dataFrom[j];
+				}
+				else
+				{
+					for (var j = 0; j < dataFrom.Length; j++)
+					{
+						dataTo[j] = dataFrom[j] == 0 ? (float)dataFrom[j] : (float)Math.Log10(dataFrom[j]) * 10;
+					}
+				}
+				return dataTo;
+			}).ToArray();
+			return new OscilloscopeFFTData { fMin = fMin, fMax = fMax, data = data };
+		}
+		finally { FFTLock.ExitReadLock(); }
 	}
 
 	abstract protected void OnStart(CancellationToken token);

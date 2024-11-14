@@ -134,7 +134,7 @@ export function OscilloscopeChart({
 		Math.abs(data.XMaxDecimated - xOffset),
 	);
 	const xValueSpreadLog10 =
-		(data.XMaxDecimated - data.XMinDecimated == 0)
+		data.XMaxDecimated - data.XMinDecimated === 0
 			? 0
 			: Math.round(Math.log10(data.XMaxDecimated - data.XMinDecimated));
 	useEffect(() => {
@@ -203,7 +203,10 @@ export function OscilloscopeChart({
 					ticks: {
 						color: '#999',
 						callback: (data.Mode === 'fft'
-							? frequencyFormatterFactory(maxDecimatedXValueAbs, xValueSpreadLog10)
+							? frequencyFormatterFactory(
+									maxDecimatedXValueAbs,
+									xValueSpreadLog10,
+								)
 							: timeFormatterFactory(data.XMax)) as any,
 					},
 					min: data.XMin - xOffset,
