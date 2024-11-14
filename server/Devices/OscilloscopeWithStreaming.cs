@@ -1,5 +1,7 @@
 using NumSharp;
 using System.Numerics;
+using System.Numerics.Tensors;
+
 
 #if _WINDOWS
 using PetterPet.FFTSSharp;
@@ -116,16 +118,9 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 			default:
 				throw new ArgumentException($"Invalid window function {State.FFTWindowFunction}");
 		}
-		var sum = 0f;
-		for (int n = 0; n < length; n++)
-		{
-			sum += FFTWindowFunction[n] * FFTWindowFunction[n];
-		}
-		var normalizationFactor = length / (float)Math.Sqrt(sum);
-		for (int n = 0; n < length; n++)
-		{
-			FFTWindowFunction[n] *= normalizationFactor;
-		}
+		var norm = TensorPrimitives.Norm(FFTWindowFunction);
+		var normalizationFactor = length / norm;
+		TensorPrimitives.Multiply(FFTWindowFunction, normalizationFactor, FFTWindowFunction);
 	}
 
 	public void SetDisplayMode(string mode)
@@ -216,17 +211,11 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 
 			var fftFile = getStream($"{deviceId}_F{ch + 1}");
 			var preferDisplay = State.FFTAveragingMode == "prefer-display";
-			if (preferDisplay)
+			TensorPrimitives.ConvertChecked<double, float>(FFTStorage[ch], buffer);
+			if (!preferDisplay)
 			{
-				for (var j = 0; j < FFTStorage[ch].Length; j++)
-					buffer[j] = (float)FFTStorage[ch][j];
-			}
-			else
-			{
-				for (var j = 0; j < FFTStorage[ch].Length; j++)
-				{
-					buffer[j] = (float)Math.Log10(FFTStorage[ch][j]) * 10;
-				}
+				TensorPrimitives.Log10<float>(buffer, buffer);
+				TensorPrimitives.Multiply(buffer, 10, buffer);
 			}
 			np.Save(buffer, fftFile);
 		}
@@ -322,17 +311,12 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 				if (!State.Channels[ch].ChannelActive) continue;
 				var fftFile = getStream($"{deviceId}_F{ch + 1}");
 				var preferDisplay = State.FFTAveragingMode == "prefer-display";
-				if (preferDisplay)
+
+				TensorPrimitives.ConvertChecked<double, float>(FFTStorage[ch], buffer);
+				if (!preferDisplay)
 				{
-					for (var j = 0; j < FFTStorage[ch].Length; j++)
-						buffer[j] = (float)FFTStorage[ch][j];
-				}
-				else
-				{
-					for (var j = 0; j < FFTStorage[ch].Length; j++)
-					{
-						buffer[j] = (float)Math.Log10(FFTStorage[ch][j]) * 10;
-					}
+					TensorPrimitives.Log10<float>(buffer, buffer);
+					TensorPrimitives.Multiply(buffer, 10, buffer);
 				}
 				np.Save(buffer, fftFile);
 			}
@@ -360,6 +344,7 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 				var length = State.FFTLength;
 				var fftFactor = (float)(2 * Dt / length);
 				var fftData = new float[length];
+				var fftDataDouble = new double[length];
 				var fftOut = new float[length + 2];
 #if _WINDOWS
 				var ffts = FFTS.Real(FFTS.Forward, length);
@@ -384,18 +369,13 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 								{
 									didWork = true;
 									Buffer[ch].Pop(length, fftData);
-									var vectorSize = Vector<float>.Count;
-									Parallel.For(0, length / vectorSize, idx =>
-									{
-										var i = idx * vectorSize;
-										var v1 = new Vector<float>(fftData, i);
-										var v2 = new Vector<float>(FFTWindowFunction, i);
-										v1 *= v2;
-										v1.CopyTo(fftData, i);
-									});
+									TensorPrimitives.Multiply(fftData, FFTWindowFunction, fftData);
 #if _WINDOWS
 									ffts.Execute(fftData, fftOut);
-									Parallel.For(0, length / 2 + 1, j => { fftData[j] = (fftOut[2 * j] * fftOut[2 * j] + fftOut[2 * j + 1] * fftOut[2 * j + 1]) * fftFactor; });
+									// Parallel.For(0, length / 2 + 1, j => { fftData[j] = (fftOut[2 * j] * fftOut[2 * j] + fftOut[2 * j + 1] * fftOut[2 * j + 1]) * fftFactor; });
+									TensorPrimitives.Multiply(fftOut, fftOut, fftOut);
+									TensorPrimitives.Multiply(fftOut, fftFactor, fftOut);
+									Parallel.For(0, length / 2 + 1, j => { fftData[j] = fftOut[2 * j] + fftOut[2 * j + 1]; });
 #else
 									for (var j = 0; j < length; j++) fftComplex[j] = fftData[j];
 									FourierTransform2.FFT(fftComplex, Accord.Math.FourierTransform.Direction.Forward);
@@ -414,12 +394,16 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 
 									if (prefersDisplayMode)
 									{
-										for (var j = 0; j < length / 2 + 1; j++)
-											fftData[j] = (float)Math.Log10(fftData[j]) * 10;
+										// for (var j = 0; j < length / 2 + 1; j++) fftData[j] = (float)Math.Log10(fftData[j]) * 10;
+										TensorPrimitives.Log10<float>(fftData, fftData);
+										TensorPrimitives.Multiply(fftData, 10, fftData);
 									}
 									var storage = FFTStorage[ch];
-
-									for (var j = 0; j < length / 2 + 1; j++) { storage[j] = storage[j] * oldWeight + fftData[j] * newWeight; }
+									// for (var j = 0; j < length / 2 + 1; j++) { storage[j] = storage[j] * oldWeight + fftData[j] * newWeight; }
+									TensorPrimitives.ConvertChecked<float, double>(fftData, fftDataDouble);
+									TensorPrimitives.Multiply(storage, oldWeight, storage);
+									TensorPrimitives.Multiply(fftDataDouble, newWeight, fftDataDouble);
+									TensorPrimitives.Add<double>(storage, fftDataDouble, storage);
 									AcquiredFFTs[ch]++;
 								}
 							}
@@ -485,17 +469,11 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 								{
 									if (State.Channels[ch].ChannelActive)
 									{
-										if (preferDisplay)
+										TensorPrimitives.ConvertChecked<double, float>(FFTStorage[ch], channelData[ch]);
+										if (!preferDisplay)
 										{
-											for (var j = 0; j < length; j++)
-												channelData[ch][j] = (float)FFTStorage[ch][j];
-										}
-										else
-										{
-											for (var j = 0; j < length; j++)
-											{
-												channelData[ch][j] = (float)Math.Log10(FFTStorage[ch][j]) * 10;
-											}
+											TensorPrimitives.Log10<float>(channelData[ch], channelData[ch]);
+											TensorPrimitives.Multiply(channelData[ch], 10, channelData[ch]);
 										}
 									}
 								}
