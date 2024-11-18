@@ -612,5 +612,6 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 	public override void Dispose()
 	{
 		State.Running = false;
+		runCancellationTokenSource?.Cancel();
 	}
 }
