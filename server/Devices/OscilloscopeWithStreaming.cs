@@ -344,7 +344,7 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 				var length = State.FFTLength;
 				var fftFactor = (float)(2 * Dt / length);
 				var fftData = new float[length];
-				var fftDataDouble = new double[length];
+				var fftDataDouble = new double[length / 2 + 1];
 				var fftOut = new float[length + 2];
 #if _WINDOWS
 				var ffts = FFTS.Real(FFTS.Forward, length);
@@ -381,6 +381,7 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 									FourierTransform2.FFT(fftComplex, Accord.Math.FourierTransform.Direction.Forward);
 									for (var j = 0; j < length / 2 + 1; j++) fftData[j] = (float)(fftComplex[j].Real * fftComplex[j].Real + fftComplex[j].Imaginary * fftComplex[j].Imaginary) * fftFactor;
 #endif
+									var cutFFTData = fftData.AsSpan(0, length / 2 + 1);
 									var newWeight = 1.0 / (AcquiredFFTs[ch] + 1);
 									if (State.FFTAveragingDurationInMilliseconds == 0)
 									{
@@ -395,12 +396,12 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 									if (prefersDisplayMode)
 									{
 										// for (var j = 0; j < length / 2 + 1; j++) fftData[j] = (float)Math.Log10(fftData[j]) * 10;
-										TensorPrimitives.Log10<float>(fftData, fftData);
-										TensorPrimitives.Multiply(fftData, 10, fftData);
+										TensorPrimitives.Log10<float>(cutFFTData, cutFFTData);
+										TensorPrimitives.Multiply(cutFFTData, 10, cutFFTData);
 									}
 									var storage = FFTStorage[ch];
 									// for (var j = 0; j < length / 2 + 1; j++) { storage[j] = storage[j] * oldWeight + fftData[j] * newWeight; }
-									TensorPrimitives.ConvertChecked<float, double>(fftData, fftDataDouble);
+									TensorPrimitives.ConvertChecked<float, double>(cutFFTData, fftDataDouble);
 									TensorPrimitives.Multiply(storage, oldWeight, storage);
 									TensorPrimitives.Multiply(fftDataDouble, newWeight, fftDataDouble);
 									TensorPrimitives.Add<double>(storage, fftDataDouble, storage);
