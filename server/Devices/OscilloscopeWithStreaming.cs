@@ -1,6 +1,12 @@
 using NumSharp;
 using System.Numerics;
 using System.Numerics.Tensors;
+using System.Runtime.Intrinsics.X86;
+using System.Runtime.Intrinsics;
+using System.Runtime.InteropServices;
+
+
+
 
 
 #if _WINDOWS
@@ -352,6 +358,10 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 				var fftOut = new float[length + 2];
 #if _WINDOWS
 				var ffts = FFTS.Real(FFTS.Forward, length);
+
+				var indicesEven = Vector512.Create(0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30);
+				var indicesOdd = Vector512.Create(1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31);
+				var vFFTFactor = Vector512.Create(fftFactor);
 #else
 				var fftComplex = new Complex[length];
 #endif
@@ -381,10 +391,26 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 									TensorPrimitives.Multiply(fftData, FFTWindowFunction, fftData);
 #if _WINDOWS
 									ffts.Execute(fftData, fftOut);
-									// Parallel.For(0, length / 2 + 1, j => { fftData[j] = (fftOut[2 * j] * fftOut[2 * j] + fftOut[2 * j + 1] * fftOut[2 * j + 1]) * fftFactor; });
-									TensorPrimitives.Multiply(fftOut, fftOut, fftOut);
-									TensorPrimitives.Multiply(fftOut, fftFactor, fftOut);
-									Parallel.For(0, length / 2 + 1, j => { fftData[j] = fftOut[2 * j] + fftOut[2 * j + 1]; });
+
+									{
+										// this is the vectorized equivalent to:
+										// Parallel.For(0, length / 2 + 1, j => { fftData[j] = (fftOut[2 * j] * fftOut[2 * j] + fftOut[2 * j + 1] * fftOut[2 * j + 1]) * fftFactor; });
+										var vectors = MemoryMarshal.Cast<float, Vector512<float>>(fftOut);
+										for (int j = 0; j < vectors.Length / 2; j++)
+										{
+											var v1 = vectors[j * 2];
+											var v2 = vectors[j * 2 + 1];
+											var vReal = Avx512F.PermuteVar16x32x2(v1, indicesEven, v2);
+											var vImag = Avx512F.PermuteVar16x32x2(v1, indicesOdd, v2);
+											var vMagnitudeSquared = Avx512F.FusedMultiplyAdd(vReal, vReal, Avx512F.Multiply(vImag, vImag));
+											vMagnitudeSquared = Avx512F.Multiply(vMagnitudeSquared, vFFTFactor);
+											vMagnitudeSquared.CopyTo(fftData, j * Vector512<float>.Count);
+										}
+										for (var k = vectors.Length / 2 * Vector512<float>.Count; k < fftOut.Length; k += 2)
+										{
+											fftData[k / 2] = (fftOut[k] * fftOut[k] + fftOut[k + 1] * fftOut[k + 1]) * fftFactor;
+										}
+									}
 #else
 									for (var j = 0; j < length; j++) fftComplex[j] = fftData[j];
 									FourierTransform2.FFT(fftComplex, Accord.Math.FourierTransform.Direction.Forward);
