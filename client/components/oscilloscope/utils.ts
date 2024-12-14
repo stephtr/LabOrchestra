@@ -51,6 +51,7 @@ export const fftWindowFunctions = [
 	{ value: 'hann', label: 'Hann' },
 	{ value: 'blackman', label: 'Blackman' },
 	{ value: 'nuttall', label: 'Nuttall' },
+	{ value: 'blackman-nuttall', label: 'Blackman-Nuttall' },
 ];
 
 export const datapointsToSaveOptions: Array<number> = [];

@@ -115,7 +115,11 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 				for (int n = 0; n < length; n++)
 					FFTWindowFunction[n] = (float)(0.355768 - 0.487396 * Math.Cos(2 * Math.PI * n / N) + 0.144232 * Math.Cos(4 * Math.PI * n / N) - 0.012604 * Math.Cos(6 * Math.PI * n / N));
 				break;
-			default:
+			case "blackman-nuttall":
+                for (int n = 0; n < length; n++)
+                    FFTWindowFunction[n] = (float)(0.3635819 - 0.4891775 * Math.Cos(2 * Math.PI * n / N) + 0.1365995 * Math.Cos(4 * Math.PI * n / N) - 0.0106411 * Math.Cos(6 * Math.PI * n / N));
+                break;
+            default:
 				throw new ArgumentException($"Invalid window function {State.FFTWindowFunction}");
 		}
 		var norm = TensorPrimitives.Norm(FFTWindowFunction);
