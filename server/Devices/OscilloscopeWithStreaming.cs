@@ -351,11 +351,16 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 #else
 				var fftComplex = new Complex[length];
 #endif
-				while (State.FFTLength == length)
+				while (true)
 				{
 					if (token.IsCancellationRequested) return;
 
 					FFTLock.EnterReadLock();
+					if (State.FFTLength != length)
+					{
+						FFTLock.ExitReadLock();
+						break;
+					}
 					var didWork = false;
 					try
 					{
