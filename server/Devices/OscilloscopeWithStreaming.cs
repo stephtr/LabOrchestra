@@ -1,13 +1,10 @@
+#define _WINDOWS
 using NumSharp;
 using System.Numerics;
 using System.Numerics.Tensors;
 using System.Runtime.Intrinsics.X86;
 using System.Runtime.Intrinsics;
 using System.Runtime.InteropServices;
-
-
-
-
 
 #if _WINDOWS
 using PetterPet.FFTSSharp;
@@ -355,9 +352,12 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 #if _WINDOWS
 				var ffts = FFTS.Real(FFTS.Forward, length);
 
-				var indicesEven = Vector512.Create(0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30);
-				var indicesOdd = Vector512.Create(1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31);
-				var vFFTFactor = Vector512.Create(fftFactor);
+				var indicesEven512 = Vector512.Create(0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30);
+				var indicesOdd512 = Vector512.Create(1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31);
+				var vFFTFactor512 = Vector512.Create(fftFactor);
+				var indicesEven256 = Vector256.Create(0, 2, 4, 6, 0, 2, 4, 6);
+				var indicesOdd256 = Vector256.Create(1, 3, 5, 7, 1, 3, 5, 7);
+				var vFFTFactor256 = Vector256.Create(fftFactor);
 #else
 				var fftComplex = new Complex[length];
 #endif
@@ -384,22 +384,47 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 									ffts.Execute(fftData, fftOut);
 
 									{
-										// this is the vectorized equivalent to:
-										// Parallel.For(0, length / 2 + 1, j => { fftData[j] = (fftOut[2 * j] * fftOut[2 * j] + fftOut[2 * j + 1] * fftOut[2 * j + 1]) * fftFactor; });
-										var vectors = MemoryMarshal.Cast<float, Vector512<float>>(fftOut);
-										for (int j = 0; j < vectors.Length / 2; j++)
+										if (Avx512F.IsSupported)
 										{
-											var v1 = vectors[j * 2];
-											var v2 = vectors[j * 2 + 1];
-											var vReal = Avx512F.PermuteVar16x32x2(v1, indicesEven, v2);
-											var vImag = Avx512F.PermuteVar16x32x2(v1, indicesOdd, v2);
-											var vMagnitudeSquared = Avx512F.FusedMultiplyAdd(vReal, vReal, Avx512F.Multiply(vImag, vImag));
-											vMagnitudeSquared = Avx512F.Multiply(vMagnitudeSquared, vFFTFactor);
-											vMagnitudeSquared.CopyTo(fftData, j * Vector512<float>.Count);
+											var vectors = MemoryMarshal.Cast<float, Vector512<float>>(fftOut);
+											for (int j = 0; j < vectors.Length / 2; j++)
+											{
+												var v1 = vectors[j * 2];
+												var v2 = vectors[j * 2 + 1];
+												var vReal = Avx512F.PermuteVar16x32x2(v1, indicesEven512, v2);
+												var vImag = Avx512F.PermuteVar16x32x2(v1, indicesOdd512, v2);
+												var vMagnitudeSquared = Avx512F.FusedMultiplyAdd(vReal, vReal, Avx512F.Multiply(vImag, vImag));
+												vMagnitudeSquared = Avx512F.Multiply(vMagnitudeSquared, vFFTFactor512);
+												vMagnitudeSquared.CopyTo(fftData, j * Vector512<float>.Count);
+											}
+											for (var k = vectors.Length / 2 * Vector512<float>.Count; k < fftOut.Length; k += 2)
+											{
+												fftData[k / 2] = (fftOut[k] * fftOut[k] + fftOut[k + 1] * fftOut[k + 1]) * fftFactor;
+											}
 										}
-										for (var k = vectors.Length / 2 * Vector512<float>.Count; k < fftOut.Length; k += 2)
-										{
-											fftData[k / 2] = (fftOut[k] * fftOut[k] + fftOut[k + 1] * fftOut[k + 1]) * fftFactor;
+										else if(Avx2.IsSupported) {
+											var vectors = MemoryMarshal.Cast<float, Vector256<float>>(fftOut);
+											for (int j = 0; j < vectors.Length / 2; j++)
+											{
+												var v1 = vectors[j * 2];
+												var v2 = vectors[j * 2 + 1];
+												var v1Even = Avx2.PermuteVar8x32(v1, indicesEven256);
+												var v2Even = Avx2.PermuteVar8x32(v2, indicesEven256);
+												var v1Odd = Avx2.PermuteVar8x32(v1, indicesOdd256);
+												var v2Odd = Avx2.PermuteVar8x32(v2, indicesOdd256);
+												var vReal = Avx.Blend(v1Even, v2Even, 0xF0);
+												var vImag = Avx.Blend(v1Odd, v2Odd, 0xF0);
+												var vMagnitudeSquared = Fma.MultiplyAdd(vReal, vReal, Avx.Multiply(vImag, vImag));
+												vMagnitudeSquared = Avx.Multiply(vMagnitudeSquared, vFFTFactor256);
+												vMagnitudeSquared.CopyTo(fftData, j * Vector256<float>.Count);
+											}
+											for (var k = vectors.Length / 2 * Vector256<float>.Count; k < fftOut.Length; k += 2)
+											{
+												fftData[k / 2] = (fftOut[k] * fftOut[k] + fftOut[k + 1] * fftOut[k + 1]) * fftFactor;
+											}
+										}
+										else {
+											Parallel.For(0, length / 2 + 1, j => { fftData[j] = (fftOut[2 * j] * fftOut[2 * j] + fftOut[2 * j + 1] * fftOut[2 * j + 1]) * fftFactor; });
 										}
 									}
 #else
