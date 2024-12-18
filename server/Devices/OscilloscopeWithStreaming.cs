@@ -402,7 +402,8 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 												fftData[k / 2] = (fftOut[k] * fftOut[k] + fftOut[k + 1] * fftOut[k + 1]) * fftFactor;
 											}
 										}
-										else if(Avx2.IsSupported) {
+										else if (Avx2.IsSupported)
+										{
 											var vectors = MemoryMarshal.Cast<float, Vector256<float>>(fftOut);
 											for (int j = 0; j < vectors.Length / 2; j++)
 											{
@@ -423,7 +424,8 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 												fftData[k / 2] = (fftOut[k] * fftOut[k] + fftOut[k + 1] * fftOut[k + 1]) * fftFactor;
 											}
 										}
-										else {
+										else
+										{
 											Parallel.For(0, length / 2 + 1, j => { fftData[j] = (fftOut[2 * j] * fftOut[2 * j] + fftOut[2 * j + 1] * fftOut[2 * j + 1]) * fftFactor; });
 										}
 									}
