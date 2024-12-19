@@ -150,6 +150,7 @@ public class Picoscope5000aOscilloscope : OscilloscopeWithStreaming
 				}
 			}
 
+			var lastAcquisitionRestart = DateTime.MinValue;
 			try
 			{
 				while (!cancellationToken.IsCancellationRequested)
@@ -158,7 +159,22 @@ public class Picoscope5000aOscilloscope : OscilloscopeWithStreaming
 					{
 						for (var i = 0; i < 1000; i++)
 						{
-							Imports.GetStreamingLatestValues(Handle, StreamingCallback, IntPtr.Zero);
+							var result = Imports.GetStreamingLatestValues(Handle, StreamingCallback, IntPtr.Zero);
+							if (result == PicoStatus.StatusCodes.PICO_NOT_RESPONDING)
+							{
+								Imports.Stop(Handle);
+								if (DateTime.UtcNow - lastAcquisitionRestart < TimeSpan.FromSeconds(10))
+								{
+									throw new Exception("Picoscope stopped responding within 10 seconds of restarting acquisition");
+								}
+								lastAcquisitionRestart = DateTime.UtcNow;
+								result = Imports.RunStreaming(Handle, ref sampleInterval, Imports.ReportedTimeUnits.NanoSeconds, 0, buffer_length, 0, 1, Imports.RatioMode.None, buffer_length);
+								if (result != PicoStatus.StatusCodes.PICO_OK)
+								{
+									base.Stop();
+									throw new Exception($"Failed to automatically restart acquisition ({status:X})");
+								}
+							}
 							Thread.Sleep(0);
 						}
 					}
