@@ -1,5 +1,7 @@
 using NumSharp;
 using System.Numerics.Tensors;
+using System.Numerics;
+
 
 #if _WINDOWS
 using PetterPet.FFTSSharp;
@@ -379,7 +381,6 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 									TensorPrimitives.Multiply(fftData, FFTWindowFunction, fftData);
 #if _WINDOWS
 									ffts.Execute(fftData, fftOut);
-
 									TensorUtils.AbsSquared(fftOut, fftData, fftFactor);
 #else
 									for (var j = 0; j < length; j++) fftComplex[j] = fftData[j];
@@ -400,12 +401,12 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 
 									if (prefersDisplayMode)
 									{
-										// for (var j = 0; j < length / 2 + 1; j++) fftData[j] = (float)Math.Log10(fftData[j]) * 10;
+										// fftData = (float)Math.Log10(fftData) * 10;
 										TensorPrimitives.Log10<float>(cutFFTData, cutFFTData);
 										TensorPrimitives.Multiply(cutFFTData, 10, cutFFTData);
 									}
 									var storage = FFTStorage[ch];
-									// for (var j = 0; j < length / 2 + 1; j++) { storage[j] = storage[j] * oldWeight + fftData[j] * newWeight; }
+									// storage = storage * oldWeight + fftData * newWeight;
 									TensorPrimitives.ConvertChecked<float, double>(cutFFTData, fftDataDouble);
 									TensorPrimitives.Multiply(storage, oldWeight, storage);
 									TensorPrimitives.Multiply(fftDataDouble, newWeight, fftDataDouble);
