@@ -83,6 +83,12 @@ public class DeviceManager : IDisposable
 			Console.WriteLine("Falling back to DemoElliptec");
 			RegisterDevice("elliptec", new PythonDevice("Devices/DemoElliptec.py"));
 		}
+		try
+		{
+			RegisterDevice("innolas", new InnolasLaser("10.0.0.0", 1234));
+		}
+		catch
+		{ }
 		RegisterDevice("main", MainDevice);
 
 		LoadSettings();

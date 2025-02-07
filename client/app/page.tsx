@@ -2,6 +2,7 @@
 
 import { FrequencyGenerator } from '@/components/frequencyGenerator';
 import { GridStack } from '@/components/gridview/gridStack';
+import { InnolasLaser } from '@/components/innolas';
 import { Oscilloscope } from '@/components/oscilloscope';
 import { PressureSensor } from '@/components/pressureSensor';
 import { StageChannel } from '@/components/stageChannel';
@@ -147,6 +148,9 @@ export default function Home() {
 					innerClassName="text-slate-400"
 				/>
 				<PressureSensor label="Kammer" channel={1} />
+			</div>
+			<div>
+				<InnolasLaser />
 			</div>
 		</div>
 	);
