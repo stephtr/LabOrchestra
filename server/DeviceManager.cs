@@ -85,7 +85,7 @@ public class DeviceManager : IDisposable
 		}
 		try
 		{
-			RegisterDevice("innolas", new InnolasLaser("10.0.0.0", 1234));
+			RegisterDevice("innolas", new InnolasLaser(1025));
 		}
 		catch
 		{ }

@@ -2,30 +2,30 @@ import { useControl } from '@/lib/controlHub';
 import { Button } from '@nextui-org/react';
 
 export function InnolasLaser() {
-	const { isConnected, state, action } = useControl<{ state: string }>(
+	const { isConnected, state, action } = useControl<{ laserState: string }>(
 		'innolas',
 	);
 
 	return (
 		<div className="flex gap-2 items-center p-2">
-			<div>Innolas: {state?.state ?? '-'}</div>
+			<div>Innolas: {state?.laserState ?? '-'}</div>
 			<Button
-				onClick={() => action('updateLaserState')}
+				onClick={() => action('startShooting')}
 				isDisabled={!isConnected || !state}
 			>
-				Update Laser state
+				Start Shooting
 			</Button>
 			<Button
-				onClick={() => action('startLaser')}
+				onClick={() => action('stopShooting')}
 				isDisabled={!isConnected || !state}
 			>
-				Start Laser
+				Stop Shooting
 			</Button>
 			<Button
-				onClick={() => action('shutdownLaser')}
+				onClick={() => action('singleShot')}
 				isDisabled={!isConnected || !state}
 			>
-				Shutdown Laser
+				Shoot (single)
 			</Button>
 		</div>
 	);
