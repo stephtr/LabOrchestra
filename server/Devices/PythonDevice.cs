@@ -64,6 +64,7 @@ public class PythonDevice : IDeviceHandler
 		{
 			PyModule = Py.CreateScope();
 			PyModule.Import("json", "_json");
+			PyModule.Exec("state = None");
 			PyModule.Set("_send_status_update", new Action<string>(SendStateUpdate));
 			PyModule.Exec("def send_status_update(partial_state=None): _send_status_update(_json.dumps(partial_state if partial_state else state))");
 			PyModule.Exec("def _get_state(): return _json.dumps(state)");
