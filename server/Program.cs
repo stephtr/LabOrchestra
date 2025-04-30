@@ -18,6 +18,9 @@ AppDomain.CurrentDomain.UnhandledException += (object sender, UnhandledException
 	}
 };
 
+EnvLoader.Load(".env");
+EnvLoader.Load(".env.local");
+
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSignalR()
 	.AddJsonProtocol(options =>

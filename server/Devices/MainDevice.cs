@@ -35,8 +35,41 @@ public class MainDevice : DeviceHandlerBase<MainState>
 
 	private string GetSaveFilepath()
 	{
-		var date = DateTime.Now - TimeSpan.FromHours(4); // in case it's after midnight
-		var path = State.SaveDirectory.Replace("{year}", date.ToString("yyyy")).Replace("{date}", date.ToString("yyyy-MM-dd"));
+		var getState = (string statePath) =>
+		{
+			try
+			{
+				var path = statePath.Split('.');
+				if (path.Length != 2)
+					return statePath;
+				var state = DeviceManager!.Devices[path[0]].GetState();
+				if (state is IDictionary<string, object> dict && dict.TryGetValue(path[1], out var value))
+					return value.ToString() ?? statePath;
+				return statePath;
+			}
+			catch
+			{
+				Console.WriteLine($"Failed to get state for {statePath}");
+				return statePath;
+			}
+		};
+		var interpolatePath = (string path) =>
+		{
+			var date = DateTime.Now - TimeSpan.FromHours(4); // in case it's after midnight
+			return Regex.Replace(path, @"\{([\w\.]+)\}", match =>
+			{
+				return match.Groups[1].Value switch
+				{
+					"year" => date.ToString("yyyy"),
+					"month" => date.ToString("MM"),
+					"day" => date.ToString("dd"),
+					"date" => date.ToString("yyyy-MM-dd"),
+					"time" => date.ToString("HH:mm:ss"),
+					string s => getState(s),
+				};
+			});
+		};
+		var path = interpolatePath(State.SaveDirectory);
 		if (!Directory.Exists(path))
 		{
 			Directory.CreateDirectory(path);
@@ -46,7 +79,7 @@ public class MainDevice : DeviceHandlerBase<MainState>
 			var captures = Regex.Match(Path.GetFileName(f), @"^(\d+)[\s\.]").Groups;
 			return captures.Count > 1 ? int.Parse(captures[1].Value) : 0;
 		}).Prepend(0).Max();
-		return Path.Combine(path, $"{currentIndex + 1}{(State.Filename != "" ? $" {State.Filename}" : "")}");
+		return Path.Combine(path, $"{currentIndex + 1}{(State.Filename != "" ? $" {interpolatePath(State.Filename)}" : "")}");
 	}
 
 	public void SaveSnapshot()
@@ -102,7 +135,13 @@ public class MainDevice : DeviceHandlerBase<MainState>
 
 	public override void LoadSettings(JsonElement settings)
 	{
-		State.SaveDirectory = settings.GetProperty("SaveDirectory").GetString()!;
-		State.Filename = settings.GetProperty("LastFilename").GetString()!;
+		if (settings.TryGetProperty("SaveDirectory", out var saveDirectory))
+		{
+			State.SaveDirectory = saveDirectory.GetString()!;
+		}
+		if (settings.TryGetProperty("LastFilename", out var lastFilename))
+		{
+			State.Filename = lastFilename.GetString()!;
+		}
 	}
 }

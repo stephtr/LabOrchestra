@@ -89,11 +89,12 @@ public class DeviceManager : IDisposable
 		}
 		catch
 		{ }
+		RegisterDevice("particleName", new PythonDevice("Devices/ParticleName.py", new { openai_api_key = Environment.GetEnvironmentVariable("OPENAI_API_KEY") }));
 		RegisterDevice("main", MainDevice);
 
-		LoadSettings();
-
 		RegisterAddon(new PressureUploader("pressure", 1, "https://pressure.cavity.at/api/updatePressure", "my-api-key", TimeSpan.FromMinutes(1)));
+
+		LoadSettings();
 	}
 
 	public void RegisterDevice(string deviceId, IDeviceHandler deviceHandler)
@@ -340,7 +341,6 @@ public class DeviceManager : IDisposable
 					x.Value.Dispose();
 					File.Delete(x.Value.Name);
 				});
-				MainDevice.FinishPendingAction();
 				Console.WriteLine("Recording saved.");
 				Directory.Delete(tmpFolderName);
 			}
@@ -348,6 +348,7 @@ public class DeviceManager : IDisposable
 			{
 				Console.WriteLine("Error saving recording: " + e.Message);
 			}
+			MainDevice.FinishPendingAction();
 		});
 	}
 
@@ -368,22 +369,22 @@ public class DeviceManager : IDisposable
 	private void LoadSettings()
 	{
 		if (!File.Exists("settings.json")) return;
-		try
+		var settings = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(File.ReadAllText("settings.json"));
+		if (settings == null) return;
+		foreach (var (deviceId, settingObject) in settings)
 		{
-			var settings = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(File.ReadAllText("settings.json"));
-			if (settings == null) return;
-			foreach (var (deviceId, settingObject) in settings)
+			try
 			{
 				dynamic setting = settingObject;
-				if (Devices.ContainsKey(deviceId))
+				if (Devices.TryGetValue(deviceId, out var device))
 				{
-					Devices[deviceId].LoadSettings(setting);
+					device.LoadSettings(setting);
 				}
 			}
-		}
-		catch (Exception e)
-		{
-			Console.WriteLine("Error loading settings: " + e.Message);
+			catch (Exception e)
+			{
+				Console.WriteLine("Error loading settings: " + e.Message);
+			}
 		}
 	}
 

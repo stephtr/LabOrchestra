@@ -68,6 +68,20 @@ public class PythonDevice : IDeviceHandler
 			PyModule.Exec("def send_status_update(partial_state=None): _send_status_update(_json.dumps(partial_state if partial_state else state))");
 			PyModule.Exec("def _get_state(): return _json.dumps(state)");
 			PyModule.Exec("def _on_save_snapshot(): return _json.dumps(on_save_snapshot())");
+			PyModule.Set("_get_device_state", (string deviceName) =>
+				{
+					var device = DeviceManager?.Devices[deviceName];
+					if (device == null) throw new ArgumentException($"Device {deviceName} doesn't exist.");
+					return JsonSerializer.Serialize(device.GetState());
+				});
+			PyModule.Exec("def get_device_state(device_name): return _json.loads(_get_device_state(device_name))");
+			PyModule.Set("action", (string deviceId, string? channelId, string actionName, object[]? parameters) => DeviceManager?.Action(new DeviceAction(deviceId, channelId, actionName, parameters)));
+			PyModule.Set("_request", (string deviceId, string? channelId, string actionName, object[]? parameters) => JsonSerializer.Serialize(DeviceManager?.Request(new DeviceAction(deviceId, channelId, actionName, parameters))));
+			PyModule.Exec("def request(device_id, channel_id, action_name, parameters): return _json.loads(_request(device_id, channel_id, action_name, parameters))");
+			PyModule.Set("print", (string text) => Console.WriteLine(text));
+			PyModule.Exec("def _get_settings(): return _json.dumps(get_settings())");
+			PyModule.Exec("def _load_settings(settings): load_settings(_json.loads(settings))");
+			PyModule.Set("is_running", true);
 
 			if (arguments != null)
 			{
@@ -179,11 +193,16 @@ public class PythonDevice : IDeviceHandler
 		DeviceManager = deviceManager;
 	}
 
+	private bool HasBeenDisposed = false;
 	public void Dispose()
 	{
+		if (HasBeenDisposed) return;
+		HasBeenDisposed = true;
 		DeviceManager?.UnregisterDevice(this);
 		using (Py.GIL())
 		{
+			PyModule.Set("is_running", false);
+			Thread.Sleep(10);
 			PyModule.Dispose();
 		}
 	}
@@ -202,6 +221,21 @@ public class PythonDevice : IDeviceHandler
 	virtual public void OnBeforeSaveSnapshot() { }
 	virtual public void OnAfterSaveSnapshot() { }
 	virtual public Task OnRecord(Func<string, Stream> getStream, string deviceId, CancellationToken cancellationToken) { return Task.CompletedTask; }
-	virtual public object? GetSettings() { return null; }
-	virtual public void LoadSettings(JsonElement settings) { }
+	public object? GetSettings()
+	{
+		using (Py.GIL())
+		{
+			if (!MethodCache.ContainsKey("get_settings")) return null;
+			var settings = MethodCache["_get_settings"].Invoke().As<string>();
+			return JsonSerializer.Deserialize<dynamic>(settings) ?? null;
+		}
+	}
+	public void LoadSettings(JsonElement settings)
+	{
+		using (Py.GIL())
+		{
+			if (!MethodCache.ContainsKey("load_settings")) return;
+			MethodCache["_load_settings"].Invoke(JsonSerializer.Serialize(settings).ToPython());
+		}
+	}
 }
