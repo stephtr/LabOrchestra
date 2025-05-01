@@ -53,7 +53,7 @@ export function Oscilloscope({
 		[action],
 	);
 	return (
-		<div className="h-full grid grid-cols-[10rem,1fr] grid-rows-[3.5rem,1fr] overflow-hidden">
+		<div className="h-full grid grid-cols-[10rem_1fr] grid-rows-[3.5rem_1fr] overflow-hidden">
 			<VerticalControlBar deviceId={deviceId} />
 			<div className="col-start-2 flex items-center mr-1 gap-2">
 				<Tabs
