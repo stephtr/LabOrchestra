@@ -19,7 +19,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 	Spinner,
-} from '@nextui-org/react';
+} from "@heroui/react";
 
 interface MainState {
 	saveDirectory: string;

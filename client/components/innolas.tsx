@@ -1,5 +1,5 @@
 import { useControl } from '@/lib/controlHub';
-import { Button } from '@nextui-org/react';
+import { Button } from "@heroui/react";
 
 export function InnolasLaser() {
 	const { isConnected, state, action } = useControl<{ laserState: string }>(

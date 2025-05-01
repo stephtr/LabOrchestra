@@ -9,7 +9,7 @@ import {
 	SelectItem,
 	Tab,
 	Tabs,
-} from '@nextui-org/react';
+} from "@heroui/react";
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChevronDown, faGear } from '@/lib/fortawesome/pro-solid-svg-icons';
 import { useControl } from '@/lib/controlHub';

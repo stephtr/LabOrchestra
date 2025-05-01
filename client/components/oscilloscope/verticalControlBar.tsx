@@ -5,7 +5,7 @@ import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from '@nextui-org/react';
+} from "@heroui/react";
 import { useControl } from '@/lib/controlHub';
 import {
 	faChevronRight,

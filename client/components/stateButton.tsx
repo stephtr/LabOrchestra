@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, ButtonProps, Spinner } from '@nextui-org/react';
+import { Button, ButtonProps, Spinner } from "@heroui/react";
 import { useState } from 'react';
 
 type Props = {

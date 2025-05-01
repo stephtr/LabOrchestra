@@ -10,7 +10,7 @@ import {
 	Slider,
 	Tab,
 	Tabs,
-} from '@nextui-org/react';
+} from "@heroui/react";
 import { useChannelControl } from '@/lib/controlHub';
 import { OscilloscopeState } from './utils';
 
