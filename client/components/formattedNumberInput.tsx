@@ -1,7 +1,7 @@
 'use client';
 
 import { NumberParser } from '@/lib/numberParser';
-import { Input } from '@nextui-org/react';
+import { Input } from "@heroui/react";
 import { useState, useRef, useEffect, useCallback } from 'react';
 
 // this is a temporary fix as long as the input can't handle non-integer numbers

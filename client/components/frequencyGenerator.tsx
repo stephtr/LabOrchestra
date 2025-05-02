@@ -4,7 +4,7 @@ import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from '@nextui-org/react';
+} from "@heroui/react";
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faGear } from '@/lib/fontawesome-regular';
 import { FormattedNumericInput } from './formattedNumberInput';

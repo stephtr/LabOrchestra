@@ -1,5 +1,5 @@
 import { useControl } from '@/lib/controlHub';
-import { Modal, ModalBody, ModalContent, ModalHeader } from '@nextui-org/react';
+import { Modal, ModalBody, ModalContent, ModalHeader } from "@heroui/react";
 import { useState } from 'react';
 
 interface PressureSensorState {

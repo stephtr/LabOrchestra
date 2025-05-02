@@ -20,7 +20,6 @@ public class DeviceManager : IDisposable
 	private readonly IHubContext<ControlHub> ControlHub;
 	private readonly IHubContext<StreamingHub> StreamingHub;
 	public Dictionary<string, IDeviceHandler> Devices = new();
-	public List<IAddon> Addons = new();
 	private List<string> UpdateQueue = new();
 	private Timer? UpdateTimer = null;
 	private const float MaxUpdateDelay = 0.05f;
@@ -89,11 +88,11 @@ public class DeviceManager : IDisposable
 		}
 		catch
 		{ }
+		RegisterDevice("particleName", new PythonDevice("Devices/ParticleName.py", new { openai_api_key = Environment.GetEnvironmentVariable("OPENAI_API_KEY") }));
+		RegisterDevice("pressureUploader", new PythonDevice("Devices/PressureUploader.py", new { deviceName = "pressure", selectedChannel = 1, uploadUrl = "https://pressure.cavity.at/api/uploadSensorData", apiKey = Environment.GetEnvironmentVariable("SENSE_API_KEY") }));
 		RegisterDevice("main", MainDevice);
 
 		LoadSettings();
-
-		RegisterAddon(new PressureUploader("pressure", 1, "https://pressure.cavity.at/api/updatePressure", "my-api-key", TimeSpan.FromMinutes(1)));
 	}
 
 	public void RegisterDevice(string deviceId, IDeviceHandler deviceHandler)
@@ -110,12 +109,6 @@ public class DeviceManager : IDisposable
 		{
 			SendStreamData(deviceId, data);
 		});
-	}
-
-	public void RegisterAddon(IAddon addon)
-	{
-		Addons.Add(addon);
-		Task.Run(() => addon.DoWork(this, GlobalCancellationTokenSource.Token));
 	}
 
 	public void UnregisterDevice(IDeviceHandler deviceHandler)
@@ -340,7 +333,6 @@ public class DeviceManager : IDisposable
 					x.Value.Dispose();
 					File.Delete(x.Value.Name);
 				});
-				MainDevice.FinishPendingAction();
 				Console.WriteLine("Recording saved.");
 				Directory.Delete(tmpFolderName);
 			}
@@ -348,6 +340,7 @@ public class DeviceManager : IDisposable
 			{
 				Console.WriteLine("Error saving recording: " + e.Message);
 			}
+			MainDevice.FinishPendingAction();
 		});
 	}
 
@@ -368,22 +361,22 @@ public class DeviceManager : IDisposable
 	private void LoadSettings()
 	{
 		if (!File.Exists("settings.json")) return;
-		try
+		var settings = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(File.ReadAllText("settings.json"));
+		if (settings == null) return;
+		foreach (var (deviceId, settingObject) in settings)
 		{
-			var settings = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(File.ReadAllText("settings.json"));
-			if (settings == null) return;
-			foreach (var (deviceId, settingObject) in settings)
+			try
 			{
 				dynamic setting = settingObject;
-				if (Devices.ContainsKey(deviceId))
+				if (Devices.TryGetValue(deviceId, out var device))
 				{
-					Devices[deviceId].LoadSettings(setting);
+					device.LoadSettings(setting);
 				}
 			}
-		}
-		catch (Exception e)
-		{
-			Console.WriteLine("Error loading settings: " + e.Message);
+			catch (Exception e)
+			{
+				Console.WriteLine("Error loading settings: " + e.Message);
+			}
 		}
 	}
 

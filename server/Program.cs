@@ -18,6 +18,9 @@ AppDomain.CurrentDomain.UnhandledException += (object sender, UnhandledException
 	}
 };
 
+EnvLoader.Load(".env");
+EnvLoader.Load(".env.local");
+
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSignalR()
 	.AddJsonProtocol(options =>
@@ -39,7 +42,7 @@ builder.Services.AddSingleton<DeviceManager>();
 Runtime.PythonDLL = Environment.OSVersion.Platform switch
 {
 	PlatformID.Win32NT => @"C:\Users\Cavity\.pyenv\pyenv-win\versions\3.12.5\python312.dll",
-	PlatformID.Unix => "/opt/homebrew/Cellar/python@3.12/3.12.8/Frameworks/Python.framework/Versions/3.12/lib/libpython3.12.dylib",
+	PlatformID.Unix => "/Library/Frameworks/Python.framework/Versions/3.13/lib/libpython3.13.dylib",
 	_ => null,
 };
 PythonEngine.Initialize();

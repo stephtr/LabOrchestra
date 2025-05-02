@@ -1,6 +1,6 @@
 'use client';
 
-import { Slider } from '@nextui-org/react';
+import { Slider } from "@heroui/react";
 import { useEffect, useState } from 'react';
 
 type Props<TKey extends string, TValue extends string | number> = {

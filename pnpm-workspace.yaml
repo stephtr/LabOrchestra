@@ -1,2 +1,8 @@
 packages:
-    - 'client'
+  - client
+
+onlyBuiltDependencies:
+  - '@fortawesome/fontawesome-common-types'
+  - '@fortawesome/fontawesome-svg-core'
+  - '@heroui/shared-utils'
+  - sharp

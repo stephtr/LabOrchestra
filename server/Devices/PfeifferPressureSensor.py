@@ -1,6 +1,11 @@
 import serial
 import time
 
+argv: any
+is_running: bool
+get_device_state: callable
+send_status_update: callable
+
 state = {"channels": []}
 
 ser: serial.Serial = None
@@ -53,7 +58,7 @@ else:
 
 
 def main():
-    while True:
+    while is_running:
         data = ser.readline().strip().decode().split(",")
         statusList = data[::2]
         pressureList = data[1::2]
