@@ -41,7 +41,7 @@ builder.Services.AddSingleton<DeviceManager>();
 
 Runtime.PythonDLL = Environment.OSVersion.Platform switch
 {
-	PlatformID.Win32NT => @"C:\Users\Cavity\.pyenv\pyenv-win\versions\3.12.5\python312.dll",
+	PlatformID.Win32NT => @"C:\Users\Cavity\.pyenv\pyenv-win\versions\3.13.0rc1\python313.dll",
 	PlatformID.Unix => "/Library/Frameworks/Python.framework/Versions/3.13/lib/libpython3.13.dylib",
 	_ => null,
 };
