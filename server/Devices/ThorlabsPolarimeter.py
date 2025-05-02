@@ -46,11 +46,11 @@ def main():
 	idn = inst.query("*IDN?")
 	if not idn.startswith("THORLABS,PAX"):
 		raise Exception("Not a Thorlabs Polarimeter")
-
-	inst.write("*RST")
+	#inst.write("*RST")
 	inst.write("SENS:CALC:MODE F1024")
 	inst.write("SENS:CORR:WAV 1550e-9")
 	inst.write("SENS:POW:RANG:AUTO ON")
+	inst.write("INP:ROT:STAT ON")
 
 	time.sleep(1)
 	while is_running:
@@ -82,5 +82,6 @@ def main():
 			state["DOP"] = 0
 			state["power"] = 0
 		send_status_update()
-		time.sleep(0.25)
+		time.sleep(0.33)
+	inst.write("INP:ROT:STAT OFF")
 	inst.close()

@@ -13,6 +13,10 @@ const polarizationAngleFormatter = new Intl.NumberFormat(undefined, {
 	maximumFractionDigits: 2,
 });
 
+const powerFormatter = new Intl.NumberFormat(undefined, {
+	maximumFractionDigits: 0,
+});
+
 export function Polarimeter({
 	label,
 	children,
@@ -31,20 +35,28 @@ export function Polarimeter({
 					{state ? (
 						<>
 							{isError ? <span>{state.status}</span> : null}
-							<p>
-								θ ={' '}
-								{polarizationAngleFormatter.format(state.theta * 180 / Math.PI)}
-								°
-							</p>
-							<p>
-								Eta ={' '}
+							<span className="tabular-nums">
+								η ={' '}
 								{polarizationAngleFormatter.format(
-									state.eta * 180 / Math.PI,
+									(state.eta * 180) / Math.PI,
 								)}
 								°
-							</p>
-							<p>DOP: {Math.round(state.DOP * 100)}&thinsp;%</p>
-							<p>Power: {state.power * 1e6}&thinsp;µW</p>
+							</span>
+							<span className="tabular-nums">
+								θ ={' '}
+								{polarizationAngleFormatter.format(
+									(state.theta * 180) / Math.PI,
+								)}
+								°
+							</span>
+							<span className="tabular-nums">
+								DOP: {Math.round(state.DOP * 100)}&thinsp;%
+							</span>
+							<span className="tabular-nums">
+								Power:{' '}
+								{powerFormatter.format(state.power * 1e6)}
+								&thinsp;µW
+							</span>
 						</>
 					) : (
 						'–'

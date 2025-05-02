@@ -38,7 +38,8 @@ def main():
         try:
             polarizationState = get_device_state(argv.polarizationDeviceName)
             if polarizationState["status"] != "ok" or polarizationState["DOP"] < 0.8:
-                raise Exception()
+                wait()
+                continue
             theta = np.rad2deg(polarizationState["theta"])
             eta = np.rad2deg(polarizationState["eta"])
             out_of_lock_range = bool(np.abs(theta) > 5 or np.abs(eta) > 5)
@@ -46,17 +47,16 @@ def main():
                 state["outOfLockRange"] = out_of_lock_range
                 send_status_update()
             if not state["lockH"]:
-                raise Exception()
+                wait()
+                continue
             if out_of_lock_range:
-                print("PolarizationLock: polarization out of lock range (+- 5°)")
-                raise Exception()
+                raise Exception("PolarizationLock: polarization out of lock range (+- 5°)")
 
             waveplateState = get_device_state(argv.waveplateDeviceName)
             QWP_channel = waveplateState["channels"][argv.waveplateQWPChannel]
             HWP_channel = waveplateState["channels"][argv.waveplateHWPChannel]
             if QWP_channel["type"] != "rotation" or HWP_channel["type"] != "rotation":
-                print("PolarizationLock: waveplate channels are not rotation")
-                raise Exception()
+                raise Exception("PolarizationLock: waveplate channels are not rotation")
 
             if correct_QWP_next and np.abs(eta) < 0.2:
                 if np.abs(theta) > 0.2:
@@ -66,21 +66,24 @@ def main():
                     continue
 
             if correct_QWP_next:
+                print(f'correcting QWP to {QWP_channel["targetPosition"] + eta / 2}')
                 action(
                     argv.waveplateDeviceName,
-                    argv.waveplateQWPChannel,
+                    None,
                     "set_position",
-                    [QWP_channel["targetPosition"] - eta / 2],
+                    [argv.waveplateQWPChannel, QWP_channel["targetPosition"] + eta / 2],
                 )
             else:
+                print(f'correcting HWP to {HWP_channel["targetPosition"] + theta / 2}')
                 action(
                     argv.waveplateDeviceName,
-                    argv.waveplateHWPChannel,
+                    None,
                     "set_position",
-                    [HWP_channel["targetPosition"] - theta / 2],
+                    [argv.waveplateHWPChannel, HWP_channel["targetPosition"] + theta / 2],
                 )
             correct_QWP_next = not correct_QWP_next
-        except:
+        except Exception as e:
+            print(f"PolarizationLock: error {e}")
             pass
         wait()
 

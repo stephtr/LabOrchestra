@@ -38,7 +38,7 @@ export default function Home() {
 			<GridStack className="overflow-hidden">
 				<Oscilloscope
 					deviceId="het"
-					frequencyOffset={5e6}
+					frequencyOffset={5e6-1.86e3}
 					topContent={
 						<>
 							<div className="flex-1" />
@@ -127,7 +127,7 @@ export default function Home() {
 					}
 				/>
 				<Oscilloscope deviceId="split" />
-			</GridStack>
+				</GridStack>
 			<div className="flex gap-2 items-center mx-2">
 				<FrequencyGenerator />
 				<StageChannel
