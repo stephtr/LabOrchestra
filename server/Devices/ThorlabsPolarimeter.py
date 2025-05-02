@@ -1,11 +1,9 @@
 import pyvisa
 import time
-from dataclasses import dataclass
 
 state = { "status": "not found", "theta": 0, "eta": 0, "DOP": 0, "power": 0}
 
 
-@dataclass
 class PaxData:
 	# 1170,95294,5,134283776,6,5856,29712,3.349497e-2,1.38085,-8.918476e-2,-2.549722e-1,9.227656e-1,7.660135e-5
     revs: int
@@ -21,6 +19,20 @@ class PaxData:
     eta: float
     DOP: float
     Ptotal: float
+    def __init__(self, revs, timestamp, paxOpMode, paxFlags, paxTIARange, adcMin, adcMax, revTime, misAdj, theta, eta, DOP, Ptotal):
+        self.revs = int(revs)
+        self.timestamp = int(timestamp)
+        self.paxOpMode = int(paxOpMode)
+        self.paxFlags = int(paxFlags)
+        self.paxTIARange = int(paxTIARange)
+        self.adcMin = int(adcMin)
+        self.adcMax = int(adcMax)
+        self.revTime = float(revTime)
+        self.misAdj = float(misAdj)
+        self.theta = float(theta)
+        self.eta = float(eta)
+        self.DOP = float(DOP)
+        self.Ptotal = float(Ptotal)
 
 
 argv: any

@@ -33,13 +33,13 @@ export function Polarimeter({
 							{isError ? <span>{state.status}</span> : null}
 							<p>
 								θ ={' '}
-								{polarizationAngleFormatter.format(state.theta)}
+								{polarizationAngleFormatter.format(state.theta * 180 / Math.PI)}
 								°
 							</p>
 							<p>
 								Eta ={' '}
 								{polarizationAngleFormatter.format(
-									(state.eta * 180) / Math.PI,
+									state.eta * 180 / Math.PI,
 								)}
 								°
 							</p>
