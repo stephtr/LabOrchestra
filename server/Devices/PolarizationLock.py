@@ -57,6 +57,14 @@ def main():
             if QWP_channel["type"] != "rotation" or HWP_channel["type"] != "rotation":
                 print("PolarizationLock: waveplate channels are not rotation")
                 raise Exception()
+
+            if correct_QWP_next and np.abs(eta) < 0.2:
+                if np.abs(theta) > 0.2:
+                    correct_QWP_next = False
+                else:
+                    wait()
+                    continue
+
             if correct_QWP_next:
                 action(
                     argv.waveplateDeviceName,
@@ -75,6 +83,7 @@ def main():
         except:
             pass
         wait()
+
 
 def on_save_snapshot():
     return None
