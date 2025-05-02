@@ -2,8 +2,9 @@
 
 import { FrequencyGenerator } from '@/components/frequencyGenerator';
 import { GridStack } from '@/components/gridview/gridStack';
-import { InnolasLaser } from '@/components/innolas';
 import { Oscilloscope } from '@/components/oscilloscope';
+import { Polarimeter } from '@/components/polarimeter';
+import { PolarizationLock } from '@/components/polarizationLock';
 import { PressureSensor } from '@/components/pressureSensor';
 import { StageChannel } from '@/components/stageChannel';
 import { StateButton } from '@/components/stateButton';
@@ -19,7 +20,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 	Spinner,
-} from "@heroui/react";
+} from '@heroui/react';
 
 interface MainState {
 	saveDirectory: string;
@@ -149,8 +150,10 @@ export default function Home() {
 				/>
 				<PressureSensor label="Kammer" channel={1} />
 			</div>
-			<div>
-				<InnolasLaser />
+			<div className="flex gap-2 items-center mx-2 mb-2">
+				<Polarimeter label="Tweezer">
+					<PolarizationLock />
+				</Polarimeter>
 			</div>
 		</div>
 	);
