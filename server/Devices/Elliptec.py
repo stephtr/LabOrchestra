@@ -10,12 +10,16 @@ motors = []
 def set_position(channel, position):
     if channel < 0 or channel >= len(motors):
         raise Exception("Invalid channel number")
+    
+    state["channels"][channel]["targetPosition"] = position
+    send_status_update()
+    
     motor = motors[channel]
     if state["channels"][channel]["type"] == "linear":
         for _ in range(5):
             try:
                 motor.set_distance(position)
-                state["channels"][channel]["actualPosition"] = motor.get_distance()
+                # state["channels"][channel]["actualPosition"] = motor.get_distance()
                 break
             except:
                 pass
@@ -23,14 +27,12 @@ def set_position(channel, position):
         for _ in range(5):
             try:
                 motor.set_angle(position)
-                state["channels"][channel]["actualPosition"] = motor.get_angle()
+                # state["channels"][channel]["actualPosition"] = motor.get_angle()
                 break
             except:
                 pass
     else:
         raise Exception("Invalid channel type")
-
-    state["channels"][channel]["targetPosition"] = position
     send_status_update()
 
 
