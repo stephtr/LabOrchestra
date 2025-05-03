@@ -34,7 +34,7 @@ public class OscilloscopeFFTData
 public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, IOscilloscope
 {
 	protected CircularBuffer<float>[] Buffer = [new(100_000_000), new(100_000_000), new(100_000_000), new(100_000_000)];
-	protected CircularBuffer<float>[] RecordingBuffer = [new(100_000_000), new(100_000_000), new(100_000_000), new(100_000_000)];
+	protected CircularBuffer<float>[] RecordingBuffer = [new(10_000_000), new(10_000_000), new(10_000_000), new(10_000_000)];
 	protected double[][] FFTStorage = [Array.Empty<double>(), Array.Empty<double>(), Array.Empty<double>(), Array.Empty<double>()];
 	protected float[] FFTWindowFunction = Array.Empty<float>();
 	protected int[] AcquiredFFTs = { 0, 0, 0, 0 };
@@ -210,10 +210,10 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 			if (traceLength == -1) traceLength = trace.Length;
 			if (traceLength != trace.Length) throw new Exception("The traces should all have the same length.");
 
-			var traceFile = getStream($"{deviceId}_C{ch + 1}");
+			var traceFile = getStream($"{deviceId}_C{ch + 1}.npy");
 			np.Save(trace, traceFile);
 
-			var fftFile = getStream($"{deviceId}_F{ch + 1}");
+			var fftFile = getStream($"{deviceId}_F{ch + 1}.npy");
 			var preferDisplay = State.FFTAveragingMode == "prefer-display";
 			TensorPrimitives.ConvertChecked<double, float>(FFTStorage[ch], buffer);
 			if (!preferDisplay)
@@ -249,7 +249,7 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 		{
 			RecordingBuffer[ch].Clear();
 			if (!State.Channels[ch].ChannelActive) continue;
-			RecordingStreams[ch] = new NPYStreamWriter<float>(getStream($"{deviceId}_C{ch + 1}"), false);
+			RecordingStreams[ch] = new NPYStreamWriter<float>(getStream($"{deviceId}_C{ch + 1}.npy"), false);
 		}
 		IsRecording = true;
 
@@ -315,7 +315,7 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 			for (var ch = 0; ch < State.Channels.Length; ch++)
 			{
 				if (!State.Channels[ch].ChannelActive) continue;
-				var fftFile = getStream($"{deviceId}_F{ch + 1}");
+				var fftFile = getStream($"{deviceId}_F{ch + 1}.npy");
 				var preferDisplay = State.FFTAveragingMode == "prefer-display";
 
 				TensorPrimitives.ConvertChecked<double, float>(FFTStorage[ch], buffer);
