@@ -274,7 +274,7 @@ public class DeviceManager : IDisposable
 
 		var yamlStream = new FileStream($"{baseFilepath}.yaml", FileMode.CreateNew);
 
-		var tmpFolderName = Path.Join(Path.GetTempPath(), Path.GetRandomFileName());
+		var tmpFolderName = $"{baseFilepath}.tmp";
 		Directory.CreateDirectory(tmpFolderName);
 		var recordingStreams = new ConcurrentDictionary<string, FileStream>();
 		Stream getStream(string filename)
