@@ -61,4 +61,9 @@ public class NPYStreamWriter<T> : IDisposable where T : unmanaged
 		if(IsDisposed) throw new Exception("Can't write to an already disposed NPYStreamWriter");
 		BaseStream.Write(MemoryMarshal.AsBytes(new ReadOnlySpan<T>(array)));
 	}
+	public void WriteArray(ReadOnlySpan<T> array)
+	{
+		if(IsDisposed) throw new Exception("Can't write to an already disposed NPYStreamWriter");
+		BaseStream.Write(MemoryMarshal.AsBytes(array));
+	}
 }
