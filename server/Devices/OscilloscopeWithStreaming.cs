@@ -268,6 +268,7 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 				Task.WaitAll(State.Channels.Select((channel, ch) => Task.Run(() =>
 				{
 					if (!channel.ChannelActive) return;
+					var transferBuffer = new float[1_000_000];
 					while (!delayedCancellationSource.IsCancellationRequested)
 					{
 						if (RecordingBuffer[ch].Count < 300_000)
@@ -282,9 +283,10 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 							delayedCancellationSource.Cancel();
 							throw new Exception("Recording buffer is full. This should not happen.");
 						}
-						RecordingStreams[ch].WriteArray(
-							RecordingBuffer[ch].Pop(RecordingBuffer[ch].Count)
-						);
+						var requestCount = (int)Math.Min(transferBuffer.Length, RecordingBuffer[ch].Count);
+						RecordingBuffer[ch].Pop(requestCount, transferBuffer);
+
+						RecordingStreams[ch].WriteArray(transferBuffer.AsSpan(0, requestCount));
 					}
 					// after stopping the recording, dump the recording buffer one final time
 					if (RecordingBuffer[ch].Count > 0)
