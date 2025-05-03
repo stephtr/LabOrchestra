@@ -22,7 +22,6 @@ def wait():
 
 
 def start_polarization_lock():
-    print("PolarizationLock: start")
     state["lockH"] = True
     send_status_update()
 
@@ -66,7 +65,6 @@ def main():
                     continue
 
             if correct_QWP_next:
-                print(f'correcting QWP to {QWP_channel["targetPosition"] + eta / 2}')
                 action(
                     argv.waveplateDeviceName,
                     None,
@@ -74,7 +72,6 @@ def main():
                     [argv.waveplateQWPChannel, QWP_channel["targetPosition"] + eta / 2],
                 )
             else:
-                print(f'correcting HWP to {HWP_channel["targetPosition"] + theta / 2}')
                 action(
                     argv.waveplateDeviceName,
                     None,

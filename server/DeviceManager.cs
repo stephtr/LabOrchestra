@@ -220,7 +220,7 @@ public class DeviceManager : IDisposable
 		{
 			device.OnBeforeSaveSnapshot();
 		}
-		var tmpFolderName = Path.Join(Path.GetTempPath(), Path.GetRandomFileName());
+		var tmpFolderName = $"{baseFilepath}.tmp";
 		Directory.CreateDirectory(tmpFolderName);
 		var fileStreams = new ConcurrentDictionary<string, FileStream>();
 		Stream getStream(string filename)
