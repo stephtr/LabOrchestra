@@ -27,43 +27,46 @@ export function Polarimeter({
 
 	return (
 		<div
-			className={`${isError ? 'bg-orange-800' : 'bg-slate-800'} h14 rounded-xl flex items-center`}
+			className={`${isError ? 'bg-orange-800' : 'bg-slate-800'} h14 rounded-xl grid grid-rows-2 gap-x-4 grid-flow-col items-center tabular-nums pl-2 ${children ? '' : 'pr-2'}`}
 		>
-			<div className="flex flex-col px-4">
-				{label && <div className="text-slate-500 text-sm">{label}</div>}
-				<div className="flex gap-2">
-					{state ? (
-						<>
-							{isError ? <span>{state.status}</span> : null}
-							<span className="tabular-nums">
-								η ={' '}
-								{polarizationAngleFormatter.format(
-									(state.eta * 180) / Math.PI,
-								)}
-								°
-							</span>
-							<span className="tabular-nums">
-								θ ={' '}
-								{polarizationAngleFormatter.format(
-									(state.theta * 180) / Math.PI,
-								)}
-								°
-							</span>
-							<span className="tabular-nums">
-								DOP: {Math.round(state.DOP * 100)}&thinsp;%
-							</span>
-							<span className="tabular-nums">
-								Power:{' '}
-								{powerFormatter.format(state.power * 1e6)}
-								&thinsp;µW
-							</span>
-						</>
-					) : (
-						'–'
-					)}
-				</div>
+			<span className="text-slate-500 text-sm">{label}</span>
+			<div className="flex gap-2">
+				{state && (
+					<>
+						{isError ? <span>{state.status}</span> : null}
+						<span>
+							η ={' '}
+							{polarizationAngleFormatter.format(
+								(state.eta * 180) / Math.PI,
+							)}
+							°
+						</span>
+						<span>
+							θ ={' '}
+							{polarizationAngleFormatter.format(
+								(state.theta * 180) / Math.PI,
+							)}
+							°
+						</span>
+					</>
+				)}
 			</div>
-			{children}
+			{state && (
+				<>
+					<span className="text-slate-500 text-sm">DOP</span>
+					<span>{Math.round(state.DOP * 100)}&thinsp;%</span>
+				</>
+			)}
+			{state && (
+				<>
+					<span className="text-slate-500 text-sm">Power</span>
+					<span>
+						{powerFormatter.format(state.power * 1e6)}
+						&thinsp;µW
+					</span>
+				</>
+			)}
+			<div className="row-span-2">{children}</div>
 		</div>
 	);
 }
