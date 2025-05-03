@@ -97,7 +97,7 @@ public class DeviceManager : IDisposable
 			Console.WriteLine("Falling back to DemoPolarimeter");
 			RegisterDevice("tweezerPolarization", new PythonDevice("Devices/DemoPolarimeter.py"));
 		}
-		RegisterDevice("particleName", new PythonDevice("Devices/ParticleName.py", new { openai_api_key = Environment.GetEnvironmentVariable("OPENAI_API_KEY") }));
+		RegisterDevice("particleName", new PythonDevice("Devices/ParticleName.py", new { openai_api_key = Environment.GetEnvironmentVariable("OPENAI_API_KEY"), slack_token = Environment.GetEnvironmentVariable("SLACK_TOKEN"), slack_channel = Environment.GetEnvironmentVariable("SLACK_CHANNEL") }));
 		RegisterDevice("pressureUploader", new PythonDevice("Devices/PressureUploader.py", new { deviceName = "pressure", selectedChannel = 1, uploadUrl = "https://pressure.cavity.at/api/uploadSensorData", apiKey = Environment.GetEnvironmentVariable("SENSE_API_KEY") }));
 		RegisterDevice("polarizationLock", new PythonDevice("Devices/PolarizationLock.py", new { polarizationDeviceName = "tweezerPolarization", waveplateDeviceName = "elliptec", waveplateQWPChannel = 0, waveplateHWPChannel = 1 }));
 		RegisterDevice("main", MainDevice);
