@@ -21,6 +21,15 @@ AppDomain.CurrentDomain.UnhandledException += (object sender, UnhandledException
 EnvLoader.Load(".env");
 EnvLoader.Load(".env.local");
 
+Runtime.PythonDLL = Environment.OSVersion.Platform switch
+{
+	PlatformID.Win32NT => @"C:\Users\Cavity\.pyenv\pyenv-win\versions\3.13.0rc1\python313.dll",
+	PlatformID.Unix => "/Library/Frameworks/Python.framework/Versions/3.13/lib/libpython3.13.dylib",
+	_ => null,
+};
+PythonEngine.Initialize();
+PythonEngine.BeginAllowThreads();
+
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSignalR()
 	.AddJsonProtocol(options =>
@@ -37,16 +46,8 @@ builder.Services.AddCors(options =>
 			.AllowCredentials()
 	)
 );
-builder.Services.AddSingleton<DeviceManager>();
 
-Runtime.PythonDLL = Environment.OSVersion.Platform switch
-{
-	PlatformID.Win32NT => @"C:\Users\Cavity\.pyenv\pyenv-win\versions\3.13.0rc1\python313.dll",
-	PlatformID.Unix => "/Library/Frameworks/Python.framework/Versions/3.13/lib/libpython3.13.dylib",
-	_ => null,
-};
-PythonEngine.Initialize();
-PythonEngine.BeginAllowThreads();
+builder.Services.AddSingleton<DeviceManager>();
 
 var app = builder.Build();
 app.UseCors();

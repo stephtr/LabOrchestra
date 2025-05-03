@@ -84,12 +84,6 @@ public class DeviceManager : IDisposable
 		}
 		try
 		{
-			RegisterDevice("innolas", new InnolasLaser(1025));
-		}
-		catch
-		{ }
-		try
-		{
 			RegisterDevice("tweezerPolarization", new PythonDevice("Devices/ThorlabsPolarimeter.py", new { device = "USB0::0x1313::0x8031::M00503241::INSTR" }));
 		}
 		catch
