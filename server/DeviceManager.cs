@@ -10,13 +10,11 @@ using YamlDotNet.System.Text.Json;
 
 public record DeviceAction(string DeviceId, string? ChannelId, string ActionName, object[]? Parameters);
 
-public interface IAddon
-{
-	void DoWork(DeviceManager deviceManager, CancellationToken cancellationToken);
-}
-
 public class DeviceManager : IDisposable
 {
+	private bool useSystemTempFolder = false;
+	private bool SaveToNpz = false;
+
 	private readonly IHubContext<ControlHub> ControlHub;
 	private readonly IHubContext<StreamingHub> StreamingHub;
 	public Dictionary<string, IDeviceHandler> Devices = new();
@@ -220,7 +218,7 @@ public class DeviceManager : IDisposable
 		{
 			device.OnBeforeSaveSnapshot();
 		}
-		var tmpFolderName = $"{baseFilepath}.tmp";
+		var tmpFolderName = SaveToNpz ? (useSystemTempFolder ? Path.Combine(Path.GetTempPath(), Path.GetTempFileName()) : $"{baseFilepath}.tmp") : baseFilepath;
 		Directory.CreateDirectory(tmpFolderName);
 		var fileStreams = new ConcurrentDictionary<string, FileStream>();
 		Stream getStream(string filename)
@@ -238,32 +236,36 @@ public class DeviceManager : IDisposable
 		File.WriteAllText($"{baseFilepath}.yaml", yaml);
 
 		if (fileStreams.Count == 0) return;
-		Task.Run(() =>
+
+		if (SaveToNpz)
 		{
-			Console.WriteLine("Saving snapshot to npz...");
-			MainDevice.AddPendingAction();
-			try
+			Task.Run(() =>
 			{
-				using var npzFile = new ZipArchive(new FileStream($"{baseFilepath}.npz", FileMode.CreateNew), ZipArchiveMode.Create);
-				fileStreams.Where((s) => s.Value.Length > 0).ToList().ForEach(x =>
+				Console.WriteLine("Saving snapshot to npz...");
+				MainDevice.AddPendingAction();
+				try
 				{
-					x.Value.Position = 0;
-					var entry = npzFile.CreateEntry(x.Key, CompressionLevel.NoCompression);
-					var entryStream = entry.Open();
-					x.Value.CopyTo(entryStream);
-					entryStream.Dispose();
-					x.Value.Dispose();
-					File.Delete(x.Value.Name);
-				});
-				MainDevice.FinishPendingAction();
-				Console.WriteLine("Snapshot saved.");
-				Directory.Delete(tmpFolderName);
-			}
-			catch (Exception e)
-			{
-				Console.WriteLine("Error saving snapshot: " + e.Message);
-			}
-		});
+					using var npzFile = new ZipArchive(new FileStream($"{baseFilepath}.npz", FileMode.CreateNew), ZipArchiveMode.Create);
+					fileStreams.Where((s) => s.Value.Length > 0).ToList().ForEach(x =>
+					{
+						x.Value.Position = 0;
+						var entry = npzFile.CreateEntry(x.Key, CompressionLevel.NoCompression);
+						var entryStream = entry.Open();
+						x.Value.CopyTo(entryStream);
+						entryStream.Dispose();
+						x.Value.Dispose();
+						File.Delete(x.Value.Name);
+					});
+					MainDevice.FinishPendingAction();
+					Console.WriteLine("Snapshot saved.");
+					Directory.Delete(tmpFolderName);
+				}
+				catch (Exception e)
+				{
+					Console.WriteLine("Error saving snapshot: " + e.Message);
+				}
+			});
+		}
 	}
 
 	public bool IsRecording = false;
@@ -274,7 +276,7 @@ public class DeviceManager : IDisposable
 
 		var yamlStream = new FileStream($"{baseFilepath}.yaml", FileMode.CreateNew);
 
-		var tmpFolderName = $"{baseFilepath}.tmp";
+		var tmpFolderName = SaveToNpz ? (useSystemTempFolder ? Path.Combine(Path.GetTempPath(), Path.GetTempFileName()) : $"{baseFilepath}.tmp") : baseFilepath;
 		Directory.CreateDirectory(tmpFolderName);
 		var recordingStreams = new ConcurrentDictionary<string, FileStream>();
 		Stream getStream(string filename)
@@ -323,26 +325,29 @@ public class DeviceManager : IDisposable
 
 			Task.WaitAll(recordingTasks);
 
-			Console.WriteLine("Saving recording to npz...");
-			try
+			if (SaveToNpz)
 			{
-				using var npzFile = new ZipArchive(new FileStream($"{baseFilepath}.npz", FileMode.CreateNew), ZipArchiveMode.Create);
-				recordingStreams.Where((s) => s.Value.Length > 0).ToList().ForEach(x =>
+				Console.WriteLine("Saving recording to npz...");
+				try
 				{
-					x.Value.Position = 0;
-					var entry = npzFile.CreateEntry(x.Key, CompressionLevel.NoCompression);
-					var entryStream = entry.Open();
-					x.Value.CopyTo(entryStream);
-					entryStream.Dispose();
-					x.Value.Dispose();
-					File.Delete(x.Value.Name);
-				});
-				Console.WriteLine("Recording saved.");
-				Directory.Delete(tmpFolderName);
-			}
-			catch (Exception e)
-			{
-				Console.WriteLine("Error saving recording: " + e.Message);
+					using var npzFile = new ZipArchive(new FileStream($"{baseFilepath}.npz", FileMode.CreateNew), ZipArchiveMode.Create);
+					recordingStreams.Where((s) => s.Value.Length > 0).ToList().ForEach(x =>
+					{
+						x.Value.Position = 0;
+						var entry = npzFile.CreateEntry(x.Key, CompressionLevel.NoCompression);
+						var entryStream = entry.Open();
+						x.Value.CopyTo(entryStream);
+						entryStream.Dispose();
+						x.Value.Dispose();
+						File.Delete(x.Value.Name);
+					});
+					Console.WriteLine("Recording saved.");
+					Directory.Delete(tmpFolderName);
+				}
+				catch (Exception e)
+				{
+					Console.WriteLine("Error saving recording: " + e.Message);
+				}
 			}
 			MainDevice.FinishPendingAction();
 		});
