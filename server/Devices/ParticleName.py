@@ -53,7 +53,7 @@ def main():
     while is_running:
         try:
             pressureState = get_device_state("pressure")
-            pressure = pressureState["channels"][0]["pressure"]
+            pressure = pressureState["channels"][1]["pressure"]
 
             if (
                 previous_pressure
