@@ -10,7 +10,7 @@ import { StageChannel } from '@/components/stageChannel';
 import { StateButton } from '@/components/stateButton';
 import { StateInput } from '@/components/stateInput';
 import { useControl } from '@/lib/controlHub';
-import { faCircleDot, faStop } from '@/lib/fontawesome-regular';
+import { faCircleDot, faStop, faTrash } from '@/lib/fontawesome-regular';
 import { faGear, faSave } from '@/lib/fortawesome/pro-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -52,17 +52,28 @@ export default function Home() {
 						variableName="filename"
 					/>
 					{state?.isRecording ? (
-						<Button
-							className="ml-2 tabular-nums"
-							startContent={<FontAwesomeIcon icon={faStop} />}
-							onClick={() => action('stopRecording')}
-							isDisabled={!isConnected}
-						>
-							{Math.floor(state.recordingTimeSeconds / 60)}:
-							{(state.recordingTimeSeconds % 60)
-								.toString()
-								.padStart(2, '0')}
-						</Button>
+						<ButtonGroup className="ml-2">
+							<Button
+								className="tabular-nums"
+								startContent={<FontAwesomeIcon icon={faStop} />}
+								onClick={() => action('stopRecording')}
+								isDisabled={!isConnected}
+							>
+								{Math.floor(state.recordingTimeSeconds / 60)}:
+								{(state.recordingTimeSeconds % 60)
+									.toString()
+									.padStart(2, '0')}
+							</Button>
+							<StateButton
+								title="Abort recording"
+								color="danger"
+								state={state}
+								action={action}
+								actionName="abortRecording"
+							>
+								<FontAwesomeIcon icon={faTrash} />
+							</StateButton>
+						</ButtonGroup>
 					) : (
 						<ButtonGroup>
 							<Button

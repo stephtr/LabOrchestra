@@ -122,6 +122,12 @@ public class MainDevice : DeviceHandlerBase<MainState>
 		SendStateUpdate(new { State.IsRecording });
 	}
 
+	public void AbortRecording()
+	{
+		DeviceManager!.DiscardRecording = true;
+		StopRecording();
+	}
+
 	public override object? OnSaveSnapshot(Func<string, Stream>? getStream, string deviceId) => null;
 
 	override public object? GetSettings()

@@ -276,10 +276,12 @@ public class DeviceManager : IDisposable
 	}
 
 	public bool IsRecording = false;
+	public bool DiscardRecording = false;
 	public void Record(string baseFilepath, CancellationToken cancellationToken)
 	{
 		if (IsRecording) throw new NotSupportedException("Already recording.");
 		IsRecording = true;
+		DiscardRecording = false;
 
 		var yamlStream = new FileStream($"{baseFilepath}.yaml", FileMode.CreateNew);
 
@@ -327,33 +329,50 @@ public class DeviceManager : IDisposable
 
 			IsRecording = false;
 
-			if (recordingStreams.Count == 0) return;
 			MainDevice.AddPendingAction();
 
 			Task.WaitAll(recordingTasks);
 
-			if (SaveToNpz)
+			if (DiscardRecording)
 			{
-				Console.WriteLine("Saving recording to npz...");
-				try
+				Directory.Delete(tmpFolderName);
+				File.Delete($"{baseFilepath}.yaml");
+			}
+			else
+			{
+				if (SaveToNpz)
 				{
-					using var npzFile = new ZipArchive(new FileStream($"{baseFilepath}.npz", FileMode.CreateNew), ZipArchiveMode.Create);
-					recordingStreams.Where((s) => s.Value.Length > 0).ToList().ForEach(x =>
+					Console.WriteLine("Saving recording to npz...");
+					try
 					{
-						x.Value.Position = 0;
-						var entry = npzFile.CreateEntry(x.Key, CompressionLevel.NoCompression);
-						var entryStream = entry.Open();
-						x.Value.CopyTo(entryStream);
-						entryStream.Dispose();
-						x.Value.Dispose();
-						File.Delete(x.Value.Name);
-					});
-					Console.WriteLine("Recording saved.");
-					Directory.Delete(tmpFolderName);
+						if (recordingStreams.Count > 0)
+						{
+							using var npzFile = new ZipArchive(new FileStream($"{baseFilepath}.npz", FileMode.CreateNew), ZipArchiveMode.Create);
+							recordingStreams.Where((s) => s.Value.Length > 0).ToList().ForEach(x =>
+							{
+								x.Value.Position = 0;
+								var entry = npzFile.CreateEntry(x.Key, CompressionLevel.NoCompression);
+								var entryStream = entry.Open();
+								x.Value.CopyTo(entryStream);
+								entryStream.Dispose();
+								x.Value.Dispose();
+								File.Delete(x.Value.Name);
+							});
+						}
+						Console.WriteLine("Recording saved.");
+						Directory.Delete(tmpFolderName);
+					}
+					catch (Exception e)
+					{
+						Console.WriteLine("Error saving recording: " + e.Message);
+					}
 				}
-				catch (Exception e)
+				else
 				{
-					Console.WriteLine("Error saving recording: " + e.Message);
+					if (recordingStreams.Count == 0)
+					{
+						Directory.Delete(tmpFolderName);
+					}
 				}
 			}
 			else
