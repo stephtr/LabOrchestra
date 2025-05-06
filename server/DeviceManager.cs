@@ -49,10 +49,7 @@ public class DeviceManager : IDisposable
 			RegisterDevice("split", new Picoscope4000aOscilloscope());
 		}
 		catch
-		{
-			Console.WriteLine("Falling back to DemoOscilloscope");
-			RegisterDevice("split", new DemoOscilloscope());
-		}
+		{ }
 		try
 		{
 			RegisterDevice("cavity_detuning", new PythonDevice("Devices/RS_SMA100B.py", new { ipAddress = "192.168.0.23" }));
@@ -266,6 +263,16 @@ public class DeviceManager : IDisposable
 				}
 			});
 		}
+		else
+		{
+			foreach (var x in fileStreams.Values)
+			{
+				var filename = x.Name;
+				var isEmpty = x.Length == 0;
+				x.Dispose();
+				if (isEmpty) File.Delete(filename);
+			}
+		}
 	}
 
 	public bool IsRecording = false;
@@ -347,6 +354,16 @@ public class DeviceManager : IDisposable
 				catch (Exception e)
 				{
 					Console.WriteLine("Error saving recording: " + e.Message);
+				}
+			}
+			else
+			{
+				foreach (var x in recordingStreams.Values)
+				{
+					var filename = x.Name;
+					var isEmpty = x.Length == 0;
+					x.Dispose();
+					if (isEmpty) File.Delete(filename);
 				}
 			}
 			MainDevice.FinishPendingAction();
