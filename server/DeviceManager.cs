@@ -369,20 +369,25 @@ public class DeviceManager : IDisposable
 				}
 				else
 				{
-					if (recordingStreams.Count == 0)
+					var numStreams = 0;
+					foreach (var x in recordingStreams.Values)
+					{
+						var filename = x.Name;
+						var isEmpty = x.Length == 0;
+						x.Dispose();
+						if (isEmpty)
+						{
+							File.Delete(filename);
+						}
+						else
+						{
+							numStreams++;
+						}
+					}
+					if (numStreams == 0)
 					{
 						Directory.Delete(tmpFolderName);
 					}
-				}
-			}
-			else
-			{
-				foreach (var x in recordingStreams.Values)
-				{
-					var filename = x.Name;
-					var isEmpty = x.Length == 0;
-					x.Dispose();
-					if (isEmpty) File.Delete(filename);
 				}
 			}
 			MainDevice.FinishPendingAction();
