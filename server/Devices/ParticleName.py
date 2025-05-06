@@ -35,7 +35,7 @@ def send_welcome_message(openAI_client, name):
             return
         response = openAI_client.responses.create(
             model="gpt-4o",
-            input=f'Write a funny welcome message for a nanoparticle named "{name}", which is trapped in a laser field and gonna be cooled and used in a quantum physics experiment. It shouldn't be longer than 2 sentences.',
+            input=f'Write a funny welcome message for a nanoparticle named "{name}", which is trapped in a laser field and gonna be cooled and used in a quantum physics experiment. It shouldn\'t be longer than 2 sentences.',
             temperature=1,
         ).output_text
         slack_client = WebClient(token=argv.slack_token)
