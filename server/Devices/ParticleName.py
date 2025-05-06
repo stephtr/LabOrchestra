@@ -22,7 +22,7 @@ def load_settings(settings):
 def generate_particle_name(client: OpenAI):
     name = client.responses.create(
         model="gpt-4o",
-        input="Output a first and a given name for a solid nanoparticle which is used in a physics experiment. It should be close to an ordinary English name, just with a _slight_ fun quantum twist. But not just adding quantum-. Output just the total name.",
+        input="Output a first and a given name for a solid nanoparticle which is used in a physics experiment. It should be close to an ordinary English name, just with a _slight_ fun quantum twist. But not just adding quantum; and it should be a reasonable name. Output just the total name.",
         temperature=1,
     ).output_text
     return name.strip()
