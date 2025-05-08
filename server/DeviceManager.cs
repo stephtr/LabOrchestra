@@ -335,6 +335,12 @@ public class DeviceManager : IDisposable
 
 			if (DiscardRecording)
 			{
+				foreach (var x in recordingStreams.Values)
+				{
+					var filename = x.Name;
+					x.Dispose();
+					File.Delete(filename);
+				}
 				Directory.Delete(tmpFolderName);
 				File.Delete($"{baseFilepath}.yaml");
 			}
@@ -349,15 +355,22 @@ public class DeviceManager : IDisposable
 						{
 							using var npzFile = new ZipArchive(new FileStream($"{baseFilepath}.npz", FileMode.CreateNew), ZipArchiveMode.Create);
 							recordingStreams.Where((s) => s.Value.Length > 0).ToList().ForEach(x =>
+							foreach (var key in recordingStreams.Keys)
 							{
-								x.Value.Position = 0;
-								var entry = npzFile.CreateEntry(x.Key, CompressionLevel.NoCompression);
-								var entryStream = entry.Open();
-								x.Value.CopyTo(entryStream);
-								entryStream.Dispose();
-								x.Value.Dispose();
-								File.Delete(x.Value.Name);
-							});
+								var x = recordingStreams[key];
+								var filename = x.Name;
+								var isEmpty = x.Length == 0;
+								if (!isEmpty)
+								{
+									x.Position = 0;
+									var entry = npzFile.CreateEntry(key, CompressionLevel.NoCompression);
+									var entryStream = entry.Open();
+									x.CopyTo(entryStream);
+									entryStream.Dispose();
+								}
+								x.Dispose();
+								File.Delete(x.Name);
+							}
 						}
 						Console.WriteLine("Recording saved.");
 						Directory.Delete(tmpFolderName);
