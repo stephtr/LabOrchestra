@@ -354,22 +354,20 @@ public class DeviceManager : IDisposable
 						if (recordingStreams.Count > 0)
 						{
 							using var npzFile = new ZipArchive(new FileStream($"{baseFilepath}.npz", FileMode.CreateNew), ZipArchiveMode.Create);
-							recordingStreams.Where((s) => s.Value.Length > 0).ToList().ForEach(x =>
-							foreach (var key in recordingStreams.Keys)
+							foreach (var x in recordingStreams)
 							{
-								var x = recordingStreams[key];
-								var filename = x.Name;
-								var isEmpty = x.Length == 0;
+								var filename = x.Value.Name;
+								var isEmpty = x.Value.Length == 0;
 								if (!isEmpty)
 								{
-									x.Position = 0;
-									var entry = npzFile.CreateEntry(key, CompressionLevel.NoCompression);
+									x.Value.Position = 0;
+									var entry = npzFile.CreateEntry(x.Key, CompressionLevel.NoCompression);
 									var entryStream = entry.Open();
-									x.CopyTo(entryStream);
+									x.Value.CopyTo(entryStream);
 									entryStream.Dispose();
 								}
-								x.Dispose();
-								File.Delete(x.Name);
+								x.Value.Dispose();
+								File.Delete(x.Value.Name);
 							}
 						}
 						Console.WriteLine("Recording saved.");
