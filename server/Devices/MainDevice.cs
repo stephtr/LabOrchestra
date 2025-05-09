@@ -93,13 +93,13 @@ public class MainDevice : DeviceHandlerBase<MainState>
 	public void StartRecording(int maxDurationSeconds = 0)
 	{
 		if (RecordingCancellationTokenSource != null) return;
-		SendStateUpdate(new { State.IsRecording });
 		var filepath = GetSaveFilepath();
 		RecordingCancellationTokenSource = new();
 		var token = RecordingCancellationTokenSource.Token;
 		DeviceManager!.Record(filepath, token);
 		State.IsRecording = true;
 		State.PlannedRecordingTimeSeconds = maxDurationSeconds;
+		SendStateUpdate(new { State.IsRecording, State.PlannedRecordingTimeSeconds });
 		var startTime = DateTime.Now;
 		Task.Run(() =>
 		{
