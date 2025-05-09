@@ -22,7 +22,7 @@ def load_settings(settings):
 def generate_particle_name(client: OpenAI):
     name = client.responses.create(
         model="gpt-4o",
-        input="Output a first and a given name for a solid nanoparticle which is used in a physics experiment. It should be close to an ordinary german name, just with a slight fun quantum twist. But not just adding quantum-. Output just the total name.",
+        input="Output a first and a given name for a solid nanoparticle which is used in a physics experiment. It should be close to an ordinary English name, just with a _slight_ fun quantum twist. But not just adding quantum; and it should be a reasonable name. Output just the total name.",
         temperature=1,
     ).output_text
     return name.strip()
@@ -35,7 +35,7 @@ def send_welcome_message(openAI_client, name):
             return
         response = openAI_client.responses.create(
             model="gpt-4o",
-            input=f'Write a funny welcome message for a nanoparticle named "{name}", which is trapped in a laser field and gonna be cooled and used in a quantum physics experiment.',
+            input=f'Write a funny welcome message for a nanoparticle named "{name}", which is trapped in a laser field and gonna be cooled and used in a quantum physics experiment. It shouldn\'t be longer than 2 sentences.',
             temperature=1,
         ).output_text
         slack_client = WebClient(token=argv.slack_token)

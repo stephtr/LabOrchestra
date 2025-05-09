@@ -40,145 +40,143 @@ const recordingTimes = [60, 150, 300, 600, 1200, 1800];
 export default function Home() {
 	const { isConnected, action, state } = useControl<MainState>('main');
 	const hasPendingActions = (state?.pendingActions ?? 0) > 0;
-	return (
-		<div className="h-full grid grid-rows-[1fr_5em]">
-			<GridStack className="overflow-hidden">
-				<Oscilloscope
-					deviceId="het"
-					frequencyOffset={5e6 - 1.86e3}
-					topContent={
-						<>
-							<div className="flex-1" />
+	const { state: hasSplitOscilloscope } = useControl('split');
+
+	const oscilloscope1 = (
+		<Oscilloscope
+			deviceId="het"
+			frequencyOffset={5e6 - 1.86e3}
+			topContent={
+				<>
+					<div className="flex-1" />
+					<StateInput
+						className="max-w-sm"
+						placeholder="Filename"
+						isDisabled={!isConnected}
+						state={state}
+						action={action}
+						actionName="setFilename"
+						variableName="filename"
+					/>
+					{state?.isRecording ? (
+						<ButtonGroup className="ml-2">
+							<Button
+								className="tabular-nums"
+								startContent={<FontAwesomeIcon icon={faStop} />}
+								onPress={() => action('stopRecording')}
+								isDisabled={!isConnected}
+							>
+								{Math.floor(state.recordingTimeSeconds / 60)}:
+								{(state.recordingTimeSeconds % 60)
+									.toString()
+									.padStart(2, '0')}
+							</Button>
+							<StateButton
+								title="Abort recording"
+								color="danger"
+								state={state}
+								action={action}
+								actionName="abortRecording"
+							>
+								<FontAwesomeIcon icon={faTrash} />
+							</StateButton>
+						</ButtonGroup>
+					) : (
+						<ButtonGroup>
+							<StateButton
+								startContent={<FontAwesomeIcon icon={faSave} />}
+								state={state}
+								action={action}
+								actionName="SaveSnapshot"
+								isDisabled={!isConnected}
+							>
+								Snapshot
+							</StateButton>
+							<Button
+								startContent={
+									<FontAwesomeIcon icon={faCircleDot} />
+								}
+								onPress={() => action('startRecording', 0)}
+								isDisabled={!isConnected}
+							>
+								Record
+							</Button>
+							<Dropdown placement="bottom-end">
+								<DropdownTrigger>
+									<Button isIconOnly>
+										<ChevronDownIcon />
+									</Button>
+								</DropdownTrigger>
+								<DropdownMenu
+									disallowEmptySelection
+									aria-label="Recording timers"
+									selectionMode="single"
+								>
+									{recordingTimes.map((value) => (
+										<DropdownItem
+											key={value}
+											onPress={() =>
+												action('startRecording', value)
+											}
+										>
+											Record for {Math.floor(value / 60)}:
+											{(value % 60)
+												.toString()
+												.padStart(2, '0')}{' '}
+											min
+										</DropdownItem>
+									))}
+								</DropdownMenu>
+							</Dropdown>
+						</ButtonGroup>
+					)}
+					{hasPendingActions && <Spinner size="sm" />}
+					<div className="flex-1" />
+					{/* <Pressure /> */}
+					<Popover>
+						<PopoverTrigger>
+							<Button isIconOnly className="h-12 ml-2">
+								<FontAwesomeIcon icon={faGear} />
+							</Button>
+						</PopoverTrigger>
+						<PopoverContent
+							aria-label="General settings"
+							className="w-[300px] items-start gap-3 py-2 px-3"
+						>
+							<h2 className="text-xl">General Settings</h2>
 							<StateInput
-								className="max-w-sm"
-								placeholder="Filename"
+								label="Save directory"
+								labelPlacement="outside"
+								className="pt-2"
+								placeholder=" "
 								isDisabled={!isConnected}
 								state={state}
 								action={action}
-								actionName="setFilename"
-								variableName="filename"
+								actionName="setSaveDirectory"
+								variableName="saveDirectory"
 							/>
-							{state?.isRecording ? (
-								<ButtonGroup className="ml-2">
-									<Button
-										className="tabular-nums"
-										startContent={
-											<FontAwesomeIcon icon={faStop} />
-										}
-										onPress={() => action('stopRecording')}
-										isDisabled={!isConnected}
-									>
-										{Math.floor(
-											state.recordingTimeSeconds / 60,
-										)}
-										:
-										{(state.recordingTimeSeconds % 60)
-											.toString()
-											.padStart(2, '0')}
-									</Button>
-									<StateButton
-										title="Abort recording"
-										color="danger"
-										state={state}
-										action={action}
-										actionName="abortRecording"
-									>
-										<FontAwesomeIcon icon={faTrash} />
-									</StateButton>
-								</ButtonGroup>
-							) : (
-								<ButtonGroup>
-									<StateButton
-										startContent={
-											<FontAwesomeIcon icon={faSave} />
-										}
-										state={state}
-										action={action}
-										actionName="SaveSnapshot"
-										isDisabled={!isConnected}
-									>
-										Snapshot
-									</StateButton>
-									<Button
-										startContent={
-											<FontAwesomeIcon
-												icon={faCircleDot}
-											/>
-										}
-										onPress={() =>
-											action('startRecording', 0)
-										}
-										isDisabled={!isConnected}
-									>
-										Record
-									</Button>
-									<Dropdown placement="bottom-end">
-										<DropdownTrigger>
-											<Button isIconOnly>
-												<ChevronDownIcon />
-											</Button>
-										</DropdownTrigger>
-										<DropdownMenu
-											disallowEmptySelection
-											aria-label="Recording timers"
-											selectionMode="single"
-										>
-											{recordingTimes.map((value) => (
-												<DropdownItem
-													key={value}
-													onPress={() =>
-														action(
-															'startRecording',
-															value,
-														)
-													}
-												>
-													Record for{' '}
-													{Math.floor(value / 60)}:
-													{(value % 60)
-														.toString()
-														.padStart(2, '0')}{' '}
-													min
-												</DropdownItem>
-											))}
-										</DropdownMenu>
-									</Dropdown>
-								</ButtonGroup>
-							)}
-							{hasPendingActions && <Spinner size="sm" />}
-							<div className="flex-1" />
-							{/* <Pressure /> */}
-							<Popover>
-								<PopoverTrigger>
-									<Button isIconOnly className="h-12 ml-2">
-										<FontAwesomeIcon icon={faGear} />
-									</Button>
-								</PopoverTrigger>
-								<PopoverContent
-									aria-label="General settings"
-									className="w-[300px] items-start gap-3 py-2 px-3"
-								>
-									<h2 className="text-xl">
-										General Settings
-									</h2>
-									<StateInput
-										label="Save directory"
-										labelPlacement="outside"
-										className="pt-2"
-										placeholder=" "
-										isDisabled={!isConnected}
-										state={state}
-										action={action}
-										actionName="setSaveDirectory"
-										variableName="saveDirectory"
-									/>
-								</PopoverContent>
-							</Popover>
-						</>
-					}
-				/>
-				<Oscilloscope deviceId="split" />
-			</GridStack>
+						</PopoverContent>
+					</Popover>
+				</>
+			}
+		/>
+	);
+
+	const oscilloscope2 = hasSplitOscilloscope ? (
+		<Oscilloscope deviceId="split" />
+	) : null;
+
+	return (
+		<div className="h-full grid grid-rows-[1fr_5em]">
+			{oscilloscope2 ? (
+				<GridStack className="overflow-hidden">
+					{oscilloscope1}
+					{oscilloscope2}
+				</GridStack>
+			) : (
+				oscilloscope1
+			)}
+
 			<div className="flex gap-2 items-center mx-2">
 				<FrequencyGenerator />
 				<StageChannel

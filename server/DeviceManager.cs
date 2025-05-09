@@ -49,10 +49,7 @@ public class DeviceManager : IDisposable
 			RegisterDevice("split", new Picoscope4000aOscilloscope());
 		}
 		catch
-		{
-			Console.WriteLine("Falling back to DemoOscilloscope");
-			RegisterDevice("split", new DemoOscilloscope());
-		}
+		{ }
 		try
 		{
 			RegisterDevice("cavity_detuning", new PythonDevice("Devices/RS_SMA100B.py", new { ipAddress = "192.168.0.23" }));
@@ -266,6 +263,16 @@ public class DeviceManager : IDisposable
 				}
 			});
 		}
+		else
+		{
+			foreach (var x in fileStreams.Values)
+			{
+				var filename = x.Name;
+				var isEmpty = x.Length == 0;
+				x.Dispose();
+				if (isEmpty) File.Delete(filename);
+			}
+		}
 	}
 
 	public bool IsRecording = false;
@@ -328,6 +335,12 @@ public class DeviceManager : IDisposable
 
 			if (DiscardRecording)
 			{
+				foreach (var x in recordingStreams.Values)
+				{
+					var filename = x.Name;
+					x.Dispose();
+					File.Delete(filename);
+				}
 				Directory.Delete(tmpFolderName);
 				File.Delete($"{baseFilepath}.yaml");
 			}
@@ -341,16 +354,21 @@ public class DeviceManager : IDisposable
 						if (recordingStreams.Count > 0)
 						{
 							using var npzFile = new ZipArchive(new FileStream($"{baseFilepath}.npz", FileMode.CreateNew), ZipArchiveMode.Create);
-							recordingStreams.Where((s) => s.Value.Length > 0).ToList().ForEach(x =>
+							foreach (var x in recordingStreams)
 							{
-								x.Value.Position = 0;
-								var entry = npzFile.CreateEntry(x.Key, CompressionLevel.NoCompression);
-								var entryStream = entry.Open();
-								x.Value.CopyTo(entryStream);
-								entryStream.Dispose();
+								var filename = x.Value.Name;
+								var isEmpty = x.Value.Length == 0;
+								if (!isEmpty)
+								{
+									x.Value.Position = 0;
+									var entry = npzFile.CreateEntry(x.Key, CompressionLevel.NoCompression);
+									var entryStream = entry.Open();
+									x.Value.CopyTo(entryStream);
+									entryStream.Dispose();
+								}
 								x.Value.Dispose();
 								File.Delete(x.Value.Name);
-							});
+							}
 						}
 						Console.WriteLine("Recording saved.");
 						Directory.Delete(tmpFolderName);
@@ -362,7 +380,22 @@ public class DeviceManager : IDisposable
 				}
 				else
 				{
-					if (recordingStreams.Count == 0)
+					var numStreams = 0;
+					foreach (var x in recordingStreams.Values)
+					{
+						var filename = x.Name;
+						var isEmpty = x.Length == 0;
+						x.Dispose();
+						if (isEmpty)
+						{
+							File.Delete(filename);
+						}
+						else
+						{
+							numStreams++;
+						}
+					}
+					if (numStreams == 0)
 					{
 						Directory.Delete(tmpFolderName);
 					}
