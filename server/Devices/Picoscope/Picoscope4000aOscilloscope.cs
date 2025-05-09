@@ -167,7 +167,7 @@ public class Picoscope4000aOscilloscope : OscilloscopeWithStreaming
 								if (result != PicoStatus.StatusCodes.PICO_OK)
 								{
 									base.Stop();
-									throw new Exception($"Failed to automatically restart acquisition ({status:X})");
+									throw new Exception($"Failed to automatically restart acquisition ({result:X})");
 								}
 							}
 							Thread.Sleep(0);
