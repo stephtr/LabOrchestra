@@ -40,7 +40,7 @@ builder.Services.AddSignalR()
 builder.Services.AddCors(options =>
 	options.AddDefaultPolicy(builder =>
 		builder
-			.WithOrigins("http://localhost:3000")
+			.WithOrigins(["http://localhost:3000", "http://glaser.exp.univie.ac.at:3000"])
 			.AllowAnyMethod()
 			.AllowAnyHeader()
 			.AllowCredentials()
