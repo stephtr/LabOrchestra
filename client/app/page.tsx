@@ -1,5 +1,6 @@
 'use client';
 
+import { ChevronDownIcon } from '@/components/chevronDownIcon';
 import { FrequencyGenerator } from '@/components/frequencyGenerator';
 import { GridStack } from '@/components/gridview/gridStack';
 import { Oscilloscope } from '@/components/oscilloscope';
@@ -16,6 +17,10 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
 	Button,
 	ButtonGroup,
+	Dropdown,
+	DropdownItem,
+	DropdownMenu,
+	DropdownTrigger,
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
@@ -29,6 +34,8 @@ interface MainState {
 	isRecording: boolean;
 	recordingTimeSeconds: number;
 }
+
+const recordingTimes = [60, 150, 300, 600, 1200, 1800];
 
 export default function Home() {
 	const { isConnected, action, state } = useControl<MainState>('main');
@@ -58,7 +65,7 @@ export default function Home() {
 										startContent={
 											<FontAwesomeIcon icon={faStop} />
 										}
-										onClick={() => action('stopRecording')}
+										onPress={() => action('stopRecording')}
 										isDisabled={!isConnected}
 									>
 										{Math.floor(
@@ -81,17 +88,6 @@ export default function Home() {
 								</ButtonGroup>
 							) : (
 								<ButtonGroup>
-									<Button
-										startContent={
-											<FontAwesomeIcon
-												icon={faCircleDot}
-											/>
-										}
-										onClick={() => action('startRecording')}
-										isDisabled={!isConnected}
-									>
-										Record
-									</Button>
 									<StateButton
 										startContent={
 											<FontAwesomeIcon icon={faSave} />
@@ -103,6 +99,50 @@ export default function Home() {
 									>
 										Snapshot
 									</StateButton>
+									<Button
+										startContent={
+											<FontAwesomeIcon
+												icon={faCircleDot}
+											/>
+										}
+										onPress={() =>
+											action('startRecording', 0)
+										}
+										isDisabled={!isConnected}
+									>
+										Record
+									</Button>
+									<Dropdown placement="bottom-end">
+										<DropdownTrigger>
+											<Button isIconOnly>
+												<ChevronDownIcon />
+											</Button>
+										</DropdownTrigger>
+										<DropdownMenu
+											disallowEmptySelection
+											aria-label="Recording timers"
+											selectionMode="single"
+										>
+											{recordingTimes.map((value) => (
+												<DropdownItem
+													key={value}
+													onPress={() =>
+														action(
+															'startRecording',
+															value,
+														)
+													}
+												>
+													Record for{' '}
+													{Math.floor(value / 60)}:
+													{(value % 60)
+														.toString()
+														.padStart(2, '0')}{' '}
+													min
+												</DropdownItem>
+											))}
+										</DropdownMenu>
+									</Dropdown>
 								</ButtonGroup>
 							)}
 							{hasPendingActions && <Spinner size="sm" />}

@@ -89,7 +89,7 @@ public class MainDevice : DeviceHandlerBase<MainState>
 	}
 
 	private CancellationTokenSource? RecordingCancellationTokenSource;
-	public void StartRecording()
+	public void StartRecording(int maxDurationSeconds = 0)
 	{
 		if (RecordingCancellationTokenSource != null) return;
 		SendStateUpdate(new { State.IsRecording });
@@ -108,6 +108,10 @@ public class MainDevice : DeviceHandlerBase<MainState>
 				{
 					State.RecordingTimeSeconds = seconds;
 					SendStateUpdate(new { State.RecordingTimeSeconds });
+				}
+				if (maxDurationSeconds > 0 && seconds >= maxDurationSeconds)
+				{
+					StopRecording();
 				}
 				Thread.Sleep(100);
 			}
