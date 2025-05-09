@@ -57,11 +57,15 @@ app.MapHub<ControlHub>("/hub/control");
 
 app.MapGet("/api/ping", async (HttpContext context, AccessControlService accessControlService) =>
 {
-	var authHeader = context.Request.Headers["Authorization"].ToString();
-	if (!accessControlService.IsBearerValid(authHeader))
+	var isLocalRequest = ConnectionUtils.IsLocal(context.Connection);
+	if (!isLocalRequest)
 	{
-		context.Response.StatusCode = 401; // Unauthorized
-		return;
+		var authHeader = context.Request.Headers["Authorization"].ToString();
+		if (!accessControlService.IsBearerValid(authHeader))
+		{
+			context.Response.StatusCode = 401; // Unauthorized
+			return;
+		}
 	}
 	await context.Response.WriteAsync("Pong");
 });
