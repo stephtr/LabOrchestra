@@ -33,14 +33,26 @@ interface MainState {
 	pendingActions: number;
 	isRecording: boolean;
 	recordingTimeSeconds: number;
+	plannedRecordingTimeSeconds: number;
 }
 
 const recordingTimes = [60, 150, 300, 600, 1200, 1800];
+
+function formatTime(seconds?: number) {
+	if (!seconds) return '0:00';
+	return `${Math.floor(seconds / 60)}:${(seconds % 60)
+		.toString()
+		.padStart(2, '0')}`;
+}
 
 export default function Home() {
 	const { isConnected, action, state } = useControl<MainState>('main');
 	const hasPendingActions = (state?.pendingActions ?? 0) > 0;
 	const { state: hasSplitOscilloscope } = useControl('split');
+
+	const remainingRecordingTime =
+		state?.plannedRecordingTimeSeconds &&
+		state.plannedRecordingTimeSeconds - state.recordingTimeSeconds;
 
 	const oscilloscope1 = (
 		<Oscilloscope
@@ -66,10 +78,14 @@ export default function Home() {
 								onPress={() => action('stopRecording')}
 								isDisabled={!isConnected}
 							>
-								{Math.floor(state.recordingTimeSeconds / 60)}:
-								{(state.recordingTimeSeconds % 60)
-									.toString()
-									.padStart(2, '0')}
+								<div>
+									{formatTime(state.recordingTimeSeconds)}
+								</div>
+								{state.plannedRecordingTimeSeconds && (
+									<div className="text-sm text-slate-500">
+										–{formatTime(remainingRecordingTime)}
+									</div>
+								)}
 							</Button>
 							<StateButton
 								title="Abort recording"
@@ -119,11 +135,7 @@ export default function Home() {
 												action('startRecording', value)
 											}
 										>
-											Record for {Math.floor(value / 60)}:
-											{(value % 60)
-												.toString()
-												.padStart(2, '0')}{' '}
-											min
+											Record for {formatTime(value)} min
 										</DropdownItem>
 									))}
 								</DropdownMenu>
