@@ -27,7 +27,7 @@ import {
 	PopoverTrigger,
 	Spinner,
 } from '@heroui/react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 interface MainState {
 	saveDirectory: string;
@@ -56,18 +56,15 @@ export default function Home() {
 		state?.plannedRecordingTimeSeconds &&
 		state.plannedRecordingTimeSeconds - state.recordingTimeSeconds;
 
-	const hasAccessToken =
-		typeof localStorage !== 'undefined' &&
-		localStorage.getItem('accessToken');
+	const [isWrongAccessToken, setIsWrongAccessToken] = useState(false);
 
 	useEffect(() => {
 		// eslint-disable-next-line @typescript-eslint/no-floating-promises
 		(async () => {
 			const accessToken = localStorage.getItem('accessToken');
-			if (!accessToken) return;
 			if (!(await checkAccessToken(accessToken))) {
+				setIsWrongAccessToken(true);
 				localStorage.removeItem('accessToken');
-				window.location.reload();
 			}
 		})();
 	}, []);
@@ -198,7 +195,7 @@ export default function Home() {
 
 	return (
 		<div className="h-full grid grid-rows-[1fr_5em]">
-			{!hasAccessToken && <AccessTokenOverlay />}
+			{isWrongAccessToken && <AccessTokenOverlay />}
 			{oscilloscope2 ? (
 				<GridStack className="overflow-hidden">
 					{oscilloscope1}

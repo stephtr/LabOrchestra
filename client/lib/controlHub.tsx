@@ -104,9 +104,9 @@ export function useChannelControl<TState extends { channels: any[] }>(
 	);
 }
 
-export async function checkAccessToken(accessToken: string) {
+export async function checkAccessToken(accessToken?: string | null) {
 	const resp = await fetch(pingUrl, {
-		headers: { Authorization: `Bearer ${accessToken}` },
+		headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
 	});
 	return resp.status === 200;
 }
