@@ -40,7 +40,7 @@ public class NPYStreamWriter<T> : IDisposable where T : unmanaged
 	private bool IsDisposed = false;
 	public void Dispose()
 	{
-		if(IsDisposed) return;
+		if (IsDisposed) return;
 		IsDisposed = true;
 		var length = BaseStream.Length - TotalHeaderLength;
 		var itemCount = length / Marshal.SizeOf<T>();
@@ -58,12 +58,12 @@ public class NPYStreamWriter<T> : IDisposable where T : unmanaged
 
 	public void WriteArray(T[] array)
 	{
-		if(IsDisposed) throw new Exception("Can't write to an already disposed NPYStreamWriter");
+		if (IsDisposed) throw new Exception("Can't write to an already disposed NPYStreamWriter");
 		BaseStream.Write(MemoryMarshal.AsBytes(new ReadOnlySpan<T>(array)));
 	}
 	public void WriteArray(ReadOnlySpan<T> array)
 	{
-		if(IsDisposed) throw new Exception("Can't write to an already disposed NPYStreamWriter");
+		if (IsDisposed) throw new Exception("Can't write to an already disposed NPYStreamWriter");
 		BaseStream.Write(MemoryMarshal.AsBytes(array));
 	}
 }

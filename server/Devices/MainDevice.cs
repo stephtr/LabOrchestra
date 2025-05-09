@@ -136,12 +136,15 @@ public class MainDevice : DeviceHandlerBase<MainState>
 
 	public override object? OnSaveSnapshot(Func<string, Stream>? getStream, string deviceId) => null;
 
+	internal string? Passphrase = null;
+
 	override public object? GetSettings()
 	{
 		return new
 		{
 			State.SaveDirectory,
 			State.Filename,
+			Passphrase,
 		};
 	}
 
@@ -155,5 +158,15 @@ public class MainDevice : DeviceHandlerBase<MainState>
 		{
 			State.Filename = lastFilename.GetString()!;
 		}
+		if (settings.TryGetProperty("Passphrase", out var passphrase))
+		{
+			Passphrase = passphrase.GetString();
+		}
+
+		if (string.IsNullOrEmpty(Passphrase))
+		{
+			Passphrase = RandomUtils.GetRandomHash();
+		}
+		Console.WriteLine($"\nAccess Token: {Passphrase}\n");
 	}
 }

@@ -1,5 +1,6 @@
 'use client';
 
+import { AccessTokenOverlay } from '@/components/accessTokenOverlay';
 import { ChevronDownIcon } from '@/components/chevronDownIcon';
 import { FrequencyGenerator } from '@/components/frequencyGenerator';
 import { GridStack } from '@/components/gridview/gridStack';
@@ -10,7 +11,7 @@ import { PressureSensor } from '@/components/pressureSensor';
 import { StageChannel } from '@/components/stageChannel';
 import { StateButton } from '@/components/stateButton';
 import { StateInput } from '@/components/stateInput';
-import { useControl } from '@/lib/controlHub';
+import { checkAccessToken, useControl } from '@/lib/controlHub';
 import { faCircleDot, faStop, faTrash } from '@/lib/fontawesome-regular';
 import { faGear, faSave } from '@/lib/fortawesome/pro-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -26,6 +27,7 @@ import {
 	PopoverTrigger,
 	Spinner,
 } from '@heroui/react';
+import { useEffect } from 'react';
 
 interface MainState {
 	saveDirectory: string;
@@ -53,6 +55,22 @@ export default function Home() {
 	const remainingRecordingTime =
 		state?.plannedRecordingTimeSeconds &&
 		state.plannedRecordingTimeSeconds - state.recordingTimeSeconds;
+
+	const hasAccessToken =
+		typeof localStorage !== 'undefined' &&
+		localStorage.getItem('accessToken');
+
+	useEffect(() => {
+		// eslint-disable-next-line @typescript-eslint/no-floating-promises
+		(async () => {
+			const accessToken = localStorage.getItem('accessToken');
+			if (!accessToken) return;
+			if (!(await checkAccessToken(accessToken))) {
+				localStorage.removeItem('accessToken');
+				window.location.reload();
+			}
+		})();
+	}, []);
 
 	const oscilloscope1 = (
 		<Oscilloscope
@@ -180,6 +198,7 @@ export default function Home() {
 
 	return (
 		<div className="h-full grid grid-rows-[1fr_5em]">
+			{!hasAccessToken && <AccessTokenOverlay />}
 			{oscilloscope2 ? (
 				<GridStack className="overflow-hidden">
 					{oscilloscope1}

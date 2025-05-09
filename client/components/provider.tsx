@@ -3,7 +3,7 @@
 import { controlHubUrl, streamHubUrl } from '@/lib/connection';
 import { ControlStateProvider } from '@/lib/controlHub';
 import { SignalRHubProviderWithTwoUrls } from '@/lib/signalR';
-import { HeroUIProvider } from "@heroui/react";
+import { HeroUIProvider } from '@heroui/react';
 import { PropsWithChildren } from 'react';
 
 export default function RootProvider({ children }: PropsWithChildren) {

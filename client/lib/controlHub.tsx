@@ -7,7 +7,7 @@ import {
 	useMemo,
 	useState,
 } from 'react';
-import { controlHubUrl, streamHubUrl } from './connection';
+import { controlHubUrl, pingUrl, streamHubUrl } from './connection';
 import { useSignalRHub } from './signalR';
 
 const StateContext = createContext<Record<string, any>>({});
@@ -39,10 +39,12 @@ export function ControlStateProvider({ children }: PropsWithChildren) {
 			setState({});
 			return;
 		}
-		// eslint-disable-next-line @typescript-eslint/no-floating-promises
-		invoke('getFullState').then((newState: Record<string, any>) => {
-			setState(newState);
-		});
+		try {
+			// eslint-disable-next-line @typescript-eslint/no-floating-promises
+			invoke('getFullState').then((newState: Record<string, any>) => {
+				setState(newState);
+			});
+		} catch (err) {}
 	}, [isConnected, invoke]);
 
 	return (
@@ -100,4 +102,11 @@ export function useChannelControl<TState extends { channels: any[] }>(
 			] as const,
 		[state?.channels, action, channelIndex],
 	);
+}
+
+export async function checkAccessToken(accessToken: string) {
+	const resp = await fetch(pingUrl, {
+		headers: { Authorization: `Bearer ${accessToken}` },
+	});
+	return resp.status === 200;
 }

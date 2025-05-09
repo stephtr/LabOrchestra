@@ -47,7 +47,10 @@ function useSignalRHubConnection(
 		if (!openConnection) return;
 
 		const connectionBuilder = new HubConnectionBuilder()
-			.withUrl(url)
+			.withUrl(url, {
+				accessTokenFactory: () =>
+					localStorage.getItem('accessToken') ?? '',
+			})
 			.withAutomaticReconnect({
 				nextRetryDelayInMilliseconds: () => 1000,
 			});

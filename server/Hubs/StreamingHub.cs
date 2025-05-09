@@ -1,11 +1,10 @@
-using Microsoft.AspNetCore.SignalR;
-
 namespace ExperimentControl.Hubs;
 
-public class StreamingHub : Hub
+public class StreamingHub : ProtectedHub
 {
 	private readonly DeviceManager DeviceManager;
-	public StreamingHub(DeviceManager deviceManager)
+	public StreamingHub(DeviceManager deviceManager, AccessControlService accessControlService)
+		: base(accessControlService)
 	{
 		DeviceManager = deviceManager;
 	}

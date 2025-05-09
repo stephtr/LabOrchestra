@@ -30,7 +30,7 @@ public class DeviceManager : IDisposable
 			.WithNamingConvention(CamelCaseNamingConvention.Instance)
 			.Build();
 
-	public DeviceManager(IHubContext<ControlHub> controlHub, IHubContext<StreamingHub> streamingHub)
+	public DeviceManager(IHubContext<ControlHub> controlHub, IHubContext<StreamingHub> streamingHub, AccessControlService accessControlService)
 	{
 		ControlHub = controlHub;
 		StreamingHub = streamingHub;
@@ -92,6 +92,8 @@ public class DeviceManager : IDisposable
 		RegisterDevice("main", MainDevice);
 
 		LoadSettings();
+
+		accessControlService.Passphrase = MainDevice.Passphrase;
 	}
 
 	public void RegisterDevice(string deviceId, IDeviceHandler deviceHandler)

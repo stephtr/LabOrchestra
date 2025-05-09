@@ -47,12 +47,24 @@ builder.Services.AddCors(options =>
 	)
 );
 
+builder.Services.AddSingleton<AccessControlService>();
 builder.Services.AddSingleton<DeviceManager>();
 
 var app = builder.Build();
 app.UseCors();
 app.MapHub<StreamingHub>("/hub/streaming");
 app.MapHub<ControlHub>("/hub/control");
+
+app.MapGet("/api/ping", async (HttpContext context, AccessControlService accessControlService) =>
+{
+	var authHeader = context.Request.Headers["Authorization"].ToString();
+	if (!accessControlService.IsBearerValid(authHeader))
+	{
+		context.Response.StatusCode = 401; // Unauthorized
+		return;
+	}
+	await context.Response.WriteAsync("Pong");
+});
 
 // Start up the DeviceManager
 app.Services.GetRequiredService<DeviceManager>();
