@@ -8,6 +8,7 @@ public class MainState
 	public int PendingActions { get; set; } = 0;
 	public bool IsRecording { get; set; } = false;
 	public int RecordingTimeSeconds { get; set; } = 0;
+	public int PlannedRecordingTimeSeconds { get; set; } = 0;
 }
 
 public class MainDevice : DeviceHandlerBase<MainState>
@@ -98,6 +99,7 @@ public class MainDevice : DeviceHandlerBase<MainState>
 		var token = RecordingCancellationTokenSource.Token;
 		DeviceManager!.Record(filepath, token);
 		State.IsRecording = true;
+		State.PlannedRecordingTimeSeconds = maxDurationSeconds;
 		var startTime = DateTime.Now;
 		Task.Run(() =>
 		{
