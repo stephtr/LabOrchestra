@@ -99,7 +99,7 @@ public class Picoscope4000aOscilloscope : OscilloscopeWithStreaming
 		if (status != PicoStatus.StatusCodes.PICO_OK)
 		{
 			cleanupHandles();
-			throw new Exception($"Failed to start acquisition ({status:X})");
+			throw new Exception($"Failed to start acquisition (0x{status:X})");
 		}
 		Dt = sampleInterval * 1e-9;
 
@@ -167,7 +167,7 @@ public class Picoscope4000aOscilloscope : OscilloscopeWithStreaming
 								if (result != PicoStatus.StatusCodes.PICO_OK)
 								{
 									base.Stop();
-									throw new Exception($"Failed to automatically restart acquisition ({result:X})");
+									throw new Exception($"Failed to automatically restart acquisition (0x{result:X})");
 								}
 							}
 							Thread.Sleep(0);
