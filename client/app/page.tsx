@@ -132,7 +132,10 @@ export default function Home() {
 							>
 								Record
 							</Button>
-							<Dropdown placement="bottom-end">
+							<Dropdown
+								placement="bottom-end"
+								isDisabled={!isConnected}
+							>
 								<DropdownTrigger>
 									<Button isIconOnly>
 										<ChevronDownIcon />
@@ -162,7 +165,11 @@ export default function Home() {
 					{/* <Pressure /> */}
 					<Popover>
 						<PopoverTrigger>
-							<Button isIconOnly className="h-12 ml-2">
+							<Button
+								isIconOnly
+								className="h-12 ml-2"
+								isDisabled={!isConnected}
+							>
 								<FontAwesomeIcon icon={faGear} />
 							</Button>
 						</PopoverTrigger>

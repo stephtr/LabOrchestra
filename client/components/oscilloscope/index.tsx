@@ -9,7 +9,7 @@ import {
 	SelectItem,
 	Tab,
 	Tabs,
-} from "@heroui/react";
+} from '@heroui/react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChevronDown, faGear } from '@/lib/fortawesome/pro-solid-svg-icons';
 import { useControl } from '@/lib/controlHub';
@@ -161,7 +161,11 @@ export function Oscilloscope({
 				)}
 				<Popover>
 					<PopoverTrigger>
-						<Button isIconOnly className="h-12">
+						<Button
+							isIconOnly
+							className="h-12"
+							isDisabled={!isConnected}
+						>
 							<FontAwesomeIcon icon={faGear} />
 						</Button>
 					</PopoverTrigger>
