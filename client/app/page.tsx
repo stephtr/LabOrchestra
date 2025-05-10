@@ -96,11 +96,11 @@ export default function Home() {
 								<div>
 									{formatTime(state.recordingTimeSeconds)}
 								</div>
-								{state.plannedRecordingTimeSeconds && (
+								{state.plannedRecordingTimeSeconds ? (
 									<div className="text-sm text-slate-500">
 										–{formatTime(remainingRecordingTime)}
 									</div>
-								)}
+								) : null}
 							</Button>
 							<StateButton
 								title="Abort recording"
