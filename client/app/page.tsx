@@ -2,6 +2,7 @@
 
 import { AccessTokenOverlay } from '@/components/accessTokenOverlay';
 import { ChevronDownIcon } from '@/components/chevronDownIcon';
+import { useDetuningScanComponent } from '@/components/detuningScanSettings';
 import { FrequencyGenerator } from '@/components/frequencyGenerator';
 import { GridStack } from '@/components/gridview/gridStack';
 import { Oscilloscope } from '@/components/oscilloscope';
@@ -12,7 +13,13 @@ import { StageChannel } from '@/components/stageChannel';
 import { StateButton } from '@/components/stateButton';
 import { StateInput } from '@/components/stateInput';
 import { checkAccessToken, useControl } from '@/lib/controlHub';
-import { faCircleDot, faStop, faTrash } from '@/lib/fontawesome-regular';
+import {
+	faCircleDot,
+	faRectangleVerticalHistory,
+	faStop,
+	faStopwatch,
+	faTrash,
+} from '@/lib/fontawesome-regular';
 import { faGear, faSave } from '@/lib/fortawesome/pro-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -36,6 +43,7 @@ interface MainState {
 	isRecording: boolean;
 	recordingTimeSeconds: number;
 	plannedRecordingTimeSeconds: number;
+	remainingAdditionalRecordings: number;
 }
 
 const recordingTimes = [60, 150, 300, 600, 1200, 1800];
@@ -69,6 +77,8 @@ export default function Home() {
 		})();
 	}, []);
 
+	const detuningScanComponent = useDetuningScanComponent();
+
 	const oscilloscope1 = (
 		<Oscilloscope
 			deviceId="het"
@@ -96,11 +106,16 @@ export default function Home() {
 								<div>
 									{formatTime(state.recordingTimeSeconds)}
 								</div>
-								{state.plannedRecordingTimeSeconds ? (
+								{state.plannedRecordingTimeSeconds > 0 && (
 									<div className="text-sm text-slate-500">
 										–{formatTime(remainingRecordingTime)}
 									</div>
-								) : null}
+								)}
+								{state.remainingAdditionalRecordings > 0 && (
+									<div className="text-sm text-slate-500">
+										+{state.remainingAdditionalRecordings}
+									</div>
+								)}
 							</Button>
 							<StateButton
 								title="Abort recording"
@@ -146,16 +161,42 @@ export default function Home() {
 									aria-label="Recording timers"
 									selectionMode="single"
 								>
-									{recordingTimes.map((value) => (
+									<>
 										<DropdownItem
-											key={value}
-											onPress={() =>
-												action('startRecording', value)
+											key="detuning-scan"
+											onPress={
+												detuningScanComponent.invoke
+											}
+											startContent={
+												<FontAwesomeIcon
+													icon={
+														faRectangleVerticalHistory
+													}
+												/>
 											}
 										>
-											Record for {formatTime(value)} min
+											Record detuning scan…
 										</DropdownItem>
-									))}
+										{recordingTimes.map((value) => (
+											<DropdownItem
+												key={value}
+												onPress={() =>
+													action(
+														'startRecording',
+														value,
+													)
+												}
+												startContent={
+													<FontAwesomeIcon
+														icon={faStopwatch}
+													/>
+												}
+											>
+												Record for {formatTime(value)}{' '}
+												min
+											</DropdownItem>
+										))}
+									</>
 								</DropdownMenu>
 							</Dropdown>
 						</ButtonGroup>
@@ -203,6 +244,7 @@ export default function Home() {
 	return (
 		<div className="h-full grid grid-rows-[1fr_5em]">
 			{isWrongAccessToken && <AccessTokenOverlay />}
+			{detuningScanComponent.element}
 			{oscilloscope2 ? (
 				<GridStack className="overflow-hidden">
 					{oscilloscope1}
@@ -224,8 +266,8 @@ export default function Home() {
 					label="Tweezer HWP angle"
 					offsetVariableName="tweezerHWPOffset"
 				/>
-				<StageChannel channel={2} label="Detection HWP angle" />
-				<StageChannel channel={3} label="Detection QWP angle" />
+				{/* <StageChannel channel={2} label="Detection HWP angle" />
+				<StageChannel channel={3} label="Detection QWP angle" /> */}
 				<div className="flex-1" />
 				<PressureSensor
 					label="Vorvakuum"
@@ -234,7 +276,7 @@ export default function Home() {
 				/>
 				<PressureSensor label="Kammer" channel={1} />
 			</div>
-			<div className="flex gap-2 items-center mx-2 mb-2">
+			<div className="flex gap-2 items-center mx-2 mb-2 justify-between">
 				<Polarimeter label="Tweezer">
 					<PolarizationLock />
 				</Polarimeter>

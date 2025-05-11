@@ -9,6 +9,7 @@ public class MainState
 	public bool IsRecording { get; set; } = false;
 	public int RecordingTimeSeconds { get; set; } = 0;
 	public int PlannedRecordingTimeSeconds { get; set; } = 0;
+	public int RemainingAdditionalRecordings { get; set; } = 0;
 }
 
 public class MainDevice : DeviceHandlerBase<MainState>
@@ -81,6 +82,12 @@ public class MainDevice : DeviceHandlerBase<MainState>
 			return captures.Count > 1 ? int.Parse(captures[1].Value) : 0;
 		}).Prepend(0).Max();
 		return Path.Combine(path, $"{currentIndex + 1}{(State.Filename != "" ? $" {interpolatePath(State.Filename)}" : "")}");
+	}
+
+	public void SetRemainingAdditionalRecordings(int count)
+	{
+		State.RemainingAdditionalRecordings = count;
+		SendStateUpdate(new { State.RemainingAdditionalRecordings });
 	}
 
 	public void SaveSnapshot()
