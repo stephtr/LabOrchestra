@@ -61,7 +61,7 @@ def startScan(measurementPlan):
                 main_state = get_device_state("main")
                 if not main_state["IsRecording"]:
                     break
-                time.sleep(0.1)
+                time.sleep(0.25)
     finally:
         action("main", None, "setRemainingAdditionalRecordings", [0])
         action("main", None, "setFilename", [initial_filename])
