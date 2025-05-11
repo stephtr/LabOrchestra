@@ -41,7 +41,8 @@ export function useDetuningScanComponent() {
 		setMeasurementPlan((prev) => [
 			...prev,
 			{
-				offset: Number.parseFloat(formData.get('offset') as string),
+				offset:
+					Number.parseFloat(formData.get('offset') as string) * 1e3,
 				duration: Number.parseFloat(formData.get('duration') as string),
 			},
 		]);
@@ -94,7 +95,7 @@ export function useDetuningScanComponent() {
 									// eslint-disable-next-line react/no-array-index-key
 									<React.Fragment key={index}>
 										<span className="text-center">
-											{measurement.offset} kHz
+											{measurement.offset * 1e-3} kHz
 										</span>
 										<div className="grid grid-cols-[2rem_1fr_2rem] items-center justify-between text-center">
 											<span />

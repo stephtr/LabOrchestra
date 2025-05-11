@@ -18,11 +18,11 @@ def startScan(measurementPlan):
     state["measurementPlan"] = measurementPlan
     measurementPlan = json.loads(measurementPlan)
     main_state = get_device_state("main")
-    initial_filename = main_state["filename"]
+    initial_filename = main_state["Filename"]
     rfgen_state = get_device_state("cavity_detuning")
     base_frequency = rfgen_state["channels"][0]["frequency"]
     if base_frequency < 8e9 or base_frequency > 10e9:
-        raise Exception("Cavity detuning generator offset is out of range (8-10 GHz)")
+        raise Exception(f"Cavity detuning generator frequency ({base_frequency/1e3} kHz) is out of range (8-10 GHz)")
     measurements = []
     for measurement in measurementPlan:
         if "offset" not in measurement or "duration" not in measurement:
@@ -59,7 +59,7 @@ def startScan(measurementPlan):
             )
             while is_running:
                 main_state = get_device_state("main")
-                if not main_state["isRecording"]:
+                if not main_state["IsRecording"]:
                     break
                 time.sleep(0.1)
     finally:

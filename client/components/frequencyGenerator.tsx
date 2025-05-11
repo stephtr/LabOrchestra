@@ -1,10 +1,5 @@
 import { useControl } from '@/lib/controlHub';
-import {
-	Button,
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "@heroui/react";
+import { Button, Popover, PopoverContent, PopoverTrigger } from '@heroui/react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faGear } from '@/lib/fontawesome-regular';
 import { FormattedNumericInput } from './formattedNumberInput';
