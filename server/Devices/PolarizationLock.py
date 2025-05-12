@@ -1,6 +1,9 @@
 import time
 import numpy as np
 
+correction_eta = np.deg2rad(0.2)
+correction_theta = np.deg2rad(1.2)
+
 state = {"lockH": False, "outOfLockRange": True}
 
 argv: any
@@ -39,8 +42,8 @@ def main():
             if polarizationState["status"] != "ok" or polarizationState["DOP"] < 0.8:
                 wait()
                 continue
-            theta = np.rad2deg(polarizationState["theta"])
-            eta = np.rad2deg(polarizationState["eta"])
+            theta = np.rad2deg(polarizationState["theta"]) - correction_theta
+            eta = np.rad2deg(polarizationState["eta"]) - correction_eta
             out_of_lock_range = bool(np.abs(theta) > 5 or np.abs(eta) > 5)
             if state["outOfLockRange"] != out_of_lock_range:
                 state["outOfLockRange"] = out_of_lock_range
