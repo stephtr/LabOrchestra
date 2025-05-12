@@ -40,12 +40,13 @@ builder.Services.AddSignalR()
 builder.Services.AddCors(options =>
 	options.AddDefaultPolicy(builder =>
 		builder
-			.WithOrigins(["http://localhost:3000", "http://glaser.exp.univie.ac.at:3000"])
+			.WithOrigins(["http://localhost:3000", "http://glaser.exp.univie.ac.at:3000", "http://localhost:5095", "http://glaser.exp.univie.ac.at:5095"])
 			.AllowAnyMethod()
 			.AllowAnyHeader()
 			.AllowCredentials()
 	)
 );
+builder.Services.AddSpaYarp();
 
 builder.Services.AddSingleton<AccessControlService>();
 builder.Services.AddSingleton<DeviceManager>();
@@ -69,6 +70,8 @@ app.MapGet("/api/ping", async (HttpContext context, AccessControlService accessC
 	}
 	await context.Response.WriteAsync("Pong");
 });
+
+app.UseSpaYarp();
 
 // Start up the DeviceManager
 app.Services.GetRequiredService<DeviceManager>();
