@@ -66,11 +66,11 @@ importers:
         specifier: 2.7.8
         version: 2.7.8(@types/react@19.1.2)(framer-motion@12.9.4(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(tailwindcss@3.4.17)
       '@microsoft/signalr':
-        specifier: ^8.0.0
-        version: 8.0.0(encoding@0.1.13)
+        specifier: 8.0.7
+        version: 8.0.7(encoding@0.1.13)
       '@microsoft/signalr-protocol-msgpack':
-        specifier: ^8.0.0
-        version: 8.0.0(encoding@0.1.13)
+        specifier: 8.0.7
+        version: 8.0.7(encoding@0.1.13)
       '@types/tinycolor2':
         specifier: ^1.4.6
         version: 1.4.6
@@ -895,11 +895,11 @@ packages:
   '@kurkle/color@0.3.2':
     resolution: {integrity: sha512-fuscdXJ9G1qb7W8VdHi+IwRqij3lBkosAm4ydQtEmbY58OzHXqQhvlxqEkoz0yssNVn38bcpRWgA9PP+OGoisw==}
 
-  '@microsoft/signalr-protocol-msgpack@8.0.0':
-    resolution: {integrity: sha512-XtN5lUPVOtU96aqpB6z00o0TQayx5fmcf7CeQKDXF1flg8G96wtNCFXKb/p4sM/nvprjSmz0JiWQfc1TVXsa6Q==}
+  '@microsoft/signalr-protocol-msgpack@8.0.7':
+    resolution: {integrity: sha512-yrGt0E9l8X9HSF9P8gmnkVi+IDGNP6seU5/YAiFzIisH4VpvayVcf7Z1Lbu7nNwM/GzFgtFIa7jBivLQCCcyEQ==}
 
-  '@microsoft/signalr@8.0.0':
-    resolution: {integrity: sha512-K/wS/VmzRWePCGqGh8MU8OWbS1Zvu7DG7LSJS62fBB8rJUXwwj4axQtqrAAwKGUZHQF6CuteuQR9xMsVpM2JNA==}
+  '@microsoft/signalr@8.0.7':
+    resolution: {integrity: sha512-PHcdMv8v5hJlBkRHAuKG5trGViQEkPYee36LnJQx4xHOQ5LL4X0nEWIxOp5cCtZ7tu+30quz5V3k0b1YNuc6lw==}
 
   '@msgpack/msgpack@2.8.0':
     resolution: {integrity: sha512-h9u4u/jiIRKbq25PM+zymTyW6bhTzELvOoUd+AvYriWOAKpLGnIamaET3pnHYoI5iYphAHBI4ayx0MehR+VVPQ==}
@@ -4572,16 +4572,16 @@ snapshots:
 
   '@kurkle/color@0.3.2': {}
 
-  '@microsoft/signalr-protocol-msgpack@8.0.0(encoding@0.1.13)':
+  '@microsoft/signalr-protocol-msgpack@8.0.7(encoding@0.1.13)':
     dependencies:
-      '@microsoft/signalr': 8.0.0(encoding@0.1.13)
+      '@microsoft/signalr': 8.0.7(encoding@0.1.13)
       '@msgpack/msgpack': 2.8.0
     transitivePeerDependencies:
       - bufferutil
       - encoding
       - utf-8-validate
 
-  '@microsoft/signalr@8.0.0(encoding@0.1.13)':
+  '@microsoft/signalr@8.0.7(encoding@0.1.13)':
     dependencies:
       abort-controller: 3.0.0
       eventsource: 2.0.2
