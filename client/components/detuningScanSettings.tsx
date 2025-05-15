@@ -150,6 +150,7 @@ export function useDetuningScanComponent() {
 								setEditingMeasurementPlan(e.target.value)
 							}
 							onBlur={updateEditingMeasurementPlan}
+							classNames={{ input: 'text-sm/[1.1]' }}
 						/>
 					</ModalBody>
 					<ModalFooter className="flex flex-row justify-between">
