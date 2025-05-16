@@ -1,5 +1,5 @@
 import { useControl } from '@/lib/controlHub';
-import { faGear } from '@/lib/fontawesome-regular';
+import { faGear, faXmark } from '@/lib/fontawesome-regular';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faStop } from '@/lib/fortawesome/pro-solid-svg-icons';
 import {
@@ -50,6 +50,7 @@ function getUnitForMode(mode: ActuatorMode) {
 
 export function ActuatorButton() {
 	const { state, action } = useControl<ActuatorState>('smaract');
+	const [isExtended, setIsExtended] = React.useState(false);
 	const scalingFactor = 1000;
 	return (
 		<Popover
@@ -59,6 +60,8 @@ export function ActuatorButton() {
 			shouldCloseOnBlur={false}
 			shouldCloseOnInteractOutside={() => false}
 			shouldCloseOnScroll={false}
+			isOpen={isExtended}
+			onOpenChange={(open) => setIsExtended(open)}
 		>
 			<PopoverTrigger>
 				<Button
@@ -78,7 +81,17 @@ export function ActuatorButton() {
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent className="grid gap-2 py-2">
-				<div className="font-bold">Actuator Control</div>
+				<div className="flex items-center justify-between font-bold">
+					<span />
+					Actuator Control
+					<Button
+						onPress={() => setIsExtended(false)}
+						variant="light"
+						className="px-2 py-2 min-w-0 h-auto"
+					>
+						<FontAwesomeIcon icon={faXmark} />
+					</Button>
+				</div>
 				{state &&
 					state.channels.map((channel, index) => (
 						<FormattedNumericInput
