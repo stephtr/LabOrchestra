@@ -34,7 +34,7 @@ public class OscilloscopeFFTData
 public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<OscilloscopeState>, IOscilloscope
 {
 	protected CircularBuffer<float>[] Buffer = [new(100_000_000), new(100_000_000), new(100_000_000), new(100_000_000)];
-	protected CircularBuffer<float>[] RecordingBuffer = [new(10_000_000), new(10_000_000), new(10_000_000), new(10_000_000)];
+	protected CircularBuffer<float>[] RecordingBuffer = [new(50_000_000), new(50_000_000), new(50_000_000), new(50_000_000)];
 	protected double[][] FFTStorage = [Array.Empty<double>(), Array.Empty<double>(), Array.Empty<double>(), Array.Empty<double>()];
 	protected float[] FFTWindowFunction = Array.Empty<float>();
 	protected int[] AcquiredFFTs = { 0, 0, 0, 0 };
