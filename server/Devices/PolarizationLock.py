@@ -1,8 +1,8 @@
 import time
 import numpy as np
 
-correction_eta = np.deg2rad(0.2)
-correction_theta = np.deg2rad(1.2)
+correction_eta = 0.2
+correction_theta = 1.2
 
 state = {"lockH": False, "outOfLockRange": True}
 
