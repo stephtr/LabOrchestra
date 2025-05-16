@@ -26,12 +26,10 @@ def wait():
 
 def start_polarization_lock():
     state["lockH"] = True
-    send_status_update()
 
 
 def stop_polarization_lock():
     state["lockH"] = False
-    send_status_update()
 
 
 def main():
