@@ -10,7 +10,7 @@ send_status_update: Callable[[], None]
 num_channels = 0
 
 
-def set_position(iChannel, position, mode):
+def move_to(iChannel, position, mode):
     if iChannel < 0 or iChannel >= num_channels:
         raise Exception("Invalid channel number")
     channel = state["channels"][iChannel]

@@ -10,6 +10,7 @@ import { Oscilloscope } from '@/components/oscilloscope';
 import { Polarimeter } from '@/components/polarimeter';
 import { PolarizationLock } from '@/components/polarizationLock';
 import { PressureSensor } from '@/components/pressureSensor';
+import { SmaractLock } from '@/components/smaractLock';
 import { StageChannel } from '@/components/stageChannel';
 import { StateButton } from '@/components/stateButton';
 import { StateInput } from '@/components/stateInput';
@@ -58,6 +59,7 @@ function formatTime(seconds?: number) {
 
 export default function Home() {
 	const { isConnected, action, state } = useControl<MainState>('main');
+	const { state: constantState } = useControl('constant');
 	const hasPendingActions = (state?.pendingActions ?? 0) > 0;
 	const { state: hasSplitOscilloscope } = useControl('split');
 
@@ -83,7 +85,9 @@ export default function Home() {
 	const oscilloscope1 = (
 		<Oscilloscope
 			deviceId="het"
-			frequencyOffset={5e6 - 1.86e3}
+			frequencyOffset={
+				constantState ? Math.abs(constantState.heterodyneFrequency) : 0
+			}
 			topContent={
 				<>
 					<div className="flex-1" />
@@ -235,7 +239,12 @@ export default function Home() {
 					</Popover>
 				</>
 			}
-			sideContent={<ActuatorButton />}
+			sideContent={
+				<>
+					<ActuatorButton />
+					<SmaractLock />
+				</>
+			}
 		/>
 	);
 

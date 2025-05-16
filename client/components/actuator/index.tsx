@@ -103,7 +103,7 @@ export function ActuatorButton() {
 							label={`Channel ${index}`}
 							onChange={(value) =>
 								action(
-									'set_position',
+									'move_to',
 									index,
 									value / scalingFactor,
 									channel.mode,

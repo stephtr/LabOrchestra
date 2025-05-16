@@ -23,7 +23,7 @@ def get_scale_factor(move_mode):
 		return 1
 
 
-def set_position(iChannel, position, mode):
+def move_to(iChannel, position, mode):
     if iChannel < 0 or iChannel >= num_channels:
         raise Exception("Invalid channel number")
     channel = state["channels"][iChannel]
@@ -33,6 +33,7 @@ def set_position(iChannel, position, mode):
         position -= channel["targetPosition"]
     channel["targetPosition"] = position
     ctl.Move(handle, channel, int(position * get_scale_factor(channel["mode"]) + 0.5))
+
 
 def set_mode(iChannel, mode):
 	if iChannel < 0 or iChannel >= num_channels:

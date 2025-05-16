@@ -4,6 +4,7 @@ using System.Text.Json;
 public class CoherentScatteringConstantsState
 {
 	public double CavityDetuningGeneratorOffset { get; set; } = 0;
+	public double HeterodyneFrequency { get; set; } = 0;
 	public float TweezerQWPOffset { get; set; } = 0;
 	public float TweezerHWPOffset { get; set; } = 0;
 }
