@@ -79,7 +79,7 @@ public class DeviceManager : IDisposable
 		}
 		try
 		{
-			RegisterDevice("smaract", new PythonDevice("Devices/Smaract.py", new { device = "!!!to be replaced!!!" }));
+			RegisterDevice("smaract", new PythonDevice("Devices/SmaractDevice.py", new { device = "network:sn:MCS2-00002614" }));
 		}
 		catch
 		{
