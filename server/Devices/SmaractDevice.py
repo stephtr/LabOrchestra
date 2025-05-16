@@ -1,6 +1,6 @@
 from smaract import ctl
 import time
-from typing import Callable, Any, Dict
+from typing import Callable, Any
 
 state = {"channels": []}
 
@@ -29,6 +29,8 @@ def set_position(iChannel, position, mode):
     channel = state["channels"][iChannel]
     if channel["mode"] != mode:
         raise Exception("Invalid move mode")
+    if mode == "open-loop":
+        position -= channel["targetPosition"]
     channel["targetPosition"] = position
     ctl.Move(handle, channel, int(position * get_scale_factor(channel["mode"]) + 0.5))
 
@@ -43,7 +45,7 @@ def set_mode(iChannel, mode):
 	scale_factor = get_scale_factor(mode)
 	channel = state["channels"][iChannel]
 	channel["mode"] = mode
-	channel["targetPosition"] = target_position / scale_factor
+	channel["targetPosition"] = 0 if mode == "open-loop" else target_position / scale_factor
 	channel["velocity"] = move_velocity / scale_factor
 
 def set_velocity(iChannel, velocity, mode):
@@ -77,14 +79,11 @@ def main():
 				"supportedModes": [],
 			})
 			continue
-		if move_mode == ctl.MoveMode.STEP:
-			move_mode = ctl.MoveMode.CL_ABSOLUTE
-			ctl.SetProperty_i32(handle, i, ctl.Property.MOVE_MODE, ctl.MoveMode.CL_ABSOLUTE)
 		converted_move_mode = "closed-loop" if move_mode == ctl.MoveMode.CL_ABSOLUTE else "open-loop" if move_mode == ctl.MoveMode.STEP else "scan" if move_mode == ctl.MoveMode.SCAN_ABSOLUTE else "unknown"
 		scale_factor = get_scale_factor(converted_move_mode)
 		state["channels"].append({
 			"type": "linear" if channel_type == ctl.MovementType.LINEAR else "rotation",
-			"targetPosition": target_position / scale_factor,
+			"targetPosition": 0 if move_mode == "open-loop" else target_position / scale_factor,
 			"actualPosition": actual_position / 1_000_000, # convert to um
 			"velocity": move_velocity / scale_factor,
 			"mode": converted_move_mode,
