@@ -1,7 +1,12 @@
 import elliptec
 import time
+from typing import Callable, Any
 
 state = {"channels": []}
+
+argv: Any
+is_running: bool
+send_status_update: Callable[[], None]
 
 controller: elliptec.Controller = None
 motors = []
@@ -10,24 +15,24 @@ motors = []
 def set_position(channel, position):
     if channel < 0 or channel >= len(motors):
         raise Exception("Invalid channel number")
-    
-    state["channels"][channel]["targetPosition"] = position
+    channel_state = state["channels"][channel]
+    channel_state["targetPosition"] = position
     send_status_update()
     
     motor = motors[channel]
-    if state["channels"][channel]["type"] == "linear":
+    if channel_state["type"] == "linear":
         for _ in range(5):
             try:
-                motor.set_distance(position)
-                # state["channels"][channel]["actualPosition"] = motor.get_distance()
+                motor.set_distance(channel_state["targetPosition"])
+                # channel_state["actualPosition"] = motor.get_distance()
                 break
             except:
                 pass
-    elif state["channels"][channel]["type"] == "rotation":
+    elif channel_state["type"] == "rotation":
         for _ in range(5):
             try:
-                motor.set_angle(position)
-                # state["channels"][channel]["actualPosition"] = motor.get_angle()
+                motor.set_angle(channel_state["targetPosition"])
+                # channel_state["actualPosition"] = motor.get_angle()
                 break
             except:
                 pass

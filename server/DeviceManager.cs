@@ -79,6 +79,15 @@ public class DeviceManager : IDisposable
 		}
 		try
 		{
+			RegisterDevice("smaract", new PythonDevice("Devices/Smaract.py", new { device = "!!!to be replaced!!!" }));
+		}
+		catch
+		{
+			Console.WriteLine("Falling back to DemoSmaract");
+			RegisterDevice("smaract", new PythonDevice("Devices/DemoSmaract.py"));
+		}
+		try
+		{
 			RegisterDevice("tweezerPolarization", new PythonDevice("Devices/ThorlabsPolarimeter.py", new { device = "USB0::0x1313::0x8031::M00503241::INSTR" }));
 		}
 		catch

@@ -1,6 +1,7 @@
 'use client';
 
 import { AccessTokenOverlay } from '@/components/accessTokenOverlay';
+import { ActuatorButton } from '@/components/actuator';
 import { ChevronDownIcon } from '@/components/chevronDownIcon';
 import { useDetuningScanComponent } from '@/components/detuningScanSettings';
 import { FrequencyGenerator } from '@/components/frequencyGenerator';
@@ -234,6 +235,7 @@ export default function Home() {
 					</Popover>
 				</>
 			}
+			sideContent={<ActuatorButton />}
 		/>
 	);
 

@@ -31,10 +31,12 @@ import {
 
 export function Oscilloscope({
 	topContent,
+	sideContent,
 	deviceId,
 	frequencyOffset = 0,
 }: {
 	topContent?: React.ReactNode;
+	sideContent?: React.ReactNode;
 	deviceId: string;
 	frequencyOffset?: number;
 }) {
@@ -54,8 +56,10 @@ export function Oscilloscope({
 	);
 	return (
 		<div className="h-full grid grid-cols-[10rem_1fr] grid-rows-[3.5rem_1fr] overflow-hidden">
-			<VerticalControlBar deviceId={deviceId} />
-			<div className="col-start-2 flex items-center mr-1 gap-2">
+			<VerticalControlBar deviceId={deviceId} className="row-span-2">
+				{sideContent}
+			</VerticalControlBar>
+			<div className="col-start-2 row-start-1 flex items-center mr-1 gap-2">
 				<Tabs
 					isDisabled={!isConnected}
 					selectedKey={state?.displayMode}
