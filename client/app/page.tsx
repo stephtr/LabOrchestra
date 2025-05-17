@@ -59,7 +59,7 @@ function formatTime(seconds?: number) {
 
 export default function Home() {
 	const { isConnected, action, state } = useControl<MainState>('main');
-	const { state: constantState } = useControl('constant');
+	const { state: constantState } = useControl('constants');
 	const hasPendingActions = (state?.pendingActions ?? 0) > 0;
 	const { state: hasSplitOscilloscope } = useControl('split');
 

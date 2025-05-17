@@ -53,7 +53,7 @@ def set_mode(iChannel, mode):
     scale_factor = get_scale_factor(mode)
     channel = state["channels"][iChannel]
     channel["mode"] = mode
-    channel["targetPosition"] = target_position / scale_factor,
+    channel["targetPosition"] = target_position / scale_factor
     channel["velocity"] = move_velocity / scale_factor
 
 def set_velocity(iChannel, velocity, mode):
@@ -112,7 +112,7 @@ def main():
         try:
             for i in range(num_channels):
                 actual_position = ctl.GetProperty_i64(handle, i, ctl.Property.POSITION)
-                state["channels"][i]["actualPosition"] = actual_position / 1_000_000, # convert to um
+                state["channels"][i]["actualPosition"] = actual_position / 1_000_000 # convert to um
             send_status_update()
         except Exception as e:
             pass
