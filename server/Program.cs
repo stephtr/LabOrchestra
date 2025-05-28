@@ -36,7 +36,9 @@ builder.Services.AddSignalR()
 	{
 		options.PayloadSerializerOptions.Converters.Add(new NaturalObjectConverter());
 	})
-	.AddMessagePackProtocol();
+	.AddMessagePackProtocol()
+	.AddHubOptions<ControlHub>(options => options.MaximumParallelInvocationsPerClient = 10)
+	.AddHubOptions<StreamingHub>(options => options.MaximumParallelInvocationsPerClient = 10);
 builder.Services.AddCors(options =>
 	options.AddDefaultPolicy(builder =>
 		builder
