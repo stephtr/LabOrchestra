@@ -6,7 +6,7 @@ import RootProvider from '@/components/provider';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-	title: 'Experiment-Control',
+	title: 'LabOrchestra',
 };
 
 export default function RootLayout({

@@ -1,1 +1,1 @@
-# LabOrchestra – an open-source experiment-control framework (C# + Python)
+# LabOrchestra – an open-source framework for orchestrating scientific experiments (C# + Python)
