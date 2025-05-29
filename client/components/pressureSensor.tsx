@@ -1,6 +1,12 @@
 import { useControl } from '@/lib/controlHub';
-import { Modal, ModalBody, ModalContent, ModalHeader } from "@heroui/react";
-import { useState } from 'react';
+import {
+	Modal,
+	ModalBody,
+	ModalContent,
+	ModalHeader,
+	useDraggable,
+} from '@heroui/react';
+import { useRef, useState } from 'react';
 
 interface PressureSensorState {
 	channels: Array<{
@@ -33,6 +39,12 @@ export function PressureSensor({
 	const { state, action } = useControl<PressureSensorState>('pressure');
 	const [isShownAsModal, setIsShownAsModal] = useState(false);
 
+	const targetRef = useRef<HTMLElement>(null);
+	const { moveProps } = useDraggable({
+		targetRef,
+		isDisabled: !isShownAsModal,
+	});
+
 	let text: string | React.ReactElement = '-';
 	if (state) {
 		const pressure = state?.channels[channel].pressure;
@@ -60,12 +72,14 @@ export function PressureSensor({
 	return (
 		<>
 			<Modal
+				ref={targetRef}
 				isOpen={isShownAsModal}
 				onOpenChange={setIsShownAsModal}
+				backdrop="transparent"
 				size="4xl"
 			>
 				<ModalContent>
-					<ModalHeader>{label}</ModalHeader>
+					<ModalHeader {...moveProps}>{label}</ModalHeader>
 					<ModalBody className="text-8xl pt-4 pb-12 text-center">
 						<div>{text}</div>
 					</ModalBody>

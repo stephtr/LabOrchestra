@@ -13,7 +13,7 @@ request: callable
 
 def start_z_lock():
     state["lockZ"] = True
-    action("het", None, 'setFFTAveragingDuration', [1000])
+    action("het", None, 'setFFTAveragingDuration', [500])
 
 
 def stop_z_lock():
@@ -23,7 +23,7 @@ def main():
     osci_channel = 0
     smaract_z_channel = 0
     alpha = 1
-    debug = True
+    debug = False
     
     def get_peak_height():
         f, psd = request("het", None, "GetFFT", [osci_channel, heterodyne_frequency - 5e3, heterodyne_frequency + 5e3])
@@ -50,7 +50,7 @@ def main():
             z_position = smaract_state["channels"][smaract_z_channel]["targetPosition"]
             move_by = get_move_by(move_mode)
             
-            time.sleep(3)
+            time.sleep(1)
             if not is_running or not state["lockZ"]: continue
             signal_zero = get_peak_height()
             
