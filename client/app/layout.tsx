@@ -3,11 +3,6 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import RootProvider from '@/components/provider';
 
-import { config } from '@fortawesome/fontawesome-svg-core';
-// eslint-disable-next-line import/newline-after-import
-import '@fortawesome/fontawesome-svg-core/styles.css';
-config.autoAddCss = false;
-
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {

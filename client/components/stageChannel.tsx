@@ -1,7 +1,6 @@
 import { useControl } from '@/lib/controlHub';
 import { Button, Popover, PopoverContent, PopoverTrigger } from '@heroui/react';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faGear } from '@/lib/fontawesome-regular';
+import { IconSettings } from '@tabler/icons-react';
 import { FormattedNumericInput } from './formattedNumberInput';
 
 interface StageState {
@@ -72,7 +71,7 @@ export function StageChannel({
 									className="self-center"
 									variant="light"
 								>
-									<FontAwesomeIcon icon={faGear} />
+									<IconSettings size="1.4em" />
 								</Button>
 							</PopoverTrigger>
 							<PopoverContent aria-label="Input settings">

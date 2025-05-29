@@ -1,7 +1,5 @@
 import { useControl } from '@/lib/controlHub';
-import { faGear, faXmark } from '@/lib/fontawesome-regular';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faStop } from '@/lib/fortawesome/pro-solid-svg-icons';
+import { IconPlayerStopFilled, IconSettings, IconX } from '@tabler/icons-react';
 import {
 	Button,
 	Popover,
@@ -89,7 +87,7 @@ export function ActuatorButton() {
 						variant="light"
 						className="px-2 py-2 min-w-0 h-auto"
 					>
-						<FontAwesomeIcon icon={faXmark} />
+						<IconX />
 					</Button>
 				</div>
 				{state &&
@@ -120,9 +118,7 @@ export function ActuatorButton() {
 												className="self-center"
 												variant="light"
 											>
-												<FontAwesomeIcon
-													icon={faGear}
-												/>
+												<IconSettings size="1.4em" />
 											</Button>
 										</PopoverTrigger>
 										<PopoverContent
@@ -195,7 +191,7 @@ export function ActuatorButton() {
 				<Button
 					color="danger"
 					variant="flat"
-					startContent={<FontAwesomeIcon icon={faStop} />}
+					startContent={<IconPlayerStopFilled />}
 					onPress={() => action('stop')}
 				>
 					Stop movement

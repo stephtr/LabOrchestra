@@ -10,8 +10,7 @@ import {
 	Tab,
 	Tabs,
 } from '@heroui/react';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faChevronDown, faGear } from '@/lib/fortawesome/pro-solid-svg-icons';
+import { IconChevronDown, IconSettingsFilled } from '@tabler/icons-react';
 import { useControl } from '@/lib/controlHub';
 import { VerticalControlBar } from './verticalControlBar';
 import { OscilloscopeChart } from './oscilloscopeChart';
@@ -84,7 +83,7 @@ export function Oscilloscope({
 									className="h-12"
 									isDisabled={!state}
 								>
-									<FontAwesomeIcon icon={faChevronDown} />
+									<IconChevronDown />
 								</Button>
 							</PopoverTrigger>
 							<PopoverContent
@@ -170,7 +169,7 @@ export function Oscilloscope({
 							className="h-12"
 							isDisabled={!isConnected}
 						>
-							<FontAwesomeIcon icon={faGear} />
+							<IconSettingsFilled size="1.4em" />
 						</Button>
 					</PopoverTrigger>
 					<PopoverContent

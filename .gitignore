@@ -1,5 +1,4 @@
 .DS_Store
 .vs/
 node_modules/
-client/lib/fortawesome/
 server/settings.json

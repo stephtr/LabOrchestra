@@ -9,11 +9,10 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@fortawesome/fontawesome-svg-core": "6.7.2",
-    "@fortawesome/react-fontawesome": "0.2.2",
+    "@heroui/react": "2.7.8",
     "@microsoft/signalr": "8.0.7",
     "@microsoft/signalr-protocol-msgpack": "8.0.7",
-    "@heroui/react": "2.7.8",
+    "@tabler/icons-react": "^3.33.0",
     "@types/tinycolor2": "^1.4.6",
     "chart.js": "^4.4.2",
     "chartjs-plugin-zoom": "^2.0.1",

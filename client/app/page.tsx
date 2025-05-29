@@ -1,5 +1,18 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+import {
+	Button,
+	ButtonGroup,
+	Dropdown,
+	DropdownItem,
+	DropdownMenu,
+	DropdownTrigger,
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+	Spinner,
+} from '@heroui/react';
 import { AccessTokenOverlay } from '@/components/accessTokenOverlay';
 import { ActuatorButton } from '@/components/actuator';
 import { ChevronDownIcon } from '@/components/chevronDownIcon';
@@ -16,27 +29,14 @@ import { StateButton } from '@/components/stateButton';
 import { StateInput } from '@/components/stateInput';
 import { checkAccessToken, useControl } from '@/lib/controlHub';
 import {
-	faCircleDot,
-	faRectangleVerticalHistory,
-	faStop,
-	faStopwatch,
-	faTrash,
-} from '@/lib/fontawesome-regular';
-import { faGear, faSave } from '@/lib/fortawesome/pro-solid-svg-icons';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import {
-	Button,
-	ButtonGroup,
-	Dropdown,
-	DropdownItem,
-	DropdownMenu,
-	DropdownTrigger,
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-	Spinner,
-} from '@heroui/react';
-import { useEffect, useState } from 'react';
+	IconDeviceFloppy,
+	IconPlayerRecord,
+	IconPlayerStop,
+	IconSettingsFilled,
+	IconStack2,
+	IconStopwatch,
+	IconTrash,
+} from '@tabler/icons-react';
 
 interface MainState {
 	saveDirectory: string;
@@ -48,7 +48,7 @@ interface MainState {
 	remainingAdditionalRecordings: number;
 }
 
-const recordingTimes = [60, 150, 300, 600, 1200, 1800];
+const recordingTimes = [30, 60, 150, 300, 600, 1200, 1800];
 
 function formatTime(seconds?: number) {
 	if (!seconds) return '0:00';
@@ -104,7 +104,7 @@ export default function Home() {
 						<ButtonGroup className="ml-2">
 							<Button
 								className="tabular-nums"
-								startContent={<FontAwesomeIcon icon={faStop} />}
+								startContent={<IconPlayerStop />}
 								onPress={() => action('stopRecording')}
 								isDisabled={!isConnected}
 							>
@@ -129,13 +129,13 @@ export default function Home() {
 								action={action}
 								actionName="abortRecording"
 							>
-								<FontAwesomeIcon icon={faTrash} />
+								<IconTrash />
 							</StateButton>
 						</ButtonGroup>
 					) : (
 						<ButtonGroup>
 							<StateButton
-								startContent={<FontAwesomeIcon icon={faSave} />}
+								startContent={<IconDeviceFloppy size="1.6em" />}
 								state={state}
 								action={action}
 								actionName="SaveSnapshot"
@@ -144,9 +144,7 @@ export default function Home() {
 								Snapshot
 							</StateButton>
 							<Button
-								startContent={
-									<FontAwesomeIcon icon={faCircleDot} />
-								}
+								startContent={<IconPlayerRecord size="1.6em" />}
 								onPress={() => action('startRecording', 0)}
 								isDisabled={!isConnected}
 							>
@@ -172,13 +170,7 @@ export default function Home() {
 											onPress={
 												detuningScanComponent.invoke
 											}
-											startContent={
-												<FontAwesomeIcon
-													icon={
-														faRectangleVerticalHistory
-													}
-												/>
-											}
+											startContent={<IconStack2 />}
 										>
 											Record detuning scan…
 										</DropdownItem>
@@ -191,11 +183,7 @@ export default function Home() {
 														value,
 													)
 												}
-												startContent={
-													<FontAwesomeIcon
-														icon={faStopwatch}
-													/>
-												}
+												startContent={<IconStopwatch />}
 											>
 												Record for {formatTime(value)}{' '}
 												min
@@ -216,7 +204,7 @@ export default function Home() {
 								className="h-12 ml-2"
 								isDisabled={!isConnected}
 							>
-								<FontAwesomeIcon icon={faGear} />
+								<IconSettingsFilled size="1.4em" />
 							</Button>
 						</PopoverTrigger>
 						<PopoverContent
