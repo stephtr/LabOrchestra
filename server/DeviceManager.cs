@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
-using ExperimentControl.Hubs;
+using LabOrchestra.Hubs;
 using Microsoft.AspNetCore.SignalR;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;

@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.SignalR;
 
-namespace ExperimentControl.Hubs;
+namespace LabOrchestra.Hubs;
 
 public class ProtectedHub : Hub
 {

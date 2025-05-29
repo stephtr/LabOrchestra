@@ -1,4 +1,4 @@
-using ExperimentControl.Hubs;
+using LabOrchestra.Hubs;
 using Python.Runtime;
 
 TaskScheduler.UnobservedTaskException += (object? sender, UnobservedTaskExceptionEventArgs e) =>

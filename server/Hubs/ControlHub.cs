@@ -1,4 +1,4 @@
-namespace ExperimentControl.Hubs;
+namespace LabOrchestra.Hubs;
 
 public class ControlHub : ProtectedHub
 {
