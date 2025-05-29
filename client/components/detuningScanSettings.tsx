@@ -1,3 +1,4 @@
+import React, { useEffect, useState } from 'react';
 import {
 	Button,
 	Input,
@@ -8,9 +9,7 @@ import {
 	ModalHeader,
 	Textarea,
 } from '@heroui/react';
-import React, { useEffect, useState } from 'react';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faTrashCan } from '@/lib/fontawesome-regular';
+import { IconTrash } from '@tabler/icons-react';
 import { useControl } from '@/lib/controlHub';
 import { FrequencyGenerator } from './frequencyGenerator';
 
@@ -112,9 +111,7 @@ export function useDetuningScanComponent() {
 												}
 												className="h-8 px-4 min-w-0"
 											>
-												<FontAwesomeIcon
-													icon={faTrashCan}
-												/>
+												<IconTrash />
 											</Button>
 										</div>
 									</React.Fragment>

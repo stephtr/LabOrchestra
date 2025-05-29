@@ -3,7 +3,6 @@
 		"plugin:@next/next/recommended",
 		"plugin:@next/next/core-web-vitals"
 	],
-	"ignorePatterns": ["lib/fortawesome/**", "lib/fontawesome*"],
 	"settings": {
 		"import/resolver": {
 			"typescript": {

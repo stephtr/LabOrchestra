@@ -1,4 +1,3 @@
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
 	Button,
 	ButtonGroup,
@@ -6,12 +5,12 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from '@heroui/react';
-import { useControl } from '@/lib/controlHub';
 import {
-	faChevronRight,
-	faPlay,
-	faStop,
-} from '@/lib/fortawesome/pro-solid-svg-icons';
+	IconChevronRight,
+	IconPlayerPlayFilled,
+	IconPlayerStopFilled,
+} from '@tabler/icons-react';
+import { useControl } from '@/lib/controlHub';
 import { ChannelButton } from './channelButton';
 import { OscilloscopeState } from './utils';
 import { StateSlider } from '../stateSlider';
@@ -33,10 +32,14 @@ export function VerticalControlBar({
 			<Button
 				className="w-full h-12"
 				startContent={
-					<FontAwesomeIcon icon={isRunning ? faStop : faPlay} />
+					isRunning ? (
+						<IconPlayerStopFilled size="1.4em" />
+					) : (
+						<IconPlayerPlayFilled size="1.4em" />
+					)
 				}
 				isDisabled={!isConnected}
-				onClick={() => action(isRunning ? 'stop' : 'start')}
+				onPress={() => action(isRunning ? 'stop' : 'start')}
 			>
 				{isRunning ? 'Stop' : 'Start'}
 			</Button>
@@ -71,7 +74,7 @@ export function VerticalControlBar({
 				<Popover placement="right-start">
 					<PopoverTrigger>
 						<Button isIconOnly className="h-12" isDisabled={!state}>
-							<FontAwesomeIcon icon={faChevronRight} />
+							<IconChevronRight />
 						</Button>
 					</PopoverTrigger>
 					<PopoverContent

@@ -1,6 +1,4 @@
 import { useEffect, useState } from 'react';
-import { faChevronRight } from '@/lib/fortawesome/pro-solid-svg-icons';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
 	Button,
 	ButtonGroup,
@@ -10,7 +8,8 @@ import {
 	Slider,
 	Tab,
 	Tabs,
-} from "@heroui/react";
+} from '@heroui/react';
+import { IconChevronRight } from '@tabler/icons-react';
 import { useChannelControl } from '@/lib/controlHub';
 import { OscilloscopeState } from './utils';
 
@@ -95,7 +94,7 @@ export function ChannelButton({
 			<Popover placement="right-start">
 				<PopoverTrigger>
 					<Button isIconOnly className="h-12" isDisabled={!state}>
-						<FontAwesomeIcon icon={faChevronRight} />
+						<IconChevronRight />
 					</Button>
 				</PopoverTrigger>
 				<PopoverContent
