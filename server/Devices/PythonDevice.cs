@@ -115,7 +115,7 @@ public class PythonDevice : IDeviceHandler
 		}
 		if (MethodCache.ContainsKey("main"))
 		{
-			Task.Run(() =>
+			Task.Factory.StartNew(() =>
 			{
 				try
 				{
@@ -129,7 +129,7 @@ public class PythonDevice : IDeviceHandler
 					Console.WriteLine($"PythonDevice error: {e.Message}\n{e.StackTrace}");
 					Dispose();
 				}
-			});
+			}, TaskCreationOptions.LongRunning);
 		}
 	}
 

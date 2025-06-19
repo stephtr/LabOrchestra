@@ -108,7 +108,7 @@ public class MainDevice : DeviceHandlerBase<MainState>
 		State.PlannedRecordingTimeSeconds = maxDurationSeconds;
 		SendStateUpdate(new { State.IsRecording, State.PlannedRecordingTimeSeconds });
 		var startTime = DateTime.Now;
-		Task.Run(() =>
+		Task.Run(async () =>
 		{
 			while (!token.IsCancellationRequested)
 			{
@@ -122,7 +122,7 @@ public class MainDevice : DeviceHandlerBase<MainState>
 				{
 					StopRecording();
 				}
-				Thread.Sleep(100);
+				await Task.Delay(100);
 			}
 		});
 	}

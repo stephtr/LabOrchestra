@@ -249,23 +249,23 @@ public class DeviceManager : IDisposable
 
 		if (SaveToNpz)
 		{
-			Task.Run(() =>
+			Task.Run(async () =>
 			{
 				Console.WriteLine("Saving snapshot to npz...");
 				MainDevice.AddPendingAction();
 				try
 				{
 					using var npzFile = new ZipArchive(new FileStream($"{baseFilepath}.npz", FileMode.CreateNew), ZipArchiveMode.Create);
-					fileStreams.Where((s) => s.Value.Length > 0).ToList().ForEach(x =>
+					foreach (var x in fileStreams.Where((s) => s.Value.Length > 0))
 					{
 						x.Value.Position = 0;
 						var entry = npzFile.CreateEntry(x.Key, CompressionLevel.NoCompression);
 						var entryStream = entry.Open();
-						x.Value.CopyTo(entryStream);
+						await x.Value.CopyToAsync(entryStream);
 						entryStream.Dispose();
 						x.Value.Dispose();
 						File.Delete(x.Value.Name);
-					});
+					}
 					MainDevice.FinishPendingAction();
 					Console.WriteLine("Snapshot saved.");
 					Directory.Delete(tmpFolderName);
@@ -311,7 +311,7 @@ public class DeviceManager : IDisposable
 		{
 			var (deviceId, device) = kvp;
 			return device.OnRecord(getStream, deviceId, cancellationToken);
-		}).Append(Task.Run(() =>
+		}).Append(Task.Run(async () =>
 		{
 			var timestampStart = DateTime.Now;
 			while (!cancellationToken.IsCancellationRequested)
@@ -331,20 +331,20 @@ public class DeviceManager : IDisposable
 						)
 					)
 				);
-				Thread.Sleep(500);
+				await Task.Delay(500);
 			}
 			yamlStream.Dispose();
 		})).ToArray();
 
-		Task.Run(() =>
+		Task.Run(async () =>
 		{
-			cancellationToken.WaitHandle.WaitOne();
+			await Task.Delay(Timeout.Infinite, cancellationToken);
 
 			IsRecording = false;
 
 			MainDevice.AddPendingAction();
 
-			Task.WaitAll(recordingTasks);
+			await Task.WhenAll(recordingTasks);
 
 			if (DiscardRecording)
 			{
@@ -376,7 +376,7 @@ public class DeviceManager : IDisposable
 									x.Value.Position = 0;
 									var entry = npzFile.CreateEntry(x.Key, CompressionLevel.NoCompression);
 									var entryStream = entry.Open();
-									x.Value.CopyTo(entryStream);
+									await x.Value.CopyToAsync(entryStream);
 									entryStream.Dispose();
 								}
 								x.Value.Dispose();

@@ -261,11 +261,11 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 			delayedCancellationSource.Cancel();
 		});
 
-		return Task.Run(() =>
+		return Task.Run(async () =>
 		{
 			try
 			{
-				Task.WaitAll(State.Channels.Select((channel, ch) => Task.Run(() =>
+				await Task.WhenAll(State.Channels.Select((channel, ch) => Task.Run(() =>
 				{
 					if (!channel.ChannelActive) return;
 					var transferBuffer = new float[1_000_000];
@@ -342,7 +342,7 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 		OnStart(runCancellationTokenSource.Token);
 		Df = 1 / (2 * Dt) / (State.FFTLength / 2);
 
-		Task.Run(() =>
+		Task.Run(async () =>
 		{
 			var token = runCancellationTokenSource.Token;
 			while (true)
@@ -423,12 +423,12 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 					{
 						FFTLock.ExitReadLock();
 					}
-					if (!didWork) Thread.Sleep(1);
+					if (!didWork) await Task.Delay(1);
 				}
 			}
 		});
 
-		Task.Run(() =>
+		Task.Run(async () =>
 		{
 			var token = runCancellationTokenSource.Token;
 			var getSignalLength = () => State.DisplayMode switch
@@ -451,7 +451,7 @@ public abstract class OscilloscopeWithStreaming : DeviceHandlerBase<Oscilloscope
 				{
 					if (DateTime.UtcNow - lastTransmission < TimeSpan.FromSeconds(1.0 / 30))
 					{
-						Thread.Sleep(5);
+						await Task.Delay(5);
 						continue;
 					}
 					FFTLock.EnterReadLock();
