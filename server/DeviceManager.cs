@@ -249,7 +249,7 @@ public class DeviceManager : IDisposable
 
 		if (SaveToNpz)
 		{
-			Task.Run(async () =>
+			Task.Run(() =>
 			{
 				Console.WriteLine("Saving snapshot to npz...");
 				MainDevice.AddPendingAction();
@@ -261,7 +261,7 @@ public class DeviceManager : IDisposable
 						x.Value.Position = 0;
 						var entry = npzFile.CreateEntry(x.Key, CompressionLevel.NoCompression);
 						var entryStream = entry.Open();
-						await x.Value.CopyToAsync(entryStream);
+						x.Value.CopyTo(entryStream);
 						entryStream.Dispose();
 						x.Value.Dispose();
 						File.Delete(x.Value.Name);
@@ -311,7 +311,7 @@ public class DeviceManager : IDisposable
 		{
 			var (deviceId, device) = kvp;
 			return device.OnRecord(getStream, deviceId, cancellationToken);
-		}).Append(Task.Run(async () =>
+		}).Append(Task.Run(() =>
 		{
 			var timestampStart = DateTime.Now;
 			while (!cancellationToken.IsCancellationRequested)
@@ -331,7 +331,7 @@ public class DeviceManager : IDisposable
 						)
 					)
 				);
-				await Task.Delay(500);
+				Thread.Sleep(500);
 			}
 			yamlStream.Dispose();
 		})).ToArray();

@@ -14,19 +14,24 @@ public class MainState
 
 public class MainDevice : DeviceHandlerBase<MainState>
 {
-	public CancellationTokenSource RunningCts = new CancellationTokenSource();
+	private CancellationTokenSource RunningCts = new CancellationTokenSource();
+	private bool LogThreadPoolUsage = false;
 	public MainDevice()
 	{
-		Task.Run(async () =>
+		if (LogThreadPoolUsage)
 		{
-			while (!RunningCts.IsCancellationRequested)
+			Task.Run(async () =>
 			{
-				await Task.Delay(5000, RunningCts.Token);
-				ThreadPool.GetMaxThreads(out int workerThreads, out int completionPortThreads);
-				ThreadPool.GetAvailableThreads(out int availableWorkerThreads, out int availableCompletionPortThreads);
-				Console.WriteLine($"Available worker threads: {availableWorkerThreads}/{workerThreads}, completion port threads: {availableCompletionPortThreads}/{completionPortThreads}");
-			}
-		});
+				while (!RunningCts.IsCancellationRequested)
+				{
+					await Task.Delay(5000, RunningCts.Token);
+					ThreadPool.GetMaxThreads(out int workerThreads, out int completionPortThreads);
+					ThreadPool.GetMinThreads(out int workerMinThreads, out int completionPortMinThreads);
+					ThreadPool.GetAvailableThreads(out int availableWorkerThreads, out int availableCompletionPortThreads);
+					Console.WriteLine($"ThreadPoolUsage: {workerThreads - availableWorkerThreads}/{workerMinThreads}");
+				}
+			});
+		}
 	}
 
 	public override void Dispose()

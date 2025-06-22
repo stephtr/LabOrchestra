@@ -21,6 +21,8 @@ AppDomain.CurrentDomain.UnhandledException += (object sender, UnhandledException
 EnvLoader.Load(".env");
 EnvLoader.Load(".env.local");
 
+ThreadPool.SetMinThreads(32, 1);
+
 Runtime.PythonDLL = Environment.OSVersion.Platform switch
 {
 	PlatformID.Win32NT => @"C:\Users\Cavity\.pyenv\pyenv-win\versions\3.13.0rc1\python313.dll",
