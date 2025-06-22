@@ -14,6 +14,26 @@ public class MainState
 
 public class MainDevice : DeviceHandlerBase<MainState>
 {
+	public CancellationTokenSource RunningCts = new CancellationTokenSource();
+	public MainDevice()
+	{
+		Task.Run(async () =>
+		{
+			while (!RunningCts.IsCancellationRequested)
+			{
+				await Task.Delay(5000, RunningCts.Token);
+				ThreadPool.GetMaxThreads(out int workerThreads, out int completionPortThreads);
+				ThreadPool.GetAvailableThreads(out int availableWorkerThreads, out int availableCompletionPortThreads);
+				Console.WriteLine($"Available worker threads: {availableWorkerThreads}/{workerThreads}, completion port threads: {availableCompletionPortThreads}/{completionPortThreads}");
+			}
+		});
+	}
+
+	public override void Dispose()
+	{
+		RunningCts.Cancel();
+	}
+
 	public void AddPendingAction()
 	{
 		State.PendingActions++;
