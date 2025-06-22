@@ -336,10 +336,8 @@ public class DeviceManager : IDisposable
 			yamlStream.Dispose();
 		})).ToArray();
 
-		Task.Run(async () =>
+		cancellationToken.Register(async () =>
 		{
-			await Task.Delay(Timeout.Infinite, cancellationToken);
-
 			IsRecording = false;
 
 			MainDevice.AddPendingAction();
