@@ -24,7 +24,7 @@ public class NPYStreamWriter<T> : IDisposable where T : unmanaged
 			"Int64" => "i8"u8,
 			_ => throw new NotImplementedException(),
 		};
-		var HEADER_2 = "', 'fortran_order': False, 'shape': (            0,), }\n"u8; // sufficient space for final shape
+		var HEADER_2 = "', 'fortran_order': False, 'shape': (              0,)}\n"u8; // sufficient space for final shape
 		var headerLength = HEADER_1.Length + type.Length + HEADER_2.Length;
 		TotalHeaderLength = MAGIC_STRING.Length + 2 + headerLength;
 		Debug.Assert(TotalHeaderLength % 16 == 0);
@@ -46,7 +46,7 @@ public class NPYStreamWriter<T> : IDisposable where T : unmanaged
 		var itemCount = length / Marshal.SizeOf<T>();
 
 		BaseStream.Seek(TotalHeaderLength - 17, SeekOrigin.Begin);
-		var itemCountString = itemCount.ToString().PadLeft(11);
+		var itemCountString = itemCount.ToString().PadLeft(13);
 		var itemCountBytes = Encoding.ASCII.GetBytes(itemCountString);
 		BaseStream.Write(itemCountBytes);
 
