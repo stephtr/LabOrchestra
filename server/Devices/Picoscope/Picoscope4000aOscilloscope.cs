@@ -4,6 +4,7 @@ using PS4000AImports;
 public class Picoscope4000aOscilloscope : OscilloscopeWithStreaming
 {
 	private short Handle;
+	private Lock DeviceLock = new Lock();
 	public Picoscope4000aOscilloscope()
 	{
 		var status = Imports.OpenUnit(out Handle, null!);
@@ -35,7 +36,7 @@ public class Picoscope4000aOscilloscope : OscilloscopeWithStreaming
 			20000 => Imports.Range.Range_20V,
 			_ => throw new NotSupportedException(),
 		};
-		lock (this)
+		lock (DeviceLock)
 		{
 			var status = Imports.SetChannel(Handle, (Imports.Channel)channel, active ? (short)1 : (short)0, coupling == "AC" ? Imports.Coupling.AC : Imports.Coupling.DC, range, 0);
 			if (status != PicoStatus.StatusCodes.PICO_OK)
@@ -150,25 +151,36 @@ public class Picoscope4000aOscilloscope : OscilloscopeWithStreaming
 			{
 				while (!cancellationToken.IsCancellationRequested)
 				{
-					lock (this)
+					lock (DeviceLock)
 					{
 						for (var i = 0; i < 1000; i++)
 						{
 							var result = Imports.GetStreamingLatestValues(Handle, StreamingCallback, IntPtr.Zero);
-							if (result == PicoStatus.StatusCodes.PICO_NOT_RESPONDING)
+							switch (result)
 							{
-								Imports.Stop(Handle);
-								if (DateTime.UtcNow - lastAcquisitionRestart < TimeSpan.FromSeconds(10))
-								{
-									throw new Exception("Picoscope stopped responding within 10 seconds of restarting acquisition");
-								}
-								lastAcquisitionRestart = DateTime.UtcNow;
-								result = Imports.RunStreaming(Handle, ref sampleInterval, Imports.ReportedTimeUnits.NanoSeconds, 0, buffer_length, 0, 1, Imports.DownSamplingMode.None, buffer_length);
-								if (result != PicoStatus.StatusCodes.PICO_OK)
-								{
-									base.Stop();
-									throw new Exception($"Failed to automatically restart acquisition (0x{result:X})");
-								}
+								case PicoStatus.StatusCodes.PICO_OK:
+								case PicoStatus.StatusCodes.PICO_BUSY:
+									break;
+								case PicoStatus.StatusCodes.PICO_NOT_RESPONDING:
+									{
+										Console.WriteLine("WARNING: Picoscope not responding. Restarting acquisition.");
+										Imports.Stop(Handle);
+										if (DateTime.UtcNow - lastAcquisitionRestart < TimeSpan.FromSeconds(10))
+										{
+											Console.WriteLine("Picoscope stopped responding within 10 seconds of restarting acquisition");
+											throw new Exception("Picoscope stopped responding within 10 seconds of restarting acquisition");
+										}
+										lastAcquisitionRestart = DateTime.UtcNow;
+										result = Imports.RunStreaming(Handle, ref sampleInterval, Imports.ReportedTimeUnits.NanoSeconds, 0, buffer_length, 0, 1, Imports.RatioMode.None, buffer_length);
+										if (result != PicoStatus.StatusCodes.PICO_OK)
+										{
+											base.Stop();
+											Console.WriteLine($"Failed to automatically restart acquisition (0x{result:X})");
+											throw new Exception($"Failed to automatically restart acquisition (0x{result:X})");
+										}
+										break;
+									}
+								default: Console.WriteLine($"Picoscope alert: 0x{result:X}"); break;
 							}
 							Thread.Sleep(0);
 						}
@@ -185,7 +197,7 @@ public class Picoscope4000aOscilloscope : OscilloscopeWithStreaming
 	override public void Stop()
 	{
 		base.Stop();
-		lock (this)
+		lock (DeviceLock)
 		{
 			Imports.Stop(Handle);
 		}
@@ -193,7 +205,7 @@ public class Picoscope4000aOscilloscope : OscilloscopeWithStreaming
 
 	override public void SetTestSignalFrequency(float frequency)
 	{
-		lock (this)
+		lock (DeviceLock)
 		{
 			throw new NotSupportedException();
 		}
@@ -201,7 +213,7 @@ public class Picoscope4000aOscilloscope : OscilloscopeWithStreaming
 
 	public override Task OnRecord(Func<string, Stream> getStream, string deviceId, CancellationToken cancellationToken)
 	{
-		lock (this)
+		lock (DeviceLock)
 		{
 			return base.OnRecord(getStream, deviceId, cancellationToken);
 		}
@@ -212,7 +224,7 @@ public class Picoscope4000aOscilloscope : OscilloscopeWithStreaming
 	{
 		base.Dispose();
 
-		lock (this)
+		lock (DeviceLock)
 		{
 			Imports.Stop(Handle);
 			Imports.CloseUnit(Handle);
