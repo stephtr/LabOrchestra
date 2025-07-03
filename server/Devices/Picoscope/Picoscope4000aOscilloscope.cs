@@ -112,37 +112,44 @@ public class Picoscope4000aOscilloscope : OscilloscopeWithStreaming
 
 			void StreamingCallback(short handle, int noOfSamples, uint startIndex, short overflow, uint triggerAt, short triggered, short autoStop, IntPtr pVoid)
 			{
-				samplesReceived += (ulong)noOfSamples;
-				triggerCount += 1;
-				if (autoStop != 0)
+				try
 				{
-					State.Running = false;
-					SendStateUpdate(new { State.Running });
-				}
-				if (noOfSamples == 0) return;
-				var isRecording = IsRecording;
-				for (int ch = 0; ch < 4; ch++)
-				{
-					if (State.Channels[ch].ChannelActive)
+					samplesReceived += (ulong)noOfSamples;
+					triggerCount += 1;
+					if (autoStop != 0)
 					{
-						var buffer = buffers[ch];
-						var conversionFactor = State.Channels[ch].RangeInMillivolts / (maxValue * 1000f);
-						unsafe
+						State.Running = false;
+						SendStateUpdate(new { State.Running });
+					}
+					if (noOfSamples == 0) return;
+					var isRecording = IsRecording;
+					for (int ch = 0; ch < 4; ch++)
+					{
+						if (State.Channels[ch].ChannelActive)
 						{
-							fixed (short* bufferPtr = buffer)
-							fixed (float* valuesPtr = values)
+							var buffer = buffers[ch];
+							var conversionFactor = State.Channels[ch].RangeInMillivolts / (maxValue * 1000f);
+							unsafe
 							{
-								short* bufferStartPtr = bufferPtr + startIndex;
-								float* valuesStartPtr = valuesPtr;
-								for (long i = 0; i < noOfSamples; i++)
+								fixed (short* bufferPtr = buffer)
+								fixed (float* valuesPtr = values)
 								{
-									*valuesStartPtr++ = *bufferStartPtr++ * conversionFactor;
+									short* bufferStartPtr = bufferPtr + startIndex;
+									float* valuesStartPtr = valuesPtr;
+									for (long i = 0; i < noOfSamples; i++)
+									{
+										*valuesStartPtr++ = *bufferStartPtr++ * conversionFactor;
+									}
 								}
 							}
+							Buffer[ch].Push(values, noOfSamples);
+							if (isRecording) RecordingBuffer[ch].Push(values, noOfSamples);
 						}
-						Buffer[ch].Push(values, noOfSamples);
-						if (isRecording) RecordingBuffer[ch].Push(values, noOfSamples);
 					}
+				}
+				catch (Exception ex)
+				{
+					Console.WriteLine($"Error in oscilloscope streaming callback: {ex.Message}");
 				}
 			}
 
