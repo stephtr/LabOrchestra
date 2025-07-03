@@ -171,7 +171,7 @@ public class Picoscope4000aOscilloscope : OscilloscopeWithStreaming
 											throw new Exception("Picoscope stopped responding within 10 seconds of restarting acquisition");
 										}
 										lastAcquisitionRestart = DateTime.UtcNow;
-										result = Imports.RunStreaming(Handle, ref sampleInterval, Imports.ReportedTimeUnits.NanoSeconds, 0, buffer_length, 0, 1, Imports.RatioMode.None, buffer_length);
+										result = Imports.RunStreaming(Handle, ref sampleInterval, Imports.ReportedTimeUnits.NanoSeconds, 0, buffer_length, 0, 1, Imports.DownSamplingMode.None, buffer_length);
 										if (result != PicoStatus.StatusCodes.PICO_OK)
 										{
 											base.Stop();
