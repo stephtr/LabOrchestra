@@ -36,6 +36,14 @@ def set_position(channel, position):
                 break
             except:
                 pass
+    elif channel_state["type"] == "slider":
+        for _ in range(5):
+            try:
+                motor.set_slot(channel_state["targetPosition"])
+                # channel_state["actualPosition"] = motor.get_slot()
+                break
+            except:
+                pass
     else:
         raise Exception("Invalid channel type")
     send_status_update()
@@ -66,6 +74,13 @@ for ch in argv.channels:
         state["channels"].append(
             {"type": "rotation", "actualPosition": position, "targetPosition": position}
         )
+    elif ch.type == "slider":
+        motor = elliptec.Slider(controller, ch.address, False)
+        motors.append(motor)
+        position = motor.get_slot()
+        state["channels"].append(
+            {"type": "slider", "actualPosition": position, "targetPosition": position}
+        )
     else:
         raise Exception("Invalid channel type")
 
@@ -81,6 +96,11 @@ def main():
             elif st["type"] == "rotation":
                 try:
                     st["actualPosition"] = motor.get_angle()
+                except:
+                    pass
+            elif st["type"] == "slider":
+                try:
+                    st["actualPosition"] = motor.get_slot()
                 except:
                     pass
             else:
