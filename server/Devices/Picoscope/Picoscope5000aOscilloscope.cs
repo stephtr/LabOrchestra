@@ -240,10 +240,18 @@ public class Picoscope5000aOscilloscope : OscilloscopeWithStreaming
 	{
 		base.Dispose();
 
-		lock (DeviceLock)
+		var locked = DeviceLock.TryEnter(TimeSpan.FromSeconds(2));
+		if (locked)
 		{
-			Imports.Stop(Handle);
-			Imports.CloseUnit(Handle);
+			try
+			{
+				Imports.Stop(Handle);
+				Imports.CloseUnit(Handle);
+			}
+			finally
+			{
+				DeviceLock.Exit();
+			}
 		}
 		Handle = -1;
 	}
