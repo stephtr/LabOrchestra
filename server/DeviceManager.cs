@@ -70,7 +70,7 @@ public class DeviceManager : IDisposable
 		}
 		try
 		{
-			RegisterDevice("elliptec", new PythonDevice("Devices/Elliptec.py", new { port = "COM3", channels = new object[] { new { type = "rotation", address = "A" }, new { type = "rotation", address = "B" }, new { type = "rotation", address = "C" }, new { type = "rotation", address = "D" } } }));
+			RegisterDevice("elliptec", new PythonDevice("Devices/Elliptec.py", new { port = "COM3", channels = new object[] { new { type = "rotation", address = "A" }, new { type = "rotation", address = "B" }, new { type = "slider", address = "9" } } }));
 		}
 		catch
 		{
