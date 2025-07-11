@@ -11,11 +11,12 @@ export function SliderSwitch({
 }) {
 	const { isConnected, state, action } = useControl<StageState>('elliptec');
 	if (!isConnected || !state || !state.channels[channelIndex]) return '–';
+	console.log('SliderSwitch', state.channels[channelIndex].targetPosition);
 	return (
 		<Switch
-			isSelected={state.channels[channelIndex].targetPosition > 0}
+			isSelected={state.channels[channelIndex].targetPosition < 2}
 			onValueChange={(active) =>
-				action('set_position', channelIndex, active ? 1 : 0)
+				action('set_position', channelIndex, active ? 1 : 2)
 			}
 		>
 			{label}
