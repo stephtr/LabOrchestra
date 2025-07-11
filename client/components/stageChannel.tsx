@@ -3,9 +3,9 @@ import { Button, Popover, PopoverContent, PopoverTrigger } from '@heroui/react';
 import { IconSettings } from '@tabler/icons-react';
 import { FormattedNumericInput } from './formattedNumberInput';
 
-interface StageState {
+export interface StageState {
 	channels: {
-		type: 'linear' | 'rotation';
+		type: 'linear' | 'rotation' | 'slider';
 		actualPosition: number;
 		targetPosition: number;
 	}[];

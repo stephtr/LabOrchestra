@@ -37,6 +37,7 @@ import {
 	IconStopwatch,
 	IconTrash,
 } from '@tabler/icons-react';
+import { SliderSwitch } from '@/components/sliderSwitch';
 
 interface MainState {
 	saveDirectory: string;
@@ -265,6 +266,7 @@ export default function Home() {
 					label="Tweezer HWP angle"
 					offsetVariableName="tweezerHWPOffset"
 				/>
+				<SliderSwitch channel={2} label="Block backreflex" />
 				{/* <StageChannel channel={2} label="Detection HWP angle" />
 				<StageChannel channel={3} label="Detection QWP angle" /> */}
 				<div className="flex-1" />
