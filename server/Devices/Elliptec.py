@@ -21,7 +21,7 @@ def set_position(channel, position):
     
     motor = motors[channel]
     if channel_state["type"] == "linear":
-        for _ in range(5):
+        for _ in range(1):
             try:
                 motor.set_distance(channel_state["targetPosition"])
                 # channel_state["actualPosition"] = motor.get_distance()
@@ -29,7 +29,7 @@ def set_position(channel, position):
             except:
                 pass
     elif channel_state["type"] == "rotation":
-        for _ in range(5):
+        for _ in range(1):
             try:
                 motor.set_angle(channel_state["targetPosition"])
                 # channel_state["actualPosition"] = motor.get_angle()
@@ -37,7 +37,7 @@ def set_position(channel, position):
             except:
                 pass
     elif channel_state["type"] == "slider":
-        for _ in range(5):
+        for _ in range(1):
             try:
                 motor.set_slot(channel_state["targetPosition"])
                 # channel_state["actualPosition"] = motor.get_slot()
