@@ -48,6 +48,28 @@ def set_position(channel, position):
         raise Exception("Invalid channel type")
     send_status_update()
 
+def update_positions():
+    for i, motor in enumerate(motors):
+        channel_state = state["channels"][i]
+        if channel_state["type"] == "linear":
+            try:
+                channel_state["actualPosition"] = motor.get_distance()
+            except:
+                pass
+        elif channel_state["type"] == "rotation":
+            try:
+                channel_state["actualPosition"] = motor.get_angle()
+            except:
+                pass
+        elif channel_state["type"] == "slider":
+            try:
+                channel_state["actualPosition"] = motor.get_slot()
+            except:
+                pass
+        else:
+            raise Exception("Invalid channel type")
+    send_status_update()
+
 
 def on_save_snapshot():
     return [channel["actualPosition"] for channel in state["channels"]]
@@ -87,24 +109,5 @@ for ch in argv.channels:
 
 def main():
     while True:
-        for motor, st in zip(motors, state["channels"]):
-            if st["type"] == "linear":
-                try:
-                    st["actualPosition"] = motor.get_distance()
-                except:
-                    pass
-            elif st["type"] == "rotation":
-                try:
-                    st["actualPosition"] = motor.get_angle()
-                except:
-                    pass
-            elif st["type"] == "slider":
-                try:
-                    st["actualPosition"] = motor.get_slot()
-                except:
-                    pass
-            else:
-                raise Exception("Invalid channel type")
-
-        send_status_update()
+        update_positions()
         time.sleep(20)
