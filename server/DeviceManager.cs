@@ -35,71 +35,8 @@ public class DeviceManager : IDisposable
 		ControlHub = controlHub;
 		StreamingHub = streamingHub;
 		RegisterDevice("constants", new CoherentScatteringConstantsDevice());
-		try
-		{
-			RegisterDevice("het", new Picoscope5000aOscilloscope());
-		}
-		catch
-		{
-			Console.WriteLine("Falling back to DemoOscilloscope");
-			RegisterDevice("het", new DemoOscilloscope());
-		}
-		try
-		{
-			RegisterDevice("split", new Picoscope4000aOscilloscope());
-		}
-		catch
-		{ }
-		try
-		{
-			RegisterDevice("cavity_detuning", new PythonDevice("Devices/RS_SMA100B.py", new { ipAddress = "192.168.0.23" }));
-		}
-		catch
-		{
-			Console.WriteLine("Falling back to DemoRFGen");
-			RegisterDevice("cavity_detuning", new PythonDevice("Devices/DemoRFGen.py"));
-		}
-		try
-		{
-			RegisterDevice("pressure", new PythonDevice("Devices/PfeifferPressureSensor.py", new { port = "COM4" }));
-		}
-		catch
-		{
-			Console.WriteLine("Falling back to DemoPressureSensor");
-			RegisterDevice("pressure", new PythonDevice("Devices/DemoPressureSensor.py"));
-		}
-		try
-		{
-			RegisterDevice("elliptec", new PythonDevice("Devices/Elliptec.py", new { port = "COM3", channels = new object[] { new { type = "rotation", address = "A" }, new { type = "rotation", address = "B" }, new { type = "slider", address = "9" } } }));
-		}
-		catch
-		{
-			Console.WriteLine("Falling back to DemoElliptec");
-			RegisterDevice("elliptec", new PythonDevice("Devices/DemoElliptec.py"));
-		}
-		try
-		{
-			RegisterDevice("smaract", new PythonDevice("Devices/SmaractDevice.py", new { device = "network:sn:MCS2-00002614" }));
-		}
-		catch
-		{
-			Console.WriteLine("Falling back to DemoSmaract");
-			RegisterDevice("smaract", new PythonDevice("Devices/DemoSmaract.py"));
-		}
-		try
-		{
-			RegisterDevice("tweezerPolarization", new PythonDevice("Devices/ThorlabsPolarimeter.py", new { device = "USB0::0x1313::0x8031::M00503241::INSTR" }));
-		}
-		catch
-		{
-			Console.WriteLine("Falling back to DemoPolarimeter");
-			RegisterDevice("tweezerPolarization", new PythonDevice("Devices/DemoPolarimeter.py"));
-		}
-		RegisterDevice("detuningScanControl", new PythonDevice("Devices/DetuningScanControl.py"));
-		RegisterDevice("particleName", new PythonDevice("Devices/ParticleName.py", new { openai_api_key = Environment.GetEnvironmentVariable("OPENAI_API_KEY"), slack_token = Environment.GetEnvironmentVariable("SLACK_TOKEN"), slack_channel = Environment.GetEnvironmentVariable("SLACK_CHANNEL") }));
-		RegisterDevice("pressureUploader", new PythonDevice("Devices/PressureUploader.py", new { deviceName = "pressure", selectedChannel = 1, uploadUrl = "https://pressure.cavity.at/api/uploadSensorData", apiKey = Environment.GetEnvironmentVariable("SENSE_API_KEY") }));
-		RegisterDevice("polarizationLock", new PythonDevice("Devices/PolarizationLock.py", new { polarizationDeviceName = "tweezerPolarization", waveplateDeviceName = "elliptec", waveplateQWPChannel = 0, waveplateHWPChannel = 1 }));
-		RegisterDevice("smaractLock", new PythonDevice("Devices/SmaractLock.py"));
+		RegisterDevice("camera", new DemoCamera());
+
 		RegisterDevice("main", MainDevice);
 
 		LoadSettings();
@@ -163,7 +100,7 @@ public class DeviceManager : IDisposable
 
 	public void SendStreamData(string deviceId, object data)
 	{
-		StreamingHub.Clients.All.SendAsync("StreamData", deviceId, data);
+		StreamingHub.Clients.All.SendAsync("StreamData", data, deviceId);
 	}
 
 	public string GetDeviceId(IDeviceHandler deviceHandler)
