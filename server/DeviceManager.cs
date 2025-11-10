@@ -70,7 +70,9 @@ public class DeviceManager : IDisposable
 
 	public void Action(DeviceAction action)
 	{
-		Devices[action.DeviceId].HandleActionAsync(action);
+		var success = Devices.TryGetValue(action.DeviceId, out var device);
+		if (!success) throw new ArgumentOutOfRangeException($"Device with ID '{action.DeviceId}' not found.");
+		device!.HandleActionAsync(action);
 		UpdateQueue.Add(action.DeviceId);
 		if (UpdateTimer == null)
 		{
@@ -80,7 +82,9 @@ public class DeviceManager : IDisposable
 
 	public object Request(DeviceAction action)
 	{
-		return Devices[action.DeviceId].HandleActionAsync(action);
+		var success = Devices.TryGetValue(action.DeviceId, out var device);
+		if (!success) throw new ArgumentOutOfRangeException($"Device with ID '{action.DeviceId}' not found.");
+		return device!.HandleActionAsync(action);
 	}
 
 	public Dictionary<string, object> GetFullState()
