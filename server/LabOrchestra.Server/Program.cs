@@ -26,7 +26,7 @@ var passphrase = TokenService.LoadOrCreatePassphrase(config["passphrase"], dataD
 Workspace workspace;
 try
 {
-	workspace = Workspace.Load(Path.GetFullPath(config["workspace"] ?? "workspace"));
+	workspace = Workspace.Load(Path.GetFullPath(config["workspace"] ?? FindWorkspace()));
 }
 catch (InvalidOperationException e)
 {
@@ -42,6 +42,7 @@ builder.Services.AddSingleton(new SecretStore(Path.Combine(dataDir, "secrets.jso
 builder.Services.AddSingleton(new TokenService(passphrase));
 builder.Services.AddSingleton(workspace);
 builder.Services.AddSingleton(new ServerInfo(workerUrl));
+builder.Services.AddSingleton(sp => new EnvironmentManager(config, dataDir, sp.GetRequiredService<LogStore>(), sp.GetRequiredService<ILogger<EnvironmentManager>>()));
 builder.Services.AddSingleton<EventBus>();
 builder.Services.AddSingleton<DeviceRegistry>();
 var recordingsDir = Path.GetFullPath(config["recordings_dir"] ?? Path.Combine(dataDir, "recordings"));
@@ -92,12 +93,22 @@ app.Lifetime.ApplicationStarted.Register(() =>
 {
 	Console.WriteLine($"\nLabOrchestra is running at {firstUrl}");
 	Console.WriteLine($"Login: {firstUrl}/#token={passphrase}");
+	Console.WriteLine($"Workspace: {workspace.Path} ({(workspace.HasDevicesFile ? $"{workspace.Devices.Count} device(s)" : "no devices.json yet")})");
 	Console.WriteLine($"Recordings: {recordingsDir}");
 	Console.WriteLine(clientDir is null ? "No client found (build it with 'pnpm build' in client/)\n" : $"Client: {Path.GetFullPath(clientDir)}\n");
 });
 
 app.Run();
 return 0;
+
+/// <summary>Without a setting: the workspace/ folder of a source checkout (an example), else Documents/LabOrchestra.</summary>
+static string FindWorkspace()
+{
+	foreach (var start in new[] { Directory.GetCurrentDirectory(), AppContext.BaseDirectory })
+		for (var dir = new DirectoryInfo(start); dir is not null; dir = dir.Parent)
+			if (File.Exists(Path.Combine(dir.FullName, "workspace", "devices.json"))) return Path.Combine(dir.FullName, "workspace");
+	return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "LabOrchestra");
+}
 
 static string? FindClientDir()
 {

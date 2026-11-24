@@ -19,9 +19,9 @@ public sealed class WorkerSupervisor(
 	LogStore logs,
 	SettingsStore settings,
 	SecretStore secrets,
+	EnvironmentManager environments,
 	TokenService tokens,
 	ServerInfo info,
-	IConfiguration config,
 	IHostApplicationLifetime lifetime,
 	ILogger<WorkerSupervisor> log) : BackgroundService
 {
@@ -130,7 +130,10 @@ public sealed class WorkerSupervisor(
 			Process? process = null;
 			try
 			{
-				process = Start(id, device, tokens.IssueDeviceToken(id), tail);
+				registry.SetStatus(id, "preparing");
+				var python = await environments.GetPythonAsync(id, Path.GetFullPath(device.File, workspace.Path), device.Python, stop);
+				registry.SetStatus(id, "starting");
+				process = Start(id, device, python, tokens.IssueDeviceToken(id), tail);
 				log.LogInformation("Started the worker of {Device} (pid {Pid})", id, process.Id);
 				logs.Add($"device:{id}", "INFO", "supervisor", $"Started the worker (pid {process.Id})");
 				await process.WaitForExitAsync(stop);
@@ -140,6 +143,8 @@ public sealed class WorkerSupervisor(
 					// never came up, so nothing was sent over the hub: keep its output in the device's log
 					foreach (var line in lines) logs.Add($"device:{id}", LevelOf(line), "process", line);
 				var message = $"The worker ended with exit code {process.ExitCode}" + (lines.Length > 0 ? ":\n" + string.Join('\n', lines) : "");
+				if (lines.Any(l => l.Contains("No module named 'laborchestra'") || l.Contains("No module named laborchestra")))
+					message += "\nThis Python does not have the laborchestra package. Install uv (https://docs.astral.sh/uv/) to get an environment per device, or pip install laborchestra into it.";
 				registry.SetStatus(id, "error", message);
 				log.LogWarning("The worker of {Device} ended with exit code {Code}", id, process.ExitCode);
 				logs.Add($"device:{id}", "WARNING", "supervisor", $"The worker ended with exit code {process.ExitCode}; restarting in {delay.TotalSeconds:0.#} s");
@@ -183,9 +188,8 @@ public sealed class WorkerSupervisor(
 		return JsonSerializer.Serialize(resolved);
 	}
 
-	private Process Start(string id, DeviceConfig device, string token, Queue<string> tail)
+	private Process Start(string id, DeviceConfig device, string python, string token, Queue<string> tail)
 	{
-		var python = device.Python ?? config["python"] ?? (OperatingSystem.IsWindows() ? "python" : "python3");
 		var startInfo = new ProcessStartInfo(python)
 		{
 			WorkingDirectory = workspace.Path,

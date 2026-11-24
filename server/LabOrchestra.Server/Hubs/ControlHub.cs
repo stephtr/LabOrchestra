@@ -24,6 +24,7 @@ public sealed class ControlHub(
 	SecretStore secrets,
 	WorkerSupervisor supervisor,
 	RecordingService recordings,
+	Workspace workspace,
 	EventBus bus,
 	IHubContext<DeviceHub> devices) : Hub
 {
@@ -39,6 +40,15 @@ public sealed class ControlHub(
 	private string Caller() => Context.User?.FindFirst("device_id")?.Value is { } id ? $"device:{id}" : (string)Context.Items["client"]!;
 
 	private static HubException Fail(Exception e) => new(Errors.Json(e is ArgumentException ? "ValueError" : "RecordingError", e.Message));
+
+	/// <summary>Where the server looks for its devices: shown by the client when there are none.</summary>
+	[HubMethodName("get_info")]
+	public Dictionary<string, object?> GetInfo() => new()
+	{
+		["workspace"] = workspace.Path,
+		["devices_file"] = workspace.HasDevicesFile,
+		["version"] = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3),
+	};
 
 	[HubMethodName("get_recording")]
 	public Dictionary<string, object?> GetRecording() => recordings.Status();

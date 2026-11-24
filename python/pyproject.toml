@@ -11,7 +11,7 @@ dependencies = ["websockets>=14", "msgpack>=1.0"]
 
 [project.optional-dependencies]
 analysis = ["numpy", "pyyaml"]
-dev = ["pytest>=8", "psutil", "numpy", "pyyaml"]
+dev = ["pytest>=8", "psutil", "numpy", "pyyaml", "uv"]
 
 [project.scripts]
 laborchestra-worker = "laborchestra.worker:main"

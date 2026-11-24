@@ -30,7 +30,9 @@ export type LogEntry = {
 	message: string;
 	traceback: string | null;
 };
+export type ServerInfo = { workspace: string; devices_file: boolean; version: string };
 type Store = {
+	info: ServerInfo | null;
 	connection: ConnectionState;
 	devices: Record<string, DeviceInfo>;
 	logs: Record<string, LogEntry[]>;
@@ -38,7 +40,7 @@ type Store = {
 };
 
 const TOKEN_KEY = 'laborchestra.token';
-let store: Store = { connection: 'connecting', devices: {}, logs: {}, loginError: null };
+let store: Store = { info: null, connection: 'connecting', devices: {}, logs: {}, loginError: null };
 const subscribedLogs = new Set<string>();
 const listeners = new Set<() => void>();
 let hub: HubConnection | null = null;
@@ -158,7 +160,7 @@ async function connect(token: string) {
 
 async function sync(connection: HubConnection) {
 	const devices = await connection.invoke<Record<string, DeviceInfo>>('get_devices');
-	set({ connection: 'connected', devices });
+	set({ connection: 'connected', devices, info: await connection.invoke<ServerInfo>('get_info') });
 	await Promise.all([...subscribedLogs].map((source) => loadLogs(connection, source)));
 }
 

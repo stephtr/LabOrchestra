@@ -14,14 +14,27 @@ Design and decisions: [CLAUDE.md](CLAUDE.md). Plan: [REWRITE.md](REWRITE.md). Th
 
 ## Run it
 
+You need .NET 11, Node with pnpm, Python 3.11 or newer, and [uv](https://docs.astral.sh/uv/) (`brew install uv` or `pip install uv`). uv gives every device its own Python environment with the dependencies named in the header of its file; the `laborchestra` package is installed into each of them from `python/`.
+
 ```bash
-python -m venv python/.venv && python/.venv/bin/pip install -e "python[dev]"
 (cd client && pnpm install && pnpm build)
-LABORCHESTRA_PYTHON=$PWD/python/.venv/bin/python LABORCHESTRA_WORKSPACE=$PWD/workspace \
-  dotnet run --project server/LabOrchestra.Server
+dotnet run --project server/LabOrchestra.Server
 ```
 
-The server prints a login link with the access token and serves `client/dist`. For client development run `pnpm dev` in `client/` (it proxies `/hub` to the server).
+The server prints a login link with the access token and serves `client/dist`. Without settings it uses the example workspace `workspace/` of the checkout (in an installation: `Documents/LabOrchestra`); name another one with `--workspace <folder>`. The page tells you which workspace it uses when it shows no devices.
+
+If `uv` is not on the PATH, give its location: `LABORCHESTRA_UV=/path/to/uv`. Without uv you can name an interpreter that has the package installed (`pip install -e python`): `LABORCHESTRA_PYTHON=/path/to/python`, used by all devices as it is. For client development run `pnpm dev` in `client/` (it proxies `/hub` to the server).
+
+A device file may start with a header (PEP 723) that names what it needs; devices with the same needs share an environment:
+
+```python
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["pyserial"]
+# ///
+```
+
+Environments are made once, in the data directory, and never changed afterwards: other dependencies make another environment. A Python that is not installed is not downloaded unless `uv_python_downloads` is set to `automatic`.
 
 From a script (same machine):
 
@@ -49,7 +62,7 @@ list(rec.changes(by="script"))
 
 Files: `name.yaml` (header with tags, the state of all devices at the start and the end), `name/events.json` (JSON array, one event per line: every change of any device with its time and its cause: `device`, `ui`, `script`, `device:<id>`, `supervisor`), data streams of devices as `.npy`. A recording that the server did not get to finish (crash, power loss) is repaired when the server starts again and marked `interrupted: true`. Where changes are caused by an action, the caller of the action is named; if an action and the device's own loop change something within 50 ms, both are named.
 
-Server settings, as command-line options or `LABORCHESTRA_*` environment variables: `urls`, `workspace`, `python`, `passphrase`, `data_dir`, `recordings_dir` (default: `recordings` in the data directory), `allowed_origins`, `client_dir`.
+Server settings, as command-line options or `LABORCHESTRA_*` environment variables: `urls`, `workspace`, `python`, `uv`, `uv_python_downloads`, `laborchestra_package`, `passphrase`, `data_dir`, `recordings_dir` (default: `recordings` in the data directory), `allowed_origins`, `client_dir`.
 
 ## Tests
 

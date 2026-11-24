@@ -21,6 +21,7 @@ public sealed partial class Workspace : IDisposable
 	public string Path { get; }
 	public IReadOnlyDictionary<string, DeviceConfig> Devices { get; private set; }
 	public event Action? Changed;
+	public bool HasDevicesFile => File.Exists(System.IO.Path.Combine(Path, "devices.json"));
 
 	private Workspace(string path, Dictionary<string, DeviceConfig> devices)
 	{

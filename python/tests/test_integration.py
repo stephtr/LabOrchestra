@@ -15,13 +15,8 @@ import psutil
 import pytest
 
 import laborchestra
+from helpers import DEMO, DEVICES, PASSPHRASE, build_server, free_port, launch, stop_server, wait_for
 from laborchestra import AuthError, RemoteError
-
-ROOT = Path(__file__).resolve().parents[2]
-CSPROJ = ROOT / "server" / "LabOrchestra.Server" / "LabOrchestra.Server.csproj"
-DEMO = ROOT / "workspace" / "devices" / "demo_pressure.py"
-PASSPHRASE = "test-passphrase"
-
 
 BASE_DEVICES = {
     "pressure": {"file": "devices/demo_pressure.py", "config": {"noise": 0.0}},
@@ -41,58 +36,14 @@ class Server:
         return self.data_dir / "recordings"
 
 
-def free_port() -> int:
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
-
-
-def launch(workspace: Path, data_dir: Path, url: str):
-    out = CSPROJ.parent / "bin" / "Release" / "net11.0" / "LabOrchestra.Server.dll"
-    env = {
-        **os.environ,
-        "LABORCHESTRA_WORKSPACE": str(workspace),
-        "LABORCHESTRA_PYTHON": sys.executable,
-        "LABORCHESTRA_PASSPHRASE": PASSPHRASE,
-        "LABORCHESTRA_DATA_DIR": str(data_dir),
-    }
-    log = (workspace / f"server-{url.rsplit(':', 1)[1]}.log").open("w")
-    process = subprocess.Popen(
-        ["dotnet", str(out), "--urls", url], env=env, stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL
-    )
-    port = int(url.rsplit(":", 1)[1])
-
-    def up():
-        with socket.create_connection(("127.0.0.1", port), timeout=0.5):
-            return True
-
-    wait_for(up, 30, "server start")
-    return process, log
-
-def wait_for(condition, timeout=20, message="condition", interval=0.1):
-    end = time.time() + timeout
-    while time.time() < end:
-        try:
-            value = condition()
-            if value:
-                return value
-        except Exception:
-            pass
-        time.sleep(interval)
-    raise AssertionError(f"Timed out waiting for {message}")
-
-
 @pytest.fixture(scope="session")
 def server(tmp_path_factory):
-    build = subprocess.run(
-        ["dotnet", "build", str(CSPROJ), "-c", "Release", "-v", "q", "--nologo"], capture_output=True, text=True
-    )
-    assert build.returncode == 0, build.stdout + build.stderr
+    build_server()
     workspace = tmp_path_factory.mktemp("workspace")
     (workspace / "devices").mkdir()
     shutil.copy(DEMO, workspace / "devices" / "demo_pressure.py")
     for name in ("counter.py", "secretive.py"):
-        shutil.copy(Path(__file__).parent / "devices" / name, workspace / "devices" / name)
+        shutil.copy(DEVICES / name, workspace / "devices" / name)
     (workspace / "devices.json").write_text(json.dumps({"devices": BASE_DEVICES}))
     data_dir = tmp_path_factory.mktemp("data")
     url = f"http://127.0.0.1:{free_port()}"
@@ -100,13 +51,7 @@ def server(tmp_path_factory):
     try:
         yield Server(url, data_dir, workspace)
     finally:
-        process.terminate()
-        try:
-            process.wait(15)
-        except subprocess.TimeoutExpired:
-            process.kill()
-        log.close()
-        print((workspace / f"server-{url.rsplit(':', 1)[1]}.log").read_text())
+        print(stop_server(process, log, workspace, url))
 
 
 def write_devices(server, devices):
@@ -348,7 +293,7 @@ def test_recording_context_manager_and_discarding(server, lab):
 def test_interrupted_recording_is_repaired_when_the_server_starts_again(tmp_path):
     workspace, data = tmp_path / "workspace", tmp_path / "data"
     (workspace / "devices").mkdir(parents=True)
-    shutil.copy(Path(__file__).parent / "devices" / "counter.py", workspace / "devices" / "counter.py")
+    shutil.copy(DEVICES / "counter.py", workspace / "devices" / "counter.py")
     (workspace / "devices.json").write_text(json.dumps({"devices": {"counter": {"file": "devices/counter.py"}}}))
     url = f"http://127.0.0.1:{free_port()}"
     first, log1 = launch(workspace, data, url)

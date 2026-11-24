@@ -34,7 +34,7 @@ function Login({ error }: { error: string | null }) {
 }
 
 export default function App() {
-	const { connection, devices, loginError } = useStore();
+	const { connection, devices, info, loginError } = useStore();
 	if (connection === 'login') return <Login error={loginError} />;
 	const ids = Object.keys(devices).sort();
 	return (
@@ -53,7 +53,11 @@ export default function App() {
 				</button>
 			</header>
 			{connection === 'connected' && ids.length === 0 && (
-				<p className="text-zinc-500">No devices configured. Add some to devices.json in the workspace.</p>
+				<p className="text-zinc-500" data-testid="no-devices">
+					No devices configured. The workspace is <code className="font-mono">{info?.workspace}</code>
+					{info?.devices_file ? ', and its devices.json lists no devices.' : ', and it has no devices.json yet.'} Start the server with{' '}
+					<code className="font-mono">--workspace &lt;folder&gt;</code> to use another one.
+				</p>
 			)}
 			<div className="grid gap-4 md:grid-cols-2">
 				{ids.map((id) => (

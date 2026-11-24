@@ -73,7 +73,8 @@ Done (CI green on all three systems; see `python/tests/test_integration.py`):
 
 Open:
 
-- [ ] uv environments per device (interpreter selection, PEP 723 dependencies, bundled `laborchestra` wheel); until then `python` in `devices.json` or the server's `python` setting names the interpreter
+- [x] uv environments per device: dependencies from the PEP 723 header of the device file, `laborchestra` installed into each (from `python/` in a checkout; a bundled wheel in a release is still to do), shared by devices with the same needs, immutable, a failed build leaves nothing behind; an interpreter named with `python` is used as it is; without uv the error says what to do
+- [ ] Environment clean-up (unused environments), rollback to the previous environment of a device, choosing the Python version in the UI
 - [ ] Lifecycle states `degraded` (rejected state update, repeated action errors) and `reconnecting`; startup cleanup of leftover workers and a Windows Job Object
 - [ ] Watching the device source files (shows "changed" with a restart button) and the management UI (add/edit/remove device, secrets, restart)
 - [ ] SQLite event log (persistent, outside recordings), history store of slow numeric values, stable IDs
