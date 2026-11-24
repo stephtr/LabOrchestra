@@ -1,0 +1,47 @@
+name: spikes
+on:
+  push:
+    branches: [next]
+    paths: ['spikes/**', '.github/workflows/spikes.yml']
+permissions:
+  contents: read
+jobs:
+  spike:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: 9.0.x }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.13' }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: pip install uv psutil websockets msgpack
+      - name: 01 SignalR client
+        working-directory: spikes/01-signalr
+        run: |
+          dotnet build -c Release -v q
+          ./bin/Release/net9.0/srv > srv.log 2>&1 & 
+          python test.py; R=$?; kill %1 || true; exit $R
+      - name: 02 workers
+        if: always()
+        working-directory: spikes/02-workers
+        run: |
+          dotnet build -c Release -v q
+          python -u test.py
+      - name: 03 widgets
+        if: always()
+        working-directory: spikes/03-widgets
+        run: |
+          npm ci
+          npm run build
+          dotnet build -c Release -v q
+          node test.mjs
