@@ -7,3 +7,9 @@ settings.json
 .env
 .env.*
 !.env.example
+
+# build output
+bin/
+obj/
+*.user
+.vs/

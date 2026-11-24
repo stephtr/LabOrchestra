@@ -1,0 +1,22 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "laborchestra"
+version = "0.0.1"
+description = "Python SDK and client for LabOrchestra"
+requires-python = ">=3.11"
+dependencies = ["websockets>=14", "msgpack>=1.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+laborchestra-worker = "laborchestra.worker:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/laborchestra"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
