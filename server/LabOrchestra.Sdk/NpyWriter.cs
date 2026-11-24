@@ -29,6 +29,16 @@ public sealed class NpyWriter<T> : IDisposable where T : unmanaged
 
 	public void Flush() => _stream.Flush();
 
+	/// <summary>Drops the values after the first <paramref name="count"/> (e.g. to give the channels of a recording the same length).</summary>
+	public void TrimTo(long count)
+	{
+		if (count >= Count) return;
+		_stream.Flush();
+		_stream.SetLength(NpyFile.Header<T>(0).Length + count * System.Runtime.CompilerServices.Unsafe.SizeOf<T>());
+		_stream.Seek(0, SeekOrigin.End);
+		Count = count;
+	}
+
 	public void Dispose()
 	{
 		if (_disposed) return;

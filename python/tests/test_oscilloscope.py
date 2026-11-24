@@ -156,7 +156,7 @@ def test_a_recording_has_the_channels_as_continuous_npy_files(osc_server, lab):
     seconds = time.time() - start
     rec = laborchestra.load_recording(osc_server[1] / "recordings" / name)
     c1, c2 = rec.channel("osc", 1), rec.channel("osc", 2)
-    assert c1.dtype == np.float32 and abs(len(c1) - len(c2)) <= 10000
+    assert c1.dtype == np.float32 and len(c1) == len(c2)
     assert 1.2 * 2e6 < len(c1) < (seconds + 0.2) * 2e6  # about as many samples as the time at 2 MS/s
     assert 0.36 < np.abs(c1[:100000]).max() < 0.44
 

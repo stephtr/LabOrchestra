@@ -561,18 +561,21 @@ public abstract class OscilloscopeBase<TOptions> : Device<TOptions, Oscilloscope
 		_recording = false;
 		_writersStop?.Cancel();
 		await Task.WhenAll(_writerTasks);
+		// each channel has its own writer thread, which stop at slightly different samples: all channels get the length of the shortest
+		var common = _writers.Where(w => w is not null).Select(w => w!.Count).DefaultIfEmpty(0).Min();
 		var lengths = new List<long>();
 		for (var c = 0; c < _writers.Length; c++)
 		{
 			if (_writers[c] is not { } writer) continue;
 			lengths.Add(writer.Count);
+			writer.TrimTo(common);
 			writer.Dispose();
 			_writers[c] = null;
 			if (_acquired[c] == 0) continue;
 			using var spectrum = new NpyWriter<float>(session.CreateFile($"{Id}_F{c + 1}.npy")); // the averaged spectrum at the end, in dB
 			spectrum.Write(Spectrum(c).Values);
 		}
-		if (lengths.Distinct().Count() > 1) Log.LogWarning("The channels of the recording have different lengths: {Lengths}", string.Join(", ", lengths));
+		if (lengths.Distinct().Count() > 1) Log.LogDebug("The channel writers ended at different samples ({Lengths}); all were cut to {Common}", string.Join(", ", lengths), common);
 		using (var axis = new NpyWriter<float>(session.CreateFile($"{Id}_f.npy"))) axis.Write(Spectrum(0).Frequencies); // frequencies of the spectra
 		Update(s => s.Recording = false);
 	}
