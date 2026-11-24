@@ -1,4 +1,4 @@
-import { HubConnection, HubConnectionBuilder } from '@microsoft/signalr';
+import { HubConnection, HubConnectionBuilder, HubConnectionState } from '@microsoft/signalr';
 import { MessagePackHubProtocol } from '@microsoft/signalr-protocol-msgpack';
 import { useSyncExternalStore } from 'react';
 import { applyPatch, Patch } from './patch';
@@ -144,7 +144,7 @@ async function connect(token: string) {
 	});
 	connection.onreconnecting(() => set({ connection: 'reconnecting' }));
 	// everything may have changed while we were away: fetch it all again
-	connection.onreconnected(() => void sync(connection));
+	connection.onreconnected(() => void syncUntilItWorks(connection));
 	hub = connection;
 	for (;;) {
 		try {
@@ -156,6 +156,18 @@ async function connect(token: string) {
 		}
 	}
 	await sync(connection);
+}
+
+/** Right after a reconnect the server may not be ready for the call yet: try again until it works or the connection is gone. */
+async function syncUntilItWorks(connection: HubConnection) {
+	while (connection.state === HubConnectionState.Connected) {
+		try {
+			await sync(connection);
+			return;
+		} catch {
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+		}
+	}
 }
 
 async function sync(connection: HubConnection) {

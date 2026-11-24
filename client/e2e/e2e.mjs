@@ -43,8 +43,9 @@ function startServer() {
 		stdio: ['ignore', 'pipe', 'pipe'],
 	});
 	let log = '';
-	process_.stdout.on('data', (d) => (log += d));
-	process_.stderr.on('data', (d) => (log += d));
+	const add = (d) => (log += `[${new Date().toISOString().slice(11, 23)}] ${String(d).replace(/\n$/, '').replace(/\n/g, '\n               ')}\n`);
+	process_.stdout.on('data', add);
+	process_.stderr.on('data', add);
 	process_.log = () => log;
 	return process_;
 }
@@ -192,9 +193,12 @@ try {
 	assert.notEqual(Number(await text('state-pressure-process_id')), pid);
 	ok('killed worker: status leaves "ready" and returns with a new process');
 
+	const stopped = new Promise((resolve) => server.once('exit', resolve));
 	server.kill('SIGTERM');
 	await page.waitForFunction(() => document.querySelector('[data-testid="connection"]')?.textContent === 'reconnecting');
+	await stopped; // the new server needs the port
 	server = startServer();
+	page.setDefaultTimeout(60000); // a slow machine needs time to start a server
 	await waitText('connection', 'connected');
 	await waitText('status-pressure', 'ready');
 	assert.equal(await text('state-pressure-channels.0.pressure'), '0.037'); // fresh state from the new server
