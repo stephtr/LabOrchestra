@@ -65,7 +65,9 @@ def uv_server(tmp_path_factory):
     (workspace / "devices").mkdir()
     shutil.copy(DEMO, workspace / "devices" / "plain.py")
     for name, deps in {"six_a": '"six"', "six_b": '"six"', "six_idna": '"six", "idna>=3"', "wrong": '"no-such-package-xyz-123"'}.items():
-        (workspace / "devices" / f"{name}.py").write_text(TEMPLATE.format(deps=deps))
+        text = TEMPLATE.format(deps=deps)
+        # six_a is saved with Windows line endings on every platform: many users edit their devices there
+        (workspace / "devices" / f"{name}.py").write_bytes((text.replace("\n", "\r\n") if name == "six_a" else text).encode())
     # a header that names laborchestra itself must not make uv look for it on PyPI
     (workspace / "devices" / "names_itself.py").write_text(TEMPLATE.format(deps='"six", "laborchestra>=0"'))
     devices = {n: {"file": f"devices/{n}.py"} for n in ("plain", "six_a", "six_b", "six_idna", "wrong", "names_itself")}

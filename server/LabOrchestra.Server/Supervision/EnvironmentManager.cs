@@ -20,7 +20,8 @@ public sealed partial class EnvironmentManager(IConfiguration config, string dat
 	private readonly Lazy<string?> _uv = new(() => FindUv(config["uv"]));
 	private bool _warnedNoUv;
 
-	[GeneratedRegex(@"(?m)^# /// script$\s(?<content>(?:^#(?:| .*)$\s)+)^# ///$")]
+	// \r?: files saved on Windows have CRLF line endings
+	[GeneratedRegex(@"(?m)^# /// script\r?$\s(?<content>(?:^#(?:| .*?)\r?$\s)+)^# ///\r?$")]
 	private static partial Regex ScriptBlock();
 
 	[GeneratedRegex(@"^laborchestra(?:\s|\[|<|>|=|!|~|;|$)", RegexOptions.IgnoreCase)]
