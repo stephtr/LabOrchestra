@@ -62,6 +62,7 @@ export function DevicesPage() {
 										<span data-testid={`row-status-${id}`} className={`rounded-full px-2 py-0.5 text-xs ${STATUS_STYLE[info.status] ?? STATUS_STYLE.stopped}`} title={info.error ?? undefined}>
 											{info.status}
 										</span>
+										{info.changed && <span data-testid={`row-changed-${id}`} className="ml-2 text-xs text-sky-700 dark:text-sky-300">file changed</span>}
 									</td>
 									<td className="p-2 font-mono text-xs text-zinc-500">{sourceOf(id)}</td>
 									<td className="flex justify-end gap-3 p-2">

@@ -4,6 +4,7 @@ import json
 import shutil
 import subprocess
 import sys
+import time
 
 import psutil
 import pytest
@@ -136,6 +137,45 @@ def test_errors_of_the_browser_reach_the_servers_log(tmp_path):
             assert len(entries) == 1
             assert entries[0]["message"] == "TypeError: x is undefined" and entries[0]["level"] == "ERROR"
             assert entries[0]["traceback"] == "at Foo (app.js:1:1)" and entries[0]["logger"] == "ui:react"
+    finally:
+        server.terminate()
+        try:
+            server.wait(15)
+        except subprocess.TimeoutExpired:
+            server.kill()
+        log.close()
+
+
+def test_a_changed_device_file_is_noticed_and_restarts_only_when_asked(tmp_path):
+    build_server()
+    workspace, data = tmp_path / "workspace", tmp_path / "data"
+    (workspace / "devices").mkdir(parents=True)
+    for name in ("manual.py", "automatic.py"):
+        shutil.copy(DEVICES / "shaky.py", workspace / "devices" / name)
+    devices = {"manual": {"file": "devices/manual.py"}, "automatic": {"file": "devices/automatic.py", "auto_restart": True}}
+    (workspace / "devices.json").write_text(json.dumps({"devices": devices}))
+    url = f"http://127.0.0.1:{free_port()}"
+    server, log = launch(workspace, data, url)
+    try:
+        with laborchestra.connect(url, PASSPHRASE) as lab:
+            lab.manual.wait_ready(30)
+            lab.automatic.wait_ready(30)
+            assert not lab.manual.changed and not lab.automatic.changed
+            lab.manual.fine()
+            lab.automatic.fine()
+            for name in ("manual.py", "automatic.py"):
+                path = workspace / "devices" / name
+                path.write_text(path.read_text() + "\n# edited\n")
+            wait_for(lambda: lab.manual.changed, 10, "the change to be noticed")
+            time.sleep(2)
+            assert lab.manual.state["calls"] == 1 and lab.manual.status == "ready"  # it keeps running what it started with
+            wait_for(lambda: lab.automatic.state["calls"] == 0 and lab.automatic.status == "ready", 30, "the automatic restart")  # fresh process
+            assert not lab.automatic.changed
+            lab.restart_device("manual")
+            wait_for(lambda: lab.manual.status == "ready" and lab.manual.state["calls"] == 0 and not lab.manual.changed, 30, "the manual restart")
+            assert lab.get_device_config("automatic")["auto_restart"] is True
+            lab.update_device("automatic", "devices/automatic.py", description="renamed")  # not mentioned: stays as it was
+            assert lab.get_device_config("automatic")["auto_restart"] is True
     finally:
         server.terminate()
         try:

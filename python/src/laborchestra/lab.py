@@ -41,6 +41,11 @@ class AsyncDevice:
         return self._info["schema"]
 
     @property
+    def changed(self) -> bool:
+        """True when the device's file changed after it started: what runs is not what is on disk."""
+        return bool(self._info.get("changed"))
+
+    @property
     def error(self) -> str | None:
         return self._info.get("error")
 
@@ -333,6 +338,7 @@ class SyncDevice:
     status = property(lambda self: self._device.status)
     schema = property(lambda self: self._device.schema)
     error = property(lambda self: self._device.error)
+    changed = property(lambda self: self._device.changed)
 
     def call(self, action: str, *args: Any) -> Any:
         return self._lab._run(self._device.call(action, *args))

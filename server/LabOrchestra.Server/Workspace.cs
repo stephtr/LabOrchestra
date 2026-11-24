@@ -4,8 +4,9 @@ using System.Text.RegularExpressions;
 namespace LabOrchestra.Server;
 
 /// <summary>One entry of devices.json. <c>File</c> is relative to the workspace folder.</summary>
-/// <summary>A Python device names its <c>File</c>; a C# device names its <c>Driver</c> (a class with [Driver] in the server or in a plugin).</summary>
-public sealed record DeviceConfig(string? File = null, string? Python = null, Dictionary<string, JsonElement>? Config = null, string? Description = null, string? Driver = null);
+/// <summary>A Python device names its <c>File</c>; a C# device names its <c>Driver</c> (a class with [Driver] in the server or in a plugin). With <c>auto_restart</c> a Python device starts again by itself when its file changes (off by default: a restart may touch hardware).</summary>
+public sealed record DeviceConfig(string? File = null, string? Python = null, Dictionary<string, JsonElement>? Config = null, string? Description = null, string? Driver = null,
+	[property: System.Text.Json.Serialization.JsonPropertyName("auto_restart")] bool? AutoRestart = null);
 
 public sealed record DevicesFile(Dictionary<string, DeviceConfig>? Devices);
 

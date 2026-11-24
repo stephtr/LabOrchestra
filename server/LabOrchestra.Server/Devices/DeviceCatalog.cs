@@ -86,8 +86,8 @@ public sealed partial class DeviceCatalog(Workspace workspace, EnvironmentManage
 		Check(id, config);
 		workspace.Update(devices =>
 		{
-			if (!devices.ContainsKey(id)) throw new ArgumentException($"There is no device '{id}'");
-			devices[id] = config;
+			if (!devices.TryGetValue(id, out var old)) throw new ArgumentException($"There is no device '{id}'");
+			devices[id] = config with { AutoRestart = config.AutoRestart ?? old.AutoRestart }; // not mentioned: stays as it was
 		});
 		log.LogInformation("Device {Device} changed", id);
 		await supervisor.ReconcileAsync();
@@ -118,7 +118,7 @@ public sealed partial class DeviceCatalog(Workspace workspace, EnvironmentManage
 	public static DeviceConfig Parse(object? input)
 	{
 		if (Plain.From(input) is not Dictionary<string, object?> map) throw new ArgumentException("The device needs to be an object with a 'file'");
-		var unknown = map.Keys.Except(["file", "driver", "python", "config", "description"]).ToList();
+		var unknown = map.Keys.Except(["file", "driver", "python", "config", "description", "auto_restart"]).ToList();
 		if (unknown.Count > 0) throw new ArgumentException($"Unknown field(s): {string.Join(", ", unknown)}");
 		string? Text(string key) => map.TryGetValue(key, out var v) && v is not null ? v as string ?? throw new ArgumentException($"'{key}' must be text") : null;
 		var file = Text("file");
@@ -130,6 +130,7 @@ public sealed partial class DeviceCatalog(Workspace workspace, EnvironmentManage
 			if (c is not Dictionary<string, object?> given) throw new ArgumentException("'config' must be an object");
 			options = given.ToDictionary(kv => kv.Key, kv => JsonSerializer.SerializeToElement(kv.Value));
 		}
-		return new DeviceConfig(file is null ? null : Normalize(file), string.IsNullOrWhiteSpace(Text("python")) ? null : Text("python"), options is { Count: > 0 } ? options : null, string.IsNullOrWhiteSpace(Text("description")) ? null : Text("description"), driver);
+		return new DeviceConfig(file is null ? null : Normalize(file), string.IsNullOrWhiteSpace(Text("python")) ? null : Text("python"), options is { Count: > 0 } ? options : null, string.IsNullOrWhiteSpace(Text("description")) ? null : Text("description"), driver,
+			map.TryGetValue("auto_restart", out var auto) && auto is not null ? auto as bool? ?? throw new ArgumentException("'auto_restart' must be true or false") : null);
 	}
 }

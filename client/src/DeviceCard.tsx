@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { api } from './api';
 import { formatNumber } from './format';
 import {
 	ActionSchema,
@@ -191,6 +192,16 @@ export function DeviceCard({ id, info }: { id: string; info: DeviceInfo }) {
 				>
 					{info.status}
 				</span>
+				{info.changed && (
+					<button
+						data-testid={`changed-${id}`}
+						className="rounded-full bg-sky-100 px-2 py-0.5 text-xs text-sky-800 hover:underline dark:bg-sky-950 dark:text-sky-300"
+						title="The device file changed after the device started. Click to restart it with the new file."
+						onClick={() => void api.restartDevice(id)}
+					>
+						changed · restart
+					</button>
+				)}
 			</div>
 			{info.schema?.doc && <p className="mb-2 text-sm text-zinc-500">{info.schema.doc}</p>}
 			{info.error && (

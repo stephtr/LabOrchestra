@@ -34,6 +34,7 @@ public sealed class WorkerSupervisor(
 
 	private readonly Dictionary<string, Runner> _runners = new();
 	private readonly SemaphoreSlim _gate = new(1, 1);
+	private readonly Dictionary<string, DateTime> _loaded = new(); // the time of the file each worker started from
 	private CancellationToken _stop;
 
 	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -45,11 +46,40 @@ public sealed class WorkerSupervisor(
 		guard.KillLeftovers(); // before any device opens its hardware again
 		await ReconcileAsync();
 		workspace.Changed += () => _ = ReconcileAsync();
-		try { await Task.Delay(Timeout.Infinite, stop); } catch (OperationCanceledException) { }
+		try { await WatchSourcesAsync(stop); } catch (OperationCanceledException) { }
 		log.LogInformation("Stopping the workers");
 		await _gate.WaitAsync(CancellationToken.None);
 		try { await Task.WhenAll(_runners.Values.Select(r => r.Task)); } finally { _gate.Release(); }
 		log.LogInformation("All workers stopped");
+	}
+
+	/// <summary>Notices when a device's file changed after its worker started; with auto_restart the device starts again.</summary>
+	private async Task WatchSourcesAsync(CancellationToken stop)
+	{
+		using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+		while (await timer.WaitForNextTickAsync(stop))
+		{
+			List<(string Id, bool Auto)> changed = [];
+			await _gate.WaitAsync(stop);
+			try
+			{
+				foreach (var (id, runner) in _runners)
+				{
+					if (runner.Config.File is null || !_loaded.TryGetValue(id, out var loaded)) continue;
+					var path = Path.GetFullPath(runner.Config.File, workspace.Path);
+					var now = File.Exists(path) ? File.GetLastWriteTimeUtc(path) : loaded;
+					var isChanged = now != loaded;
+					registry.SetChanged(id, isChanged);
+					if (isChanged && runner.Config.AutoRestart == true) changed.Add((id, true));
+				}
+			}
+			finally { _gate.Release(); }
+			foreach (var (id, _) in changed)
+			{
+				logs.Add($"device:{id}", "INFO", "supervisor", "The device file changed; restarting (auto_restart)");
+				await RestartAsync(id);
+			}
+		}
 	}
 
 	/// <summary>Makes the running workers match devices.json.</summary>
@@ -67,7 +97,7 @@ public sealed class WorkerSupervisor(
 			}
 			foreach (var (id, device) in wanted)
 			{
-				var signature = JsonSerializer.Serialize(device with { Description = null }); // a new description does not restart anything
+				var signature = JsonSerializer.Serialize(device with { Description = null, AutoRestart = null }); // neither restarts anything
 				if (_runners.TryGetValue(id, out var running))
 				{
 					if (running.Signature == signature) continue;
@@ -165,6 +195,8 @@ public sealed class WorkerSupervisor(
 			try
 			{
 				registry.SetStatus(id, "preparing");
+				var file = Path.GetFullPath(device.File!, workspace.Path);
+				lock (_loaded) _loaded[id] = File.Exists(file) ? File.GetLastWriteTimeUtc(file) : DateTime.MinValue;
 				var python = await environments.GetPythonAsync(id, Path.GetFullPath(device.File, workspace.Path), device.Python, stop);
 				registry.SetStatus(id, "starting");
 				process = Start(id, device, python, tokens.IssueDeviceToken(id), tail);

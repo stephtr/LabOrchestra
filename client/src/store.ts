@@ -25,6 +25,8 @@ export type DeviceInfo = {
 	schema: Schema | null;
 	state: Record<string, unknown> | null;
 	revision: number;
+	/** The device file changed after the device started. */
+	changed?: boolean;
 };
 export type ConnectionState = 'login' | 'connecting' | 'connected' | 'reconnecting';
 export type LogEntry = {

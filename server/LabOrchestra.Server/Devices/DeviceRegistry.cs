@@ -26,6 +26,8 @@ public sealed class DeviceEntry
 	public int ActionFailures { get; set; }
 	/// <summary>Why the status is "degraded": "actions" or "state"; null otherwise.</summary>
 	public string? DegradedBy { get; set; }
+	/// <summary>The device's source file changed after the worker started: what runs is not what is on disk.</summary>
+	public bool Changed { get; set; }
 }
 
 /// <summary>All configured devices with their status, schema and last reported state. Changes go to the clients as
@@ -35,7 +37,9 @@ public sealed class DeviceRegistry(IHubContext<ControlHub> control, EventBus bus
 	private readonly object _lock = new();
 	private readonly Dictionary<string, DeviceEntry> _devices = new();
 
-	public void Declare(string id) => Mutate(id, true, e => { e.Status = "starting"; e.Error = null; e.ConnectionId = null; return true; });
+	public void Declare(string id) => Mutate(id, true, e => { e.Status = "starting"; e.Error = null; e.ConnectionId = null; e.Changed = false; return true; });
+
+	public void SetChanged(string id, bool changed) => Mutate(id, false, e => { if (e.Changed == changed) return false; e.Changed = changed; return true; });
 
 	/// <summary>A device that can be used: connected, and either fine ("ready") or working with problems ("degraded").</summary>
 	public static bool IsUp(string status) => status is "ready" or "degraded";
@@ -204,5 +208,6 @@ public sealed class DeviceRegistry(IHubContext<ControlHub> control, EventBus bus
 		["schema"] = e.Schema,
 		["state"] = e.State,
 		["revision"] = e.Revision,
+		["changed"] = e.Changed,
 	};
 }

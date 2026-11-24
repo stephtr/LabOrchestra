@@ -10,6 +10,16 @@ using Microsoft.AspNetCore.SignalR;
 
 namespace LabOrchestra.Server.Hubs;
 
+static class DeviceEntryExtensions
+{
+	/// <summary>Adds auto_restart when the entry sets it (an entry that does not say anything looks as before).</summary>
+	public static Dictionary<string, object?> WithAutoRestart(this Dictionary<string, object?> map, DeviceConfig device)
+	{
+		if (device.AutoRestart is { } auto) map["auto_restart"] = auto;
+		return map;
+	}
+}
+
 public static class Errors
 {
 	/// <summary>Errors cross the wire as JSON text: type, message and optionally the traceback of the original.</summary>
@@ -167,13 +177,13 @@ public sealed class ControlHub(
 		{
 			["file"] = kv.Value.File, ["driver"] = kv.Value.Driver, ["python"] = kv.Value.Python, ["description"] = kv.Value.Description,
 			["config"] = kv.Value.Config is null ? null : Plain.FromJson(System.Text.Json.JsonSerializer.SerializeToElement(kv.Value.Config)),
-		});
+		}.WithAutoRestart(kv.Value));
 
 	[Authorize(Roles = Roles.Client)]
 	[HubMethodName("get_device_config")]
 	public Dictionary<string, object?> GetDeviceConfig(string id) =>
 		workspace.Devices.TryGetValue(id, out var d)
-			? new() { ["file"] = d.File, ["driver"] = d.Driver, ["python"] = d.Python, ["config"] = d.Config is null ? null : Plain.FromJson(System.Text.Json.JsonSerializer.SerializeToElement(d.Config)), ["description"] = d.Description }
+			? new Dictionary<string, object?> { ["file"] = d.File, ["driver"] = d.Driver, ["python"] = d.Python, ["config"] = d.Config is null ? null : Plain.FromJson(System.Text.Json.JsonSerializer.SerializeToElement(d.Config)), ["description"] = d.Description }.WithAutoRestart(d)
 			: throw new HubException(Errors.Json("LookupError", $"Device '{id}' is not in devices.json"));
 
 	[Authorize(Roles = Roles.Client)]
