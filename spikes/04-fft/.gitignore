@@ -2,3 +2,4 @@ pffft-src/
 *.dll
 *.dylib
 *.so
+ffts-src/

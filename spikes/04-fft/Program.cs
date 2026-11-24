@@ -61,11 +61,26 @@ unsafe
 			Pf.pffft_transform_ordered(setup, input, output, work, 0);
 		}, i => { var p = (float*)output; return (double)p[2 * i] * p[2 * i] + (double)p[2 * i + 1] * p[2 * i + 1]; });
 
+		foreach (var variant in new[] { "fork", "scalar", "neon" })
+		{
+			var file = Path.GetFullPath(OperatingSystem.IsWindows() ? $"ffts-{variant}.dll" : OperatingSystem.IsMacOS() ? $"libffts-{variant}.dylib" : $"libffts-{variant}.so");
+			if (!File.Exists(file)) continue;
+			var h = NativeLibrary.Load(file);
+			var init = (delegate* unmanaged<nuint, int, nint>)NativeLibrary.GetExport(h, "ffts_init_1d_real");
+			var exec = (delegate* unmanaged<nint, nint, nint, void>)NativeLibrary.GetExport(h, "ffts_execute");
+			var plan = init((nuint)n, -1);
+			var fi = (nint)NativeMemory.AlignedAlloc((nuint)n * 4, 64);
+			var fo = (nint)NativeMemory.AlignedAlloc((nuint)(n + 2) * 4, 64);
+			if (plan == 0) { Console.WriteLine($"{n,8} ffts-{variant}: no plan"); continue; }
+			Run($"ffts-{variant}", () => { x.AsSpan().CopyTo(new Span<float>((void*)fi, n)); exec(plan, fi, fo); },
+				i => { var p = (float*)fo; return (double)p[2 * i] * p[2 * i] + (double)p[2 * i + 1] * p[2 * i + 1]; });
+		}
+
 		if (hasFfts)
 		{
 			var f = FFTS.Real(FFTS.Forward, n);
 			var o = new float[n + 2];
-			Run("ffts", () => f.Execute(x, o), i => (double)o[2 * i] * o[2 * i] + (double)o[2 * i + 1] * o[2 * i + 1]);
+			Run("ffts (legacy)", () => f.Execute(x, o), i => (double)o[2 * i] * o[2 * i] + (double)o[2 * i + 1] * o[2 * i + 1]);
 		}
 
 		var nw = new NWaves.Transforms.RealFft(n);
