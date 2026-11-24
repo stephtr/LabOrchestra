@@ -24,22 +24,23 @@ templates/  docs/  examples/workspace/
 
 ## Phase 0: preparation and spikes
 
-- [ ] Push branch `legacy` and tag `legacy-v0`; switch the lab PC's clone to `legacy` **before** the rewrite reaches `main`
+- [x] Push branch `legacy` and tag `legacy-v0`
+- [ ] Switch the lab PC's clone to `legacy` **before** the rewrite reaches `main`
 - [ ] Replace `server/.env` by `.env.example`; full secret scan (e.g. gitleaks)
 - [ ] License files, plugin exception, CLA text + bot, name policy (after ownership is settled)
 - [ ] ffts redistribution check
 - [ ] Move to .NET 10 LTS (.NET 9 reached end of support in November 2026)
 - [ ] Capture reference data from legacy: a recording, a snapshot, FFT output for a known input, a screenshot of each UI part
 - [x] Author's Python `MessagePackHubProtocol` (`server/SignalRMessagePackHubProtocol.py`, reference for the own client)
-- [ ] CI on Windows, macOS and Linux
+- [x] CI on Windows, macOS and Linux (spikes; code in `spikes/`)
 
 Spikes (throwaway code, 1-2 days each):
 
 | Spike | Passes if | Otherwise |
 |---|---|---|
-| ✅ Python SignalR client (passed on macOS with own client, see CLAUDE.md; repeat on Windows) | server calls a Python method and gets result or error back (client results), binary stays `bin`, reconnect works | extend own client; correlation IDs over plain messages |
-| ✅ Worker supervision (passed on macOS except for GIL-holding orphans, see CLAUDE.md; Windows and Linux open) | spawn via uv, stop cleanly, no orphan when the server is killed, on Windows too (Job Object) | heartbeat-based self-exit in the worker |
-| Runtime widget | esbuild-compiled `.tsx` loads through the import map, shares React and the SDK components with the host, styled by the server-compiled Tailwind CSS | compile CSS in the browser (313 KB compiler) |
+| ✅ Python SignalR client (passed on Windows, Linux, macOS with own client) | server calls a Python method and gets result or error back (client results), binary stays `bin`, reconnect works | extend own client; correlation IDs over plain messages |
+| ✅ Worker supervision (passed; macOS needs startup cleanup for GIL-holding orphans) | spawn via uv, stop cleanly, no orphan when the server is killed, on Windows too (Job Object) | heartbeat-based self-exit in the worker |
+| ✅ Runtime widget (passed on all three) | esbuild-compiled `.tsx` loads through the import map, shares React and the SDK components with the host, styled by the server-compiled Tailwind CSS | compile CSS in the browser (313 KB compiler) |
 | FFT library | one cross-platform library, permissive license, at 200 MB/s (legacy uses ffts on Windows only, Accord elsewhere) | keep ffts on Windows |
 
 **Exit:** all four answered; results written into CLAUDE.md.
