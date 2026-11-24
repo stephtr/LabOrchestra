@@ -60,15 +60,29 @@ Known gaps of the skeleton, all belonging to phase 2: whole-state updates instea
 
 ## Phase 2: core
 
-- [ ] Workspace, `devices.json`, secrets, file watching
-- [ ] Lifecycle (connecting/ready/degraded/error/reconnecting), supervisor, uv environments
-- [ ] Structured errors and logging, end to end
-- [ ] State updates as patches (no whole `channels` arrays); state change events with caller
-- [ ] SQLite event log, history store, stable IDs
-- [ ] Full authentication (roles, no localhost bypass, `Origin`)
+Done (CI green on all three systems; see `python/tests/test_integration.py`):
+
+- [x] Workspace and `devices.json`, watched: devices are added, changed and removed at runtime without restarting the server; a broken file is reported and changes nothing
+- [x] Secrets: `{"secret": "name"}` in a device's options, values in the data directory, never in the workspace, state or logs; setting a secret restarts the devices that use it
+- [x] Restart a device on demand (`lab.pressure.restart()`)
+- [x] Structured logging end to end: workers (also what they log before registering), server and supervisor, ring buffer per source plus daily files, live log view in the client, `lab.pressure.logs()` for scripts; action errors carry type, message and traceback
+- [x] State patches (`{"set": {"channels.1.pressure": 3e-7}}`) with a revision per device; server, Python client and browser client apply them and resync on a gap (randomized test of 12 x 25 changes)
+- [x] Persisted settings (`persist = [...]`): saved by the server, restored when a worker starts
+- [x] Authentication basics: no localhost bypass, token per started worker, `Origin` check (done in phase 1)
+
+Open:
+
+- [ ] uv environments per device (interpreter selection, PEP 723 dependencies, bundled `laborchestra` wheel); until then `python` in `devices.json` or the server's `python` setting names the interpreter
+- [ ] Lifecycle states `degraded` (rejected state update, repeated action errors) and `reconnecting`; startup cleanup of leftover workers and a Windows Job Object
+- [ ] Watching the device source files (shows "changed" with a restart button) and the management UI (add/edit/remove device, secrets, restart)
+- [ ] State change events with the caller (UI, script, device, procedure, MCP), SQLite event log, history store of slow numeric values, stable IDs
+- [ ] Authentication: tokens for MCP and for remote workers (created and revoked in the UI), TLS
 - [ ] C# SDK and plugin loading
 - [ ] Protocol version negotiation, config migrations, immutable environments with rollback
 - [ ] Recording service (format in CLAUDE.md) and `load_recording`: snapshots, recordings, tags, change events, crash-safe
+- [ ] Client errors reported to the server (React error boundary, `window.onerror`)
+
+Lessons (kept so they are not learned twice): SignalR rejects a void completion for a call that expects a result; a worker must not send anything before its first registration (a patch that overtakes `register` is rejected), found only on a slow CI machine and reproduced locally with CPU load; tests that wait for "some" warning or "some" status change are racy, wait for the specific effect.
 
 **Exit:** devices can be added, changed and removed at runtime; an interrupted recording (server killed) stays readable.
 
