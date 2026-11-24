@@ -25,6 +25,8 @@ The server prints a login link with the access token and serves `client/dist`. W
 
 If `uv` is not on the PATH, give its location: `LABORCHESTRA_UV=/path/to/uv`. Without uv you can name an interpreter that has the package installed (`pip install -e python`): `LABORCHESTRA_PYTHON=/path/to/python`, used by all devices as it is. For client development run `pnpm dev` in `client/` (it proxies `/hub` to the server).
 
+The **Devices** page (`/devices`) adds, changes, restarts and removes devices and manages secrets: choose a Python file of the workspace, and the form for its options is generated from the file itself (the server loads it in its environment without starting it). The server writes `devices.json` and applies the change at once; files edited by hand are picked up as well. The same operations are available from scripts: `lab.add_device("tweezer_pressure", "devices/pfeiffer.py", config={"port": "COM4"})`, `lab.describe_device_file(...)`, `lab.update_device(...)`, `lab.remove_device(...)`.
+
 A device file may start with a header (PEP 723) that names what it needs; devices with the same needs share an environment:
 
 ```python

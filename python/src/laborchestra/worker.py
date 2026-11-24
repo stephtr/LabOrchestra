@@ -435,12 +435,22 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--url", default=os.environ.get("LABORCHESTRA_URL", DEFAULT_URL))
     parser.add_argument("--token", default=os.environ.get("LABORCHESTRA_TOKEN"))
     parser.add_argument("--config", default=os.environ.get("LABORCHESTRA_CONFIG", "{}"), help="options as JSON")
+    parser.add_argument("--describe", action="store_true", help="print what the device offers (options, actions) and stop")
     args = parser.parse_args(argv)
     logging.basicConfig(
         stream=sys.stderr,
         level=os.environ.get("LABORCHESTRA_LOG_LEVEL", "INFO"),
         format="%(levelname)s %(name)s: %(message)s",
     )
+    if args.describe:
+        try:
+            cls = load_class(args.target)
+            schema = build_schema("describe", cls, action_methods(cls))
+        except Exception as e:
+            print(f"{type(e).__name__}: {e}", file=sys.stderr)
+            sys.exit(EXIT_CONFIG)
+        print("LABORCHESTRA-SCHEMA " + json.dumps(schema))  # a marker: the device may print on its own while it loads
+        sys.exit(EXIT_OK)
     forwarder = _LogForwarder()  # collects from the start; sent once the worker is registered
     logging.getLogger().addHandler(forwarder)
     if not args.id:

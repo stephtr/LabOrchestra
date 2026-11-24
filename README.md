@@ -5,7 +5,10 @@
 
 *Disclaimer: LabOrchestra is currently under heavy development. We will be working on documentation soon. In case you want to start using it now, keep in mind that breaking code changes will happen.*
 
-![LabOrchestra logo](docs/assets/laborchestra-logo.svg "LabOrchestra"){width=400}
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/laborchestra-logo-dark.svg">
+  <img alt="LabOrchestra" src="docs/assets/laborchestra-logo-light.svg" width="400">
+</picture>
 
 ---
 

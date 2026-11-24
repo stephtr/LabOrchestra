@@ -209,6 +209,59 @@ def test_device_can_be_restarted(lab):
     assert e.value.type == "LookupError"
 
 
+def test_devices_can_be_managed_through_the_api(server, lab, reset_devices):
+    files = lab.list_device_files()
+    assert {"file": "devices/demo_pressure.py", "devices": ["broken", "pressure"]} in files
+    assert all(not f["file"].startswith(("_", ".")) and f["file"].endswith(".py") for f in files)
+
+    described = lab.describe_device_file("devices/demo_pressure.py")
+    assert described["class"] == "DemoPressure" and described["doc"].startswith("Simulated")
+    assert [(o["name"], o["type"], o["required"]) for o in described["config"]] == [("noise", "float", False)]
+    assert [a["name"] for a in described["actions"]] == ["set_pressure"]
+
+    entry = "devices/demo_pressure.py"
+    lab.add_device("fresh", entry, config={"noise": 0.0}, description="added by the test")
+    wait_for(lambda: "fresh" in lab.devices and lab.fresh.status == "ready", message="new device")
+    saved = json.loads((server.workspace / "devices.json").read_text())["devices"]
+    assert saved["fresh"] == {"file": entry, "config": {"noise": 0.0}, "description": "added by the test"}
+    assert saved["pressure"] and saved["counter"]  # the others are kept
+    assert lab.get_device_config("fresh") == {"file": entry, "python": None, "config": {"noise": 0.0}, "description": "added by the test"}
+
+    pid = lab.fresh.state["process_id"]
+    lab.update_device("fresh", entry, config={"noise": 0.0}, description="another text")  # only the description
+    time.sleep(1.5)
+    assert lab.fresh.state["process_id"] == pid and lab.get_device_config("fresh")["description"] == "another text"
+    lab.update_device("fresh", entry, config={"noise": 0.2})
+    wait_for(lambda: lab.fresh.status == "ready" and lab.fresh.state["process_id"] != pid, message="restart after a change")
+
+    for bad, kind, text in [
+        (("fresh", entry), "ValueError", "already a device"),
+        (("Bad-Id", entry), "ValueError", "snake_case"),
+        (("outside", "../outside.py"), "ValueError", "not a Python file in the workspace"),
+        (("missing", "devices/nothing.py"), "ValueError", "not a Python file in the workspace"),
+    ]:
+        with pytest.raises(RemoteError, match=text) as e:
+            lab.add_device(*bad)
+        assert e.value.type == kind
+    with pytest.raises(RemoteError, match="no device 'nope'"):
+        lab.remove_device("nope")
+
+    lab.remove_device("fresh")
+    wait_for(lambda: "fresh" not in lab.devices, message="removal")
+    assert "fresh" not in json.loads((server.workspace / "devices.json").read_text())["devices"]
+
+
+def test_describing_a_file_that_cannot_be_loaded_says_why(server, lab):
+    broken = server.workspace / "devices" / "broken_import.py"
+    broken.write_text("from laborchestra import Device\nimport no_such_module_xyz\n\nclass B(Device):\n    pass\n")
+    try:
+        with pytest.raises(RemoteError, match="could not be loaded.*no_such_module_xyz") as e:
+            lab.describe_device_file("devices/broken_import.py")
+        assert e.value.type == "DeviceFileError"
+    finally:
+        broken.unlink()
+
+
 def test_secrets_reach_the_device_and_nothing_else(server, lab, reset_devices):
     vault = {"file": "devices/secretive.py", "config": {"api_key": {"secret": "demo_key"}}}
     write_devices(server, {**BASE_DEVICES, "vault": vault})

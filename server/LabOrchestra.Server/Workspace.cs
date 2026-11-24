@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 namespace LabOrchestra.Server;
 
 /// <summary>One entry of devices.json. <c>File</c> is relative to the workspace folder.</summary>
-public sealed record DeviceConfig(string File, string? Python = null, Dictionary<string, JsonElement>? Config = null);
+public sealed record DeviceConfig(string File, string? Python = null, Dictionary<string, JsonElement>? Config = null, string? Description = null);
 
 public sealed record DevicesFile(Dictionary<string, DeviceConfig>? Devices);
 
@@ -14,6 +14,15 @@ public sealed partial class Workspace : IDisposable
 {
 	private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web) { ReadCommentHandling = JsonCommentHandling.Skip };
 
+	private static readonly JsonSerializerOptions WriteOptions = new(JsonSerializerDefaults.Web)
+	{
+		WriteIndented = true,
+		IndentCharacter = '\t',
+		IndentSize = 1,
+		DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+	};
+
+	private readonly object _editGate = new();
 	private FileSystemWatcher? _watcher;
 	private Timer? _debounce;
 	private ILogger? _log;
@@ -57,6 +66,22 @@ public sealed partial class Workspace : IDisposable
 			devices[id] = device;
 		}
 		return devices;
+	}
+
+	/// <summary>Changes the device list and writes devices.json (the change is applied at once, the file watcher then finds nothing new).</summary>
+	public void Update(Action<Dictionary<string, DeviceConfig>> change)
+	{
+		lock (_editGate)
+		{
+			var next = new Dictionary<string, DeviceConfig>(Devices);
+			change(next);
+			var file = System.IO.Path.Combine(Path, "devices.json");
+			Directory.CreateDirectory(Path);
+			var temporary = file + ".tmp";
+			File.WriteAllText(temporary, JsonSerializer.Serialize(new DevicesFile(next), WriteOptions) + "\n");
+			File.Move(temporary, file, overwrite: true); // like an editor: write elsewhere, then rename
+			Devices = next;
+		}
 	}
 
 	public void Watch(ILogger log)

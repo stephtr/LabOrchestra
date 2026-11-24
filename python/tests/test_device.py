@@ -129,6 +129,24 @@ def test_naming_rule():
         action_methods(BadAction)
 
 
+def test_describe_prints_the_schema_even_if_the_device_prints_while_loading(tmp_path):
+    import json
+    import subprocess
+    import sys
+
+    file = tmp_path / "chatty.py"
+    file.write_text("from laborchestra import Device, action\nprint('loading...')\n\nclass Chatty(Device):\n    port: str\n\n    @action\n    def ping(self, n: int = 1):\n        pass\n")
+    out = subprocess.run([sys.executable, "-m", "laborchestra.worker", str(file), "--describe"], capture_output=True, text=True)
+    assert out.returncode == 0, out.stderr
+    line = [l for l in out.stdout.splitlines() if l.startswith("LABORCHESTRA-SCHEMA ")][-1]
+    schema = json.loads(line.split(" ", 1)[1])
+    assert schema["class"] == "Chatty" and schema["config"][0]["required"] and schema["actions"][0]["params"][0]["name"] == "n"
+
+    file.write_text("raise RuntimeError('does not load')\n")
+    out = subprocess.run([sys.executable, "-m", "laborchestra.worker", str(file), "--describe"], capture_output=True, text=True)
+    assert out.returncode == 2 and "does not load" in out.stderr
+
+
 def test_persisted_keys_must_exist_in_the_state():
     class Bad(Device):
         state = {"a": 1}

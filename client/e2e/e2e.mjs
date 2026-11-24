@@ -120,6 +120,71 @@ try {
 	await waitText('state-pressure-channels.0.pressure', '0.0456');
 	ok('script and browser see the same state, both directions');
 
+	// branding
+	assert.equal(await page.locator('link[rel=icon]').getAttribute('href'), '/favicon.svg');
+	assert.equal((await fetch(`${url}/favicon.svg`)).status, 200);
+	assert.equal(await page.getByAltText('LabOrchestra').count(), 2); // the light and the dark logo; CSS shows one
+	ok('logo and favicon');
+
+	// device management
+	const devicesFile = () => JSON.parse(fs.readFileSync(path.join(dir, 'workspace/devices.json'), 'utf8')).devices;
+	await page.getByTestId('nav-devices').click();
+	await page.getByTestId('row-pressure').waitFor();
+	assert.match(page.url(), /\/devices$/);
+	await page.getByTestId('add-device').click();
+	const dialog = page.getByTestId('device-dialog');
+	await dialog.getByTestId('field-id').fill('second_gauge');
+	await dialog.getByTestId('field-file').selectOption('devices/demo_pressure.py');
+	await dialog.getByTestId('option-noise').waitFor(); // the form comes from the options of the file
+	await dialog.locator('#opt-noise').fill('0');
+	await dialog.getByTestId('save-device').click();
+	await dialog.waitFor({ state: 'detached' });
+	await waitText('row-status-second_gauge', 'ready');
+	assert.deepEqual(devicesFile().second_gauge, { file: 'devices/demo_pressure.py', config: { noise: 0 } });
+	ok('device added through the dialog: starts, and devices.json has it');
+
+	await page.getByTestId('add-device').click();
+	await dialog.getByTestId('field-id').fill('second_gauge');
+	await dialog.getByTestId('field-file').selectOption('devices/demo_pressure.py');
+	await dialog.getByTestId('option-noise').waitFor();
+	await dialog.getByTestId('save-device').click();
+	await dialog.getByTestId('dialog-error').waitFor();
+	assert.match(await dialog.getByTestId('dialog-error').textContent(), /already a device/);
+	await dialog.getByTestId('field-id').fill('Bad-Id');
+	await dialog.getByTestId('save-device').click();
+	assert.match(await dialog.getByTestId('dialog-error').textContent(), /snake_case/);
+	await dialog.getByRole('button', { name: 'Cancel' }).click();
+	await dialog.waitFor({ state: 'detached' });
+	ok('mistakes are explained in the dialog');
+
+	await page.getByTestId('edit-second_gauge').click();
+	await dialog.locator('#opt-noise').waitFor();
+	assert.equal(await dialog.locator('#opt-noise').inputValue(), '0'); // shows what devices.json has
+	await dialog.locator('#opt-noise').fill('0.25');
+	await dialog.getByLabel('Description (optional)').fill('second one');
+	await dialog.getByTestId('save-device').click();
+	await dialog.waitFor({ state: 'detached' });
+	assert.deepEqual(devicesFile().second_gauge, { file: 'devices/demo_pressure.py', config: { noise: 0.25 }, description: 'second one' });
+	await waitText('row-status-second_gauge', 'ready');
+	ok('device changed through the dialog');
+
+	await page.getByLabel('Secret name').fill('demo_key');
+	await page.getByLabel('Secret value').fill('hunter2');
+	await page.getByRole('button', { name: 'Save secret' }).click();
+	await page.getByTestId('secret-demo_key').waitFor();
+	assert.ok(!(await page.content()).includes('hunter2'), 'the value of a secret is never shown');
+	await page.getByTestId('secret-demo_key').getByRole('button', { name: 'Delete' }).click();
+	await page.getByTestId('secret-demo_key').waitFor({ state: 'detached' });
+	ok('secrets: set (value not shown) and deleted');
+
+	page.once('dialog', (d) => d.accept());
+	await page.getByTestId('remove-second_gauge').click();
+	await page.getByTestId('row-second_gauge').waitFor({ state: 'detached' });
+	assert.ok(!('second_gauge' in devicesFile()) && 'pressure' in devicesFile());
+	ok('device removed');
+	await page.getByTestId('nav-dashboard').click();
+	await page.getByTestId('device-pressure').waitFor();
+
 	const pid = Number(await text('state-pressure-process_id'));
 	process.kill(pid, 'SIGKILL');
 	await page.waitForFunction(() => document.querySelector('[data-testid="status-pressure"]')?.textContent !== 'ready');

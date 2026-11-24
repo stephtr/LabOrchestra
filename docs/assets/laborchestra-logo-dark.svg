@@ -47,15 +47,7 @@
     </g>
   </g>
   <!-- wordmark -->
-  <style>
-    .wm-accent  { fill: #0E4D3A; }
-    .wm-neutral { fill: #1F2937; }
-    @media (prefers-color-scheme: dark) {
-      .wm-accent  { fill: #5EEAD4; }
-      .wm-neutral { fill: #FFFFFF; }
-    }
-  </style>
   <text x="144" y="83" font-family="Segoe UI, Inter, system-ui, sans-serif" font-size="64">
-    <tspan class="wm-accent" font-weight="600">Lab</tspan><tspan class="wm-neutral" font-weight="400">Orchestra</tspan>
+    <tspan fill="#5EEAD4" font-weight="600">Lab</tspan><tspan fill="#FFFFFF" font-weight="400">Orchestra</tspan>
   </text>
 </svg>

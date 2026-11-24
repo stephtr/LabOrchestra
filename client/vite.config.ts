@@ -7,6 +7,7 @@ const server = process.env.LABORCHESTRA_SERVER ?? 'http://127.0.0.1:5095';
 export default defineConfig({
 	plugins: [react(), tailwindcss()],
 	server: {
+		fs: { allow: ['..'] }, // the logos are in docs/assets
 		proxy: {
 			'/hub': {
 				target: server,

@@ -64,7 +64,7 @@ public sealed class WorkerSupervisor(
 			}
 			foreach (var (id, device) in wanted)
 			{
-				var signature = JsonSerializer.Serialize(device);
+				var signature = JsonSerializer.Serialize(device with { Description = null }); // a new description does not restart anything
 				if (_runners.TryGetValue(id, out var running))
 				{
 					if (running.Signature == signature) continue;

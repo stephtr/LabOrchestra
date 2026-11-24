@@ -48,6 +48,7 @@ builder.Services.AddSingleton<DeviceRegistry>();
 var recordingsDir = Path.GetFullPath(config["recordings_dir"] ?? Path.Combine(dataDir, "recordings"));
 builder.Services.AddSingleton(sp => new RecordingService(recordingsDir, sp.GetRequiredService<DeviceRegistry>(), sp.GetRequiredService<IHubContext<ControlHub>>(), sp.GetRequiredService<ILogger<RecordingService>>()));
 builder.Services.AddSingleton<WorkerSupervisor>();
+builder.Services.AddSingleton<DeviceCatalog>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<WorkerSupervisor>());
 builder.Services.AddSignalR(o => o.MaximumReceiveMessageSize = 16 * 1024 * 1024).AddMessagePackProtocol();
 builder.Services.AddAuthentication(TokenAuthHandler.SchemeName)

@@ -76,7 +76,8 @@ Open:
 - [x] uv environments per device: dependencies from the PEP 723 header of the device file, `laborchestra` installed into each (from `python/` in a checkout; a bundled wheel in a release is still to do), shared by devices with the same needs, immutable, a failed build leaves nothing behind; an interpreter named with `python` is used as it is; without uv the error says what to do
 - [ ] Environment clean-up (unused environments), rollback to the previous environment of a device, choosing the Python version in the UI
 - [ ] Lifecycle states `degraded` (rejected state update, repeated action errors) and `reconnecting`; startup cleanup of leftover workers and a Windows Job Object
-- [ ] Watching the device source files (shows "changed" with a restart button) and the management UI (add/edit/remove device, secrets, restart)
+- [x] Management UI: Devices page with add / change / restart / remove, the option form generated from the device file (`--describe`), secrets panel; the same operations for scripts (`lab.add_device`, ...); logo (light/dark) and favicon
+- [ ] Management UI, still open: catalog of installable device packages, "New device" scaffolding, choosing the Python version from a list of interpreters, editing `views`, environment clean-up; watching the device source files (shows "changed" with a restart button)
 - [ ] SQLite event log (persistent, outside recordings), history store of slow numeric values, stable IDs
 - [ ] Authentication: tokens for MCP and for remote workers (created and revoked in the UI), TLS
 - [ ] C# SDK and plugin loading

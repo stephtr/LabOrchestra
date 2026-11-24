@@ -1,5 +1,9 @@
 import { useState } from 'react';
+import logoDark from '../../docs/assets/laborchestra-logo-dark.svg';
+import logoLight from '../../docs/assets/laborchestra-logo-light.svg';
 import { DeviceCard } from './DeviceCard';
+import { DevicesPage } from './DevicesPage';
+import { navigate, usePath } from './router';
 import { login, logout, useStore } from './store';
 
 function Login({ error }: { error: string | null }) {
@@ -33,14 +37,60 @@ function Login({ error }: { error: string | null }) {
 	);
 }
 
-export default function App() {
-	const { connection, devices, info, loginError } = useStore();
-	if (connection === 'login') return <Login error={loginError} />;
+function NavLink({ to, children }: { to: string; children: string }) {
+	const path = usePath();
+	const active = to === '/' ? path === '/' : path.startsWith(to);
+	return (
+		<a
+			href={to}
+			data-testid={`nav-${to === '/' ? 'dashboard' : to.slice(1)}`}
+			aria-current={active ? 'page' : undefined}
+			className={`rounded px-2 py-1 text-sm ${active ? 'bg-brand text-white' : 'text-zinc-600 hover:bg-zinc-200 dark:text-zinc-300 dark:hover:bg-slate-800'}`}
+			onClick={(e) => {
+				e.preventDefault();
+				navigate(to);
+			}}
+		>
+			{children}
+		</a>
+	);
+}
+
+function Dashboard() {
+	const { connection, devices, info } = useStore();
 	const ids = Object.keys(devices).sort();
+	return (
+		<>
+			{connection === 'connected' && ids.length === 0 && (
+				<p className="text-zinc-500" data-testid="no-devices">
+					No devices configured. The workspace is <code className="font-mono">{info?.workspace}</code>
+					{info?.devices_file ? ', and its devices.json lists no devices.' : ', and it has no devices.json yet.'} Add one on the{' '}
+					<a href="/devices" className="underline" onClick={(e) => { e.preventDefault(); navigate('/devices'); }}>Devices</a>{' '}
+					page, or start the server with <code className="font-mono">--workspace &lt;folder&gt;</code> to use another workspace.
+				</p>
+			)}
+			<div className="grid gap-4 md:grid-cols-2">
+				{ids.map((id) => (
+					<DeviceCard key={id} id={id} info={devices[id]!} />
+				))}
+			</div>
+		</>
+	);
+}
+
+export default function App() {
+	const { connection, loginError } = useStore();
+	const path = usePath();
+	if (connection === 'login') return <Login error={loginError} />;
 	return (
 		<div className="mx-auto max-w-5xl p-4">
 			<header className="mb-4 flex items-center gap-3">
-				<h1 className="text-xl font-semibold text-brand dark:text-gold">LabOrchestra</h1>
+				<img src={logoLight} alt="LabOrchestra" className="h-8 dark:hidden" />
+				<img src={logoDark} alt="LabOrchestra" className="hidden h-8 dark:block" />
+				<nav className="ml-3 flex gap-1">
+					<NavLink to="/">Dashboard</NavLink>
+					<NavLink to="/devices">Devices</NavLink>
+				</nav>
 				<span
 					data-testid="connection"
 					className={`rounded-full px-2 py-0.5 text-xs ${connection === 'connected' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'}`}
@@ -52,18 +102,7 @@ export default function App() {
 					Sign out
 				</button>
 			</header>
-			{connection === 'connected' && ids.length === 0 && (
-				<p className="text-zinc-500" data-testid="no-devices">
-					No devices configured. The workspace is <code className="font-mono">{info?.workspace}</code>
-					{info?.devices_file ? ', and its devices.json lists no devices.' : ', and it has no devices.json yet.'} Start the server with{' '}
-					<code className="font-mono">--workspace &lt;folder&gt;</code> to use another one.
-				</p>
-			)}
-			<div className="grid gap-4 md:grid-cols-2">
-				{ids.map((id) => (
-					<DeviceCard key={id} id={id} info={devices[id]!} />
-				))}
-			</div>
+			{path.startsWith('/devices') ? <DevicesPage /> : <Dashboard />}
 		</div>
 	);
 }

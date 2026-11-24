@@ -22,6 +22,7 @@ public sealed class ControlHub(
 	DeviceRegistry registry,
 	LogStore logs,
 	SecretStore secrets,
+	DeviceCatalog catalog,
 	WorkerSupervisor supervisor,
 	RecordingService recordings,
 	Workspace workspace,
@@ -94,6 +95,54 @@ public sealed class ControlHub(
 		if (!await supervisor.RestartAsync(device))
 			throw new HubException(Errors.Json("LookupError", $"Device '{device}' does not exist"));
 	}
+
+	private static HubException DeviceFileError(Exception e) => new(Errors.Json(e is ArgumentException ? "ValueError" : "DeviceFileError", e.Message));
+
+	/// <summary>Python files of the workspace that can be devices, with the ids that use them.</summary>
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("list_device_files")]
+	public List<Dictionary<string, object?>> ListDeviceFiles() => catalog.ListFiles();
+
+	/// <summary>What a device file offers: class, doc, options (name, type, default, required) and actions. Loads it in its environment.</summary>
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("describe_device_file")]
+	public async Task<object?> DescribeDeviceFile(string file)
+	{
+		try { return await catalog.DescribeAsync(file, Context.ConnectionAborted); }
+		catch (Exception e) when (e is ArgumentException or InvalidOperationException or IOException) { throw DeviceFileError(e); }
+	}
+
+	/// <param name="device">{file, python?, config?, description?}</param>
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("add_device")]
+	public async Task AddDevice(string id, object device)
+	{
+		try { await catalog.AddAsync(id, DeviceCatalog.Parse(device)); }
+		catch (Exception e) when (e is ArgumentException or InvalidOperationException or IOException) { throw DeviceFileError(e); }
+	}
+
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("update_device")]
+	public async Task UpdateDevice(string id, object device)
+	{
+		try { await catalog.UpdateAsync(id, DeviceCatalog.Parse(device)); }
+		catch (Exception e) when (e is ArgumentException or InvalidOperationException or IOException) { throw DeviceFileError(e); }
+	}
+
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("remove_device")]
+	public async Task RemoveDevice(string id)
+	{
+		try { await catalog.RemoveAsync(id); }
+		catch (Exception e) when (e is ArgumentException or InvalidOperationException or IOException) { throw DeviceFileError(e); }
+	}
+
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("get_device_config")]
+	public Dictionary<string, object?> GetDeviceConfig(string id) =>
+		workspace.Devices.TryGetValue(id, out var d)
+			? new() { ["file"] = d.File, ["python"] = d.Python, ["config"] = d.Config is null ? null : Plain.FromJson(System.Text.Json.JsonSerializer.SerializeToElement(d.Config)), ["description"] = d.Description }
+			: throw new HubException(Errors.Json("LookupError", $"Device '{id}' is not in devices.json"));
 
 	[Authorize(Roles = Roles.Client)]
 	[HubMethodName("list_secrets")]

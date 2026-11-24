@@ -223,11 +223,14 @@ function toRemoteError(e: unknown): Error {
 	return new RemoteError(text);
 }
 
-export async function callAction(device: string, name: string, args: unknown[]): Promise<unknown> {
+/** Calls a method of the server; errors become RemoteError with the type and message of the cause. */
+export async function invokeHub<T = unknown>(method: string, ...args: unknown[]): Promise<T> {
 	if (!hub) throw new RemoteError('Not connected');
 	try {
-		return await hub.invoke('action', device, name, args);
+		return await hub.invoke<T>(method, ...args);
 	} catch (e) {
 		throw toRemoteError(e);
 	}
 }
+
+export const callAction = (device: string, name: string, args: unknown[]) => invokeHub('action', device, name, args);

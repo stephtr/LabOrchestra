@@ -165,6 +165,34 @@ class AsyncLab:
     async def restart_device(self, device_id: str) -> None:
         await self._hub.invoke("restart_device", device_id)
 
+    async def list_device_files(self) -> list[dict]:
+        """Python files of the workspace with the ids of the devices that use them: {"file", "devices"}."""
+        return await self._hub.invoke("list_device_files")
+
+    async def describe_device_file(self, file: str) -> dict:
+        """What a device file offers, without starting it: class, doc, options (name, type, default, required), actions."""
+        return await self._hub.invoke("describe_device_file", file, timeout=180)
+
+    @staticmethod
+    def _device_entry(file: str, config: dict | None, python: str | None, description: str | None) -> dict:
+        entry = {"file": file, "config": config, "python": python, "description": description}
+        return {k: v for k, v in entry.items() if v is not None}
+
+    async def add_device(self, device_id: str, file: str, config: dict | None = None, python: str | None = None, description: str | None = None) -> None:
+        """Add a device to devices.json and start it. ``config`` holds its options; a value ``{"secret": "name"}`` refers to a secret."""
+        await self._hub.invoke("add_device", device_id, self._device_entry(file, config, python, description))
+
+    async def update_device(self, device_id: str, file: str, config: dict | None = None, python: str | None = None, description: str | None = None) -> None:
+        """Replace the entry of a device (it restarts if anything but the description changed)."""
+        await self._hub.invoke("update_device", device_id, self._device_entry(file, config, python, description))
+
+    async def remove_device(self, device_id: str) -> None:
+        await self._hub.invoke("remove_device", device_id)
+
+    async def get_device_config(self, device_id: str) -> dict:
+        """The entry of devices.json: file, python, config, description."""
+        return await self._hub.invoke("get_device_config", device_id)
+
     async def list_secrets(self) -> list[str]:
         """Names of the stored secrets (their values are never sent back)."""
         return await self._hub.invoke("list_secrets")
@@ -313,6 +341,24 @@ class Lab:
 
     def restart_device(self, device_id: str) -> None:
         self._run(self._async.restart_device(device_id))
+
+    def list_device_files(self) -> list[dict]:
+        return self._run(self._async.list_device_files())
+
+    def describe_device_file(self, file: str) -> dict:
+        return self._run(self._async.describe_device_file(file))
+
+    def add_device(self, device_id: str, file: str, config: dict | None = None, python: str | None = None, description: str | None = None) -> None:
+        self._run(self._async.add_device(device_id, file, config, python, description))
+
+    def update_device(self, device_id: str, file: str, config: dict | None = None, python: str | None = None, description: str | None = None) -> None:
+        self._run(self._async.update_device(device_id, file, config, python, description))
+
+    def remove_device(self, device_id: str) -> None:
+        self._run(self._async.remove_device(device_id))
+
+    def get_device_config(self, device_id: str) -> dict:
+        return self._run(self._async.get_device_config(device_id))
 
     def list_secrets(self) -> list[str]:
         return self._run(self._async.list_secrets())
