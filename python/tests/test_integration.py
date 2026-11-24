@@ -158,8 +158,11 @@ def test_logs_of_devices_and_server(lab):
 
     with pytest.raises(RemoteError):
         lab.pressure.set_pressure(7, 1.0)
-    failed = wait_for(lambda: lab.pressure.logs(level="WARNING"), message="warning in the log")
-    assert "set_pressure failed" in failed[-1]["message"] and "no channel 7" in failed[-1]["traceback"]
+    failed = wait_for(
+        lambda: [e for e in lab.pressure.logs(level="WARNING") if "no channel 7" in (e["traceback"] or "")],
+        message="warning with the traceback in the log",
+    )
+    assert "Action set_pressure failed: ValueError" in failed[-1]["message"]
 
     last = lab.pressure.logs()[-1]["seq"]
     assert lab.pressure.logs(since=last) == []  # following the log

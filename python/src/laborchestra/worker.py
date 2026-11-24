@@ -156,7 +156,7 @@ class Worker:
         self._saved_settings: dict = {}
         self._sent: dict = {}  # the state the server has
         self.exit_code = EXIT_OK
-        self._registered_gen = 0
+        self._registered_gen = -1  # the connection generation we registered on; -1: never, so nothing is sent before
         self._run_thread: threading.Thread | None = None
         self._run_task: asyncio.Task | None = None
 
