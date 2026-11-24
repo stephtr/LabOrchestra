@@ -6,6 +6,8 @@ The project is being **rewritten and open-sourced**. This file records the curre
 
 ## Current architecture
 
+The old code is in `legacy/` (paths below such as `server/...` and `client/...` refer to `legacy/server/...` and `legacy/client/...`). It also lives on the `legacy` branch, and is deleted from `next` at the cutover.
+
 - `server/` – ASP.NET Core (.NET 9), SignalR (JSON + MessagePack), pythonnet.
   - `Program.cs` – initializes embedded Python (hard-coded `python313` paths), maps hubs `/hub/control`, `/hub/streaming`, `/api/ping`, proxies the client via SpaYarp.
   - `DeviceManager.cs` – registers all devices in its constructor (hard-coded IDs, ports, IPs; hardware devices fall back to `Demo*` in a try/catch). Handles `Action` (fire-and-forget, state pushed in batches of <= 50 ms), `Request`, snapshots, recording, `settings.json`.
@@ -69,17 +71,18 @@ Mapping of today's injected names:
 
 | Today | Planned |
 |---|---|
-| module-level `state` dict | typed state (dataclass/pydantic) with change tracking; `self.state` |
+| module-level `state` dict | `state` dict on the class, with change tracking (assignments, also nested, publish updates); a typed state class (dataclass/pydantic) is optional |
 | `send_status_update(partial)` | automatic on change, or `self.update(partial)` |
-| `action` / `request` / `get_device_state` | `lo.device("x").action(...)`, `await ...request(...)`, `.state` (locally cached, pushed) |
+| `action` / `request` / `get_device_state` | `lab.device("x").action(...)`, `await ...request(...)`, `.state` (locally cached, pushed) |
 | `print` | standard `logging`, forwarded by the worker |
 | `is_running` | stop event / async cancellation |
-| `argv` | `__init__(self, config)` |
+| `argv` | class attributes: annotated without default = required, with default = option; typing optional, checked and used for forms/pickers when present; secrets resolved by the framework before the device sees them |
 | every top-level function is an action (case-insensitive) | explicit `@action` with type hints -> real schema; names follow the naming rule (see Conventions) |
-| `main()` | `async def run(self)` |
-| `get_settings` / `load_settings` / `on_save_snapshot` | same hooks, or a declared `Settings` dataclass |
+| `main()` | `run(self)`, plain (runs in its own thread, `while self.running`) or `async` (cancelled on stop) |
+| `get_settings` / `load_settings` / `on_save_snapshot` | `persist = ["key", ...]` for saved state keys; hooks only for special cases; `on_save_snapshot` optional |
 
 - Exceptions must reach callers as structured errors (a script sees a real Python exception with the device's message), instead of today's wrapped `InvalidOperationException`.
+- **Simple devices stay simple.** Ordinary Python must be enough: no required imports of config, secret, reference or profile types, no mandatory typing, no `try/except` for survival (an error in `run` is logged, shown, and the device restarts with backoff). Types, profiles and checks are optional upgrades that need no rewrite. Test case: `ParticleName.py` in about 45 lines.
 - Port a couple of devices as API proof before fixing the design: Elliptec, and `PolarizationLock` (exercises cross-device calls).
 
 ### Device management and config
@@ -143,11 +146,11 @@ Layered, so a Python-only device author gets a UI without touching JavaScript:
 - Replace hard-coded `DetuningScanControl.py` and the detuning-scan UI with **procedures**: Python functions with typed parameters, run in a worker, same `laborchestra` API as scripts. *(API proposed)*
   ```python
   @procedure
-  async def detuning_scan(lo, detunings: list[float], duration_s: float = 60):
-      for detuning in lo.progress(detunings):
-          await lo.cavity_detuning.set_frequency(0, detuning)
-          async with lo.recording(tags={"detuning": detuning}):
-              await lo.sleep(duration_s)
+  async def detuning_scan(lab, detunings: list[float], duration_s: float = 60):
+      for detuning in lab.progress(detunings):
+          await lab.cavity_detuning.set_frequency(0, detuning)
+          async with lab.recording(tags={"detuning": detuning}):
+              await lab.sleep(duration_s)
   ```
 - UI from the type hints: parameter form, progress, logs, pause, abort. Abort runs `finally`/context managers, so devices return to a safe state; the server stops an orphaned recording if the worker dies.
 - Recording is a core service with context-manager semantics and structured tags, replacing filename suffixes (`SCAN_{i}_pre`) and polling of `main`.

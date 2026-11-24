@@ -1,4 +1,9 @@
 .DS_Store
 .vs/
 node_modules/
-server/settings.json
+settings.json
+
+# secrets
+.env
+.env.*
+!.env.example
