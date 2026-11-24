@@ -29,7 +29,7 @@ templates/  docs/  examples/workspace/
 - [ ] Replace `server/.env` by `.env.example`; full secret scan (e.g. gitleaks)
 - [ ] License files, plugin exception, CLA text + bot, name policy (after ownership is settled)
 - [ ] ffts redistribution check
-- [ ] Move to .NET 10 LTS (.NET 9 reached end of support in November 2026)
+- [ ] .NET 11 with `global.json` (.NET 9 reached end of support in November 2026)
 - [ ] Capture reference data from legacy: a recording, a snapshot, FFT output for a known input, a screenshot of each UI part
 - [x] Author's Python `MessagePackHubProtocol` (`server/SignalRMessagePackHubProtocol.py`, reference for the own client)
 - [x] CI on Windows, macOS and Linux (spikes; code in `spikes/`)
@@ -41,7 +41,7 @@ Spikes (throwaway code, 1-2 days each):
 | ✅ Python SignalR client (passed on Windows, Linux, macOS with own client) | server calls a Python method and gets result or error back (client results), binary stays `bin`, reconnect works | extend own client; correlation IDs over plain messages |
 | ✅ Worker supervision (passed; macOS needs startup cleanup for GIL-holding orphans) | spawn via uv, stop cleanly, no orphan when the server is killed, on Windows too (Job Object) | heartbeat-based self-exit in the worker |
 | ✅ Runtime widget (passed on all three) | esbuild-compiled `.tsx` loads through the import map, shares React and the SDK components with the host, styled by the server-compiled Tailwind CSS | compile CSS in the browser (313 KB compiler) |
-| FFT library | one cross-platform library, permissive license, at 200 MB/s (legacy uses ffts on Windows only, Accord elsewhere) | keep ffts on Windows |
+| ✅ FFT library (pffft, see CLAUDE.md) | one cross-platform library, permissive license, at 200 MB/s (legacy uses ffts on Windows only, Accord elsewhere) | keep ffts on Windows |
 
 **Exit:** all four answered; results written into CLAUDE.md.
 

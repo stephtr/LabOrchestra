@@ -28,7 +28,7 @@ The project is being **rewritten and open-sourced**. This file records the curre
 ## Planned decisions
 
 ### Language and transport
-- **Web frontend stays.** Server stays **C#** (vendor SDKs such as Picoscope are easy to call, `AssemblyLoadContext` allows loading device plugins, more lab contributors know it). Rust was considered and rejected: no stable ABI for plugins, no hard real-time need.
+- **Web frontend stays.** Server stays **C#** on **.NET 11** (same end of support as 10 LTS) (vendor SDKs such as Picoscope are easy to call, `AssemblyLoadContext` allows loading device plugins, more lab contributors know it). Rust was considered and rejected: no stable ABI for plugins, no hard real-time need.
 - **Keep SignalR with MessagePack.** The author has their own Python `MessagePackHubProtocol` that works, which removes the main objection to SignalR. Keep separate hubs/connections for control (low rate) and streaming, so large frames never delay control messages.
 - **Python: own asyncio SignalR client** in the `laborchestra` package (`websockets` + `msgpack`), not `signalrcore`: 1.1.0 ignores handler return values, so the server cannot get results from workers, and it runs handlers in the receive loop.
 - Spike 1 (macOS, Python 3.15, .NET 9, localhost, idle machine, 5000 calls each): a ~50-line prototype handles results, errors, unknown methods, 1 MB `bin` both ways, concurrent calls and reconnect after a server abort. Latency server->Python->server p50 0.10 / p99 0.14 / max 1.5 ms; Python->server->Python p50 0.10 / p99 0.13 ms. Untyped MessagePack results arrive as the smallest integer type (`42` -> `Byte`), so the server must convert using the schema. CI runners: Linux p50 0.19 / p99 0.26 ms, Windows 0.40 / 0.51 ms, macOS 0.20 / 3.6 ms. Not yet tested: TLS, auth, server restart, load.
@@ -37,6 +37,7 @@ The project is being **rewritten and open-sourced**. This file records the curre
 ### Streaming pipeline (200 MB/s)
 - Raw data never goes to the browser or to scripts. Only **decimated data** is sent (min/max envelopes, averaged FFT spectra, ~30-60 fps, a few hundred KB/s per view). Python scripts also only need decimated data, FFTs and recordings on disk, so no raw-data side channel.
 - Hot path stays inside the server: acquire -> write raw stream to disk -> FFT (FFTW/MKL via P/Invoke, or the existing ffts library) -> reduce for display. Use pooled buffers, `Span`, SIMD, native memory; avoid allocations in the loop.
+- **FFT library: pffft** *(proposed)*, called directly through P/Invoke, behind a small interface. Spike 4 (float, real, one thread, 8192 points): pffft / ffts fork (linkotec) / legacy ffts: Windows 1198 / 1159 / 1135 MS/s, Linux 789 / 662 / -; Mac (M-series) pffft 1443, ffts 1168 (NEON intrinsics, unofficial build flags) or 331 (plain C). All have ~1.6e-7 relative error. Accord is 15-20x slower.
 - Clients subscribe per stream with their own parameters (decimation, FFT size, averaging); keep and extend `StreamingContexts`.
 - **Backpressure fix.** Today `DeviceManager.SendStreamData` calls `SendAsync` without awaiting, so a slow client causes unbounded queuing. Replace with:
   - one **latest-frame-wins slot per client and stream** (e.g. `Channel<T>` with capacity 1 and `BoundedChannelFullMode.DropOldest`) and a per-client sender loop that **awaits** `SendAsync`; never use `Clients.All` for streams;
