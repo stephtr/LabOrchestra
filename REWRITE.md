@@ -42,7 +42,7 @@ Spikes (throwaway code, 1-2 days each):
 | ✅ Python SignalR client (passed on Windows, Linux, macOS with own client) | server calls a Python method and gets result or error back (client results), binary stays `bin`, reconnect works | extend own client; correlation IDs over plain messages |
 | ✅ Worker supervision (passed; macOS needs startup cleanup for GIL-holding orphans) | spawn via uv, stop cleanly, no orphan when the server is killed, on Windows too (Job Object) | heartbeat-based self-exit in the worker |
 | ✅ Runtime widget (passed on all three) | esbuild-compiled `.tsx` loads through the import map, shares React and the SDK components with the host, styled by the server-compiled Tailwind CSS | compile CSS in the browser (313 KB compiler) |
-| ✅ FFT library (pffft, see CLAUDE.md) | one cross-platform library, permissive license, at 200 MB/s (legacy uses ffts on Windows only, Accord elsewhere) | keep ffts on Windows |
+| ✅ FFT library (pffft, see CLAUDE.md) | one cross-platform library, permissive license, at 200 MB/s (legacy uses ffts on Windows only, Accord elsewhere) | (rejected alternative: keep ffts on Windows, Accord elsewhere; speeds are similar) |
 
 **Exit:** all four answered; results written into CLAUDE.md.
 

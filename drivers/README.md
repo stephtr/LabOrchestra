@@ -8,6 +8,7 @@ device gets an environment with exactly that.
 |---|---|
 | `elliptec.py` | Thorlabs Elliptec rotation / linear / slider stages |
 | `thorlabs_polarimeter.py` | Thorlabs PAX polarimeter |
+| `pfeiffer_pressure.py` | Pfeiffer vacuum gauge controller (TPG 36x), continuous mode; invalid readings are `None` with a status |
 
 Lab-specific control loops (a polarization lock, a position lock) are not drivers and do not belong here: they live in the
 workspace of the lab that uses them. `python/tests/devices/polarization_lock.py` is one, kept as the test of how devices

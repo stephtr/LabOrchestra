@@ -18,7 +18,7 @@ def drivers_server(tmp_path_factory):
     build_server()
     workspace, data = tmp_path_factory.mktemp("workspace"), tmp_path_factory.mktemp("data")
     (workspace / "devices").mkdir()
-    for name in ("elliptec.py", "thorlabs_polarimeter.py"):
+    for name in ("elliptec.py", "thorlabs_polarimeter.py", "pfeiffer_pressure.py"):
         shutil.copy(ROOT / "drivers" / name, workspace / "devices" / name)
     for name in ("physics_polarimeter.py", "polarization_lock.py"):  # test devices: a lab-internal control loop and some physics
         shutil.copy(DEVICES / name, workspace / "devices" / name)
@@ -31,6 +31,8 @@ def drivers_server(tmp_path_factory):
         "tweezer_polarization": {"file": "devices/physics_polarimeter.py"},
         "real_polarimeter": {"file": "devices/thorlabs_polarimeter.py", "config": {"simulate": True}},
         "polarization_lock": {"file": "devices/polarization_lock.py"},
+        "pressure": {"file": "devices/pfeiffer_pressure.py", "config": {"simulate": True}},
+        "pressure_faulty": {"file": "devices/pfeiffer_pressure.py", "config": {"simulate": True, "simulate_fault": True}},
         "no_hardware": {"file": "devices/elliptec.py"},  # neither a port nor simulate
     }
     (workspace / "devices.json").write_text(json.dumps({"devices": devices}))
@@ -45,7 +47,7 @@ def drivers_server(tmp_path_factory):
 @pytest.fixture()
 def lab(drivers_server):
     with laborchestra.connect(drivers_server[0], PASSPHRASE) as lab:
-        for name in ("elliptec", "elliptec_quiet", "elliptec_checked", "elliptec_flaky", "tweezer_polarization", "real_polarimeter", "polarization_lock"):
+        for name in ("elliptec", "elliptec_quiet", "elliptec_checked", "elliptec_flaky", "tweezer_polarization", "real_polarimeter", "polarization_lock", "pressure", "pressure_faulty"):
             lab[name].wait_ready(30)
         yield lab
 
@@ -146,3 +148,126 @@ def test_the_lock_does_nothing_outside_its_range_and_says_so_once(lab):
         assert len(warnings) == 1
     finally:
         lab.polarization_lock.stop_lock()
+
+
+# --- Pfeiffer pressure controller -----------------------------------------------------------------------------------------
+import importlib.util
+import threading
+
+from laborchestra.worker import coerce_config
+
+
+class FakeController:
+    """What the serial port of a gauge controller does: acknowledges commands, answers ENQ, and in continuous mode sends lines."""
+
+    def __init__(self, lines=(), refuse=(), lose_first_reset=False):
+        self.lines, self.refuse, self.written, self.in_waiting = list(lines), set(refuse), [], 0
+        self._out, self._continuous, self._lose_reset = b"", False, lose_first_reset
+
+    def reset_input_buffer(self):
+        self._out = b""
+
+    def write(self, data):
+        self.written.append(data)
+        command = data.decode().strip()
+        if data == b"\x05":
+            self._out += (self._answer + "\r\n").encode()
+        elif command == "RES" and self._lose_reset:
+            self._lose_reset = False  # no answer at all: the first reset is lost
+        elif command in self.refuse:
+            self._out += b"\x15\r\n"
+            self._answer = "Unknown command"
+        else:
+            self._out += b"\x06\r\n"
+            self._answer = {"UNI": "0"}.get(command.split(",")[0], "")
+            if command == "COM,1":
+                self._continuous = True
+
+    def read(self, count):
+        if not self._out and self._continuous and self.lines:
+            self._out = (self.lines.pop(0) + "\r\n").encode()
+        data, self._out = self._out, b""
+        if not data:
+            time.sleep(0.01)
+        return data
+
+    def close(self):
+        pass
+
+
+def pfeiffer(controller, **config):
+    spec = importlib.util.spec_from_file_location("pfeiffer_pressure", ROOT / "drivers" / "pfeiffer_pressure.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    class Device(module.PfeifferPressure):
+        def _open_port(self):
+            return controller
+
+    device = Device()
+    device._setup("pressure", coerce_config(Device, {"port": "COM1", "silence_s": 0.3, **config}))
+    return device
+
+
+def run_until(device, condition, timeout=5):
+    thread = threading.Thread(target=device.run)
+    thread.start()
+    try:
+        wait_for(condition, timeout, "the driver to publish")
+    finally:
+        device._stop.set()
+        thread.join(5)
+    assert not thread.is_alive()
+
+
+def test_pfeiffer_reads_the_continuous_lines_and_never_reports_zero_for_a_bad_gauge():
+    controller = FakeController(["0,1.5e-07,2,1.0e+03", "0,1.6e-07,3,0.0e+00"], lose_first_reset=True)  # also rides out a lost first reset
+    device = pfeiffer(controller)
+    device.connect()
+    assert controller.written[:1] == [b"RES\r\n"] and b"COM,1\r\n" in controller.written
+    run_until(device, lambda: device.state["channels"] and device.state["channels"][1]["status"] == "error")
+    assert device.state["channels"] == [{"pressure": 1.6e-07, "status": "ok"}, {"pressure": None, "status": "error"}]
+    assert device.state["status"] == "check gauges"
+
+
+def test_pfeiffer_refuses_a_controller_that_shows_another_unit_and_says_what_to_do():
+    controller = FakeController()
+    controller.read = FakeController.read.__get__(controller)
+    original = controller.write
+
+    def write(data):  # unit 1 = Torr
+        original(data)
+        if data.strip() == b"UNI":
+            controller._answer = "1"
+
+    controller.write = write
+    device = pfeiffer(controller)
+    with pytest.raises(ValueError, match="unit 1"):
+        device.connect()
+
+
+def test_pfeiffer_restarts_a_silent_controller_and_says_so_once():
+    controller = FakeController(["0,1.0e-06"])
+    device = pfeiffer(controller)
+    device.connect()
+    warnings = []
+    device.log = type("Log", (), {"warning": lambda self, *a: warnings.append(a[0]), "debug": lambda self, *a: None})()
+    controller.written.clear()
+    run_until(device, lambda: device.state["status"] == "no data" and controller.written.count(b"COM,1\r\n") >= 2)  # restarted more than once
+    assert device.state["channels"] == [{"pressure": None, "status": "error"}]  # not the last value, which would be a lie
+    assert [w for w in warnings if "silent" in w] == ["The controller is silent; starting it again"]
+
+
+def test_pfeiffer_without_a_port_says_what_to_set():
+    device = pfeiffer(FakeController(), port="")
+    with pytest.raises(ValueError, match="'port'"):
+        device.connect()
+
+
+def test_pfeiffer_simulated_runs_in_the_server_and_a_fault_is_none(lab):
+    assert lab.pressure.state["simulated"] is True
+    wait_for(lambda: len(lab.pressure.state["channels"]) == 2, 10, "readings")
+    assert all(c["status"] == "ok" and c["pressure"] > 0 for c in lab.pressure.state["channels"])
+    wait_for(lambda: len(lab.pressure_faulty.state["channels"]) == 2, 10, "readings")
+    assert lab.pressure_faulty.state["channels"][1] == {"pressure": None, "status": "error"}
+    assert lab.pressure_faulty.state["status"] == "check gauges"
