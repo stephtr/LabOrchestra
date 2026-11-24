@@ -5,7 +5,7 @@
 
 *Disclaimer: LabOrchestra is currently under heavy development. We will be working on documentation soon. In case you want to start using it now, keep in mind that breaking code changes will happen.*
 
-![LabOrchestra logo](docs/assets/laborchestra-logo.png "LabOrchestra"){width=200}
+![LabOrchestra logo](docs/assets/laborchestra-logo.svg "LabOrchestra"){width=400}
 
 ---
 

@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 120" width="600" height="120">
+  <title>LabOrchestra</title>
+  <!-- icon (200×200, scaled to 120×120) -->
+  <g transform="scale(0.6)">
+    <rect width="200" height="200" rx="40" fill="#0E4D3A"/>
+    <!-- wire bonds -->
+    <g stroke="#E3B23C" stroke-width="3" stroke-linecap="round">
+      <line x1="53" y1="56" x2="53" y2="30"/>
+      <line x1="100" y1="56" x2="100" y2="30"/>
+      <line x1="147" y1="56" x2="147" y2="30"/>
+      <line x1="65" y1="144" x2="65" y2="170"/>
+      <line x1="135" y1="144" x2="135" y2="170"/>
+    </g>
+    <!-- bond pads + segmented electrodes -->
+    <g fill="#E3B23C">
+      <circle cx="53" cy="24" r="6"/>
+      <circle cx="100" cy="24" r="6"/>
+      <circle cx="147" cy="24" r="6"/>
+      <circle cx="65" cy="176" r="6"/>
+      <circle cx="135" cy="176" r="6"/>
+      <rect x="36" y="56" width="34" height="16" rx="5"/>
+      <rect x="82" y="56" width="36" height="16" rx="5"/>
+      <rect x="130" y="56" width="34" height="16" rx="5"/>
+      <rect x="36" y="128" width="58" height="16" rx="5"/>
+      <rect x="106" y="128" width="58" height="16" rx="5"/>
+    </g>
+    <!-- trap axis -->
+    <line x1="36" y1="100" x2="164" y2="100" stroke="#E8FFF5" stroke-width="1.5" opacity="0.3"/>
+    <!-- addressing lasers -->
+    <g stroke="#5EEAD4" stroke-width="4" stroke-linecap="round">
+      <line x1="76" y1="34" x2="76" y2="90"/>
+      <line x1="124" y1="34" x2="124" y2="90"/>
+      <line x1="100" y1="168" x2="100" y2="110"/>
+    </g>
+    <g fill="none" stroke="#5EEAD4" stroke-width="2" opacity="0.75">
+      <circle cx="76" cy="100" r="13"/>
+      <circle cx="100" cy="100" r="13"/>
+      <circle cx="124" cy="100" r="13"/>
+    </g>
+    <!-- ion chain -->
+    <g fill="#E8FFF5">
+      <circle cx="52" cy="100" r="7.5"/>
+      <circle cx="76" cy="100" r="7.5"/>
+      <circle cx="100" cy="100" r="7.5"/>
+      <circle cx="124" cy="100" r="7.5"/>
+      <circle cx="148" cy="100" r="7.5"/>
+    </g>
+  </g>
+  <!-- wordmark -->
+  <style>
+    .wm-accent  { fill: #0E4D3A; }
+    .wm-neutral { fill: #1F2937; }
+    @media (prefers-color-scheme: dark) {
+      .wm-accent  { fill: #5EEAD4; }
+      .wm-neutral { fill: #FFFFFF; }
+    }
+  </style>
+  <text x="144" y="83" font-family="Segoe UI, Inter, system-ui, sans-serif" font-size="64">
+    <tspan class="wm-accent" font-weight="600">Lab</tspan><tspan class="wm-neutral" font-weight="400">Orchestra</tspan>
+  </text>
+</svg>
