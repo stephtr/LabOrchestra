@@ -80,6 +80,21 @@ unsafe
 			Pf.pffft_transform_ordered(setup, input, output, work, 0);
 		}, pw);
 
+		var rustFile = Path.GetFullPath(OperatingSystem.IsWindows() ? "rfft.dll" : OperatingSystem.IsMacOS() ? "librfft.dylib" : "librfft.so");
+		if (File.Exists(rustFile))
+		{
+			var h = NativeLibrary.Load(rustFile);
+			var exec = (delegate* unmanaged<nint, nint, nint, int>)NativeLibrary.GetExport(h, "rfft_exec");
+			var plan = ((delegate* unmanaged<nuint, nint>)NativeLibrary.GetExport(h, "rfft_new"))((nuint)n);
+			var ro = (nint)NativeMemory.AlignedAlloc((nuint)(n + 2) * 4, 64);
+			Run("window-into+rust", () =>
+			{
+				System.Numerics.Tensors.TensorPrimitives.Multiply<float>(x, window, new Span<float>((void*)input, n));
+				if (exec(plan, input, ro) != 0) throw new Exception("rfft failed");
+			}, i => { var p = (float*)ro; return (double)p[2 * i] * p[2 * i] + (double)p[2 * i + 1] * p[2 * i + 1]; });
+		}
+		Run("window only", () => System.Numerics.Tensors.TensorPrimitives.Multiply<float>(x, window, new Span<float>((void*)input, n)), i => reference[i]);
+
 		foreach (var variant in new[] { "fork", "scalar", "neon" })
 		{
 			var file = Path.GetFullPath(OperatingSystem.IsWindows() ? $"ffts-{variant}.dll" : OperatingSystem.IsMacOS() ? $"libffts-{variant}.dylib" : $"libffts-{variant}.so");

@@ -3,3 +3,5 @@ pffft-src/
 *.dylib
 *.so
 ffts-src/
+rust/target/
+rust/Cargo.lock

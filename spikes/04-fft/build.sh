@@ -36,3 +36,9 @@ case "$(uname -s)-$(uname -m)" in
     cmake $CM -B ffts-src/build -A x64 > /dev/null && cmake --build ffts-src/build --config Release 2>&1 | grep -E "error" || true
     cp "$(find ffts-src/build -name '*.dll' | head -1)" ffts-fork.dll || echo "ffts fork does not build" ;;
 esac
+
+# RustFFT (realfft)
+if command -v cargo > /dev/null; then
+  (cd rust && cargo build --release -q)
+  cp rust/target/release/librfft.dylib . 2>/dev/null || cp rust/target/release/librfft.so . 2>/dev/null || cp rust/target/release/rfft.dll .
+fi
