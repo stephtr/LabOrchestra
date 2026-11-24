@@ -23,6 +23,8 @@ def drivers_server(tmp_path_factory):
     shutil.copy(DEVICES / "physics_polarimeter.py", workspace / "devices" / "physics_polarimeter.py")
     devices = {
         "elliptec": {"file": "devices/elliptec.py", "config": {"simulate": True, "channels": CHANNELS, "poll_seconds": 1}},
+        "elliptec_quiet": {"file": "devices/elliptec.py", "config": {"simulate": True, "channels": CHANNELS[:1], "poll_seconds": 3600}},
+        "elliptec_checked": {"file": "devices/elliptec.py", "config": {"simulate": True, "channels": CHANNELS[:1], "poll_seconds": 3600, "read_after_move": True}},
         "tweezer_polarization": {"file": "devices/physics_polarimeter.py"},
         "real_polarimeter": {"file": "devices/thorlabs_polarimeter.py", "config": {"simulate": True}},
         "polarization_lock": {"file": "devices/polarization_lock.py"},
@@ -40,7 +42,7 @@ def drivers_server(tmp_path_factory):
 @pytest.fixture()
 def lab(drivers_server):
     with laborchestra.connect(drivers_server[0], PASSPHRASE) as lab:
-        for name in ("elliptec", "tweezer_polarization", "real_polarimeter", "polarization_lock"):
+        for name in ("elliptec", "elliptec_quiet", "elliptec_checked", "tweezer_polarization", "real_polarimeter", "polarization_lock"):
             lab[name].wait_ready(30)
         yield lab
 
@@ -51,9 +53,9 @@ def test_elliptec_moves_channels_and_keeps_its_state_honest(lab):
     assert set(state["channels"][0]) == {"type", "target_position", "actual_position", "status"}
 
     assert lab.elliptec.set_position(0, 12.5) is None  # returns when the stage got there
-    assert lab.elliptec.state["channels"][0]["actual_position"] == 12.5 and lab.elliptec.state["channels"][0]["status"] == "ok"
+    assert lab.elliptec.state["channels"][0]["target_position"] == 12.5 and lab.elliptec.state["channels"][0]["status"] == "ok"
     lab.elliptec.set_position(2, 3)
-    wait_for(lambda: lab.elliptec.state["channels"][2]["target_position"] == 3, message="slider")
+    assert lab.elliptec.state["channels"][2]["target_position"] == 3
 
     with pytest.raises(RemoteError, match="no channel 7") as e:
         lab.elliptec.set_position(7, 1.0)
@@ -62,6 +64,18 @@ def test_elliptec_moves_channels_and_keeps_its_state_honest(lab):
         lab.elliptec.set_position("x", 1.0)
     assert e.value.type == "TypeError"
     lab.elliptec.update_positions()
+
+
+def test_the_bus_is_not_asked_after_every_move_unless_requested(lab):
+    # the Elliptec bus times out when it is asked too often: by default only the poll reads positions
+    lab.elliptec_quiet.set_position(0, 12.5)
+    assert lab.elliptec_quiet.state["channels"][0]["target_position"] == 12.5
+    assert lab.elliptec_quiet.state["channels"][0]["actual_position"] == 0.0  # not read yet
+    lab.elliptec_quiet.update_positions()
+    assert lab.elliptec_quiet.state["channels"][0]["actual_position"] == 12.5
+
+    lab.elliptec_checked.set_position(0, 7.0)  # read_after_move: the position is there at once
+    assert lab.elliptec_checked.state["channels"][0]["actual_position"] == 7.0
 
 
 def test_a_driver_that_cannot_work_says_what_to_set(lab):
@@ -103,11 +117,12 @@ def test_the_lock_brings_the_polarization_to_zero_and_its_actions_are_attributed
 def test_the_lock_does_nothing_outside_its_range_and_says_so_once(lab):
     lab.elliptec.set_position(1, 70.0)  # far away: theta is about -60 degrees
     lab.polarization_lock.wait_for(lambda s: s["out_of_lock_range"] is True, 10)
+    since = (lab.polarization_lock.logs() or [{"seq": 0}])[-1]["seq"]
     lab.polarization_lock.start_lock()
     try:
         time.sleep(3.5)
         assert lab.elliptec.state["channels"][1]["target_position"] == 70.0  # untouched
-        warnings = [e for e in lab.polarization_lock.logs(level="WARNING") if "out of the lock range" in e["message"]]
+        warnings = [e for e in lab.polarization_lock.logs(level="WARNING", since=since) if "out of the lock range" in e["message"]]
         assert len(warnings) == 1
     finally:
         lab.polarization_lock.stop_lock()

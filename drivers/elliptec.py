@@ -2,7 +2,10 @@
 # requires-python = ">=3.11"
 # dependencies = ["elliptec"]
 # ///
-"""Thorlabs Elliptec stages (rotation, linear, slider) on one serial bus."""
+"""Thorlabs Elliptec stages (rotation, linear, slider) on one serial bus.
+
+The bus times out when it is asked too often. That is why the actual positions are read only every `poll_seconds` (20 s)
+and not after every move: a lock that corrects every second would otherwise double the accesses."""
 
 import time
 
@@ -39,7 +42,8 @@ class Elliptec(Device):
     port: str = ""  # e.g. "COM3"; not needed when simulating
     channels = [{"type": "rotation", "address": "0"}]  # one entry per stage, in the order of the channels below
     simulate = False  # no hardware: the stages move instantly
-    poll_seconds = 20.0  # how often the actual positions are read again
+    poll_seconds = 20.0  # how often the actual positions are read; the bus times out when it is asked too often
+    read_after_move = False  # also read the position right after a move: one more access each time, see above
 
     state = {"simulated": False, "channels": []}
 
@@ -69,13 +73,14 @@ class Elliptec(Device):
 
     @action
     def set_position(self, channel: int, position: float):
-        """Move a channel and wait until it got there."""
+        """Move a channel and wait until it got there. The actual position follows at the next poll."""
         state = self._channel(channel)
         state["target_position"] = position
         try:
             with self.lock:
                 self._axes[channel].move(position)
-                state["actual_position"] = self._axes[channel].read()
+                if self.read_after_move:
+                    state["actual_position"] = self._axes[channel].read()
             state["status"] = "ok"
         except Exception:
             state["status"] = "error"
@@ -83,7 +88,7 @@ class Elliptec(Device):
 
     @action
     def update_positions(self):
-        """Read the actual positions of all channels."""
+        """Read the actual positions of all channels (one bus access per channel: do not call this often)."""
         with self.lock:
             for i, (state, axis) in enumerate(zip(self.state["channels"], self._axes)):
                 try:
