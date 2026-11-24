@@ -22,6 +22,7 @@ public sealed class WorkerSupervisor(
 	TokenService tokens,
 	ServerInfo info,
 	IConfiguration config,
+	IHostApplicationLifetime lifetime,
 	ILogger<WorkerSupervisor> log) : BackgroundService
 {
 	private static readonly TimeSpan MaxDelay = TimeSpan.FromSeconds(30);
@@ -33,14 +34,19 @@ public sealed class WorkerSupervisor(
 	private readonly SemaphoreSlim _gate = new(1, 1);
 	private CancellationToken _stop;
 
-	protected override async Task ExecuteAsync(CancellationToken stop)
+	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 	{
-		_stop = stop;
+		// Stop the workers as soon as the shutdown begins, not when this service's turn comes: the web server is stopped
+		// first and waits for the workers' connections, which only close once the workers have been told to stop.
+		using var combined = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken, lifetime.ApplicationStopping);
+		var stop = _stop = combined.Token;
 		await ReconcileAsync();
 		workspace.Changed += () => _ = ReconcileAsync();
 		try { await Task.Delay(Timeout.Infinite, stop); } catch (OperationCanceledException) { }
+		log.LogInformation("Stopping the workers");
 		await _gate.WaitAsync(CancellationToken.None);
 		try { await Task.WhenAll(_runners.Values.Select(r => r.Task)); } finally { _gate.Release(); }
+		log.LogInformation("All workers stopped");
 	}
 
 	/// <summary>Makes the running workers match devices.json.</summary>
@@ -225,6 +231,7 @@ public sealed class WorkerSupervisor(
 	private async Task StopAsync(string id, Process? process)
 	{
 		if (process is null || process.HasExited) return;
+		log.LogInformation("Stopping the worker of {Device}", id);
 		try
 		{
 			process.StandardInput.Close(); // end of input = stop

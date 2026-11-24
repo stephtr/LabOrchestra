@@ -113,7 +113,7 @@ async function connect(token: string) {
 		await new Promise((resolve) => setTimeout(resolve, 1000));
 	}
 	const connection = new HubConnectionBuilder()
-		.withUrl('/hub/control', { accessTokenFactory: () => token })
+		.withUrl('/hub/control?client=ui', { accessTokenFactory: () => token })
 		.withHubProtocol(new MessagePackHubProtocol())
 		.withAutomaticReconnect({ nextRetryDelayInMilliseconds: () => 1000 })
 		.build();

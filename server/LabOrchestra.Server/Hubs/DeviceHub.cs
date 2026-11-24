@@ -31,11 +31,11 @@ public sealed class DeviceHub(DeviceRegistry registry, LogStore logs, SettingsSt
 
 	/// <summary>What changed in the state since the last patch or registration, e.g. {"set": {"channels.1.pressure": 3e-7}}.</summary>
 	[HubMethodName("patch_state")]
-	public void PatchState(object patch)
+	public void PatchState(object patch, string? by)
 	{
 		try
 		{
-			registry.StatePatched(DeviceId, Context.ConnectionId, (Dictionary<string, object?>)Plain.From(patch)!);
+			registry.StatePatched(DeviceId, Context.ConnectionId, (Dictionary<string, object?>)Plain.From(patch)!, string.IsNullOrWhiteSpace(by) ? "device" : by);
 		}
 		catch (Exception e) when (e is InvalidOperationException or InvalidCastException)
 		{

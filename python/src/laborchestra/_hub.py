@@ -222,6 +222,9 @@ class Hub:
         try:
             handler = self._handlers.get(target)
             if handler is None:
+                if iid is None:  # a notification nobody here cares about
+                    log.debug("Ignoring '%s'", target)
+                    return
                 raise LookupError(f"No handler for '{target}'")
             result = handler(*args)
             if inspect.isawaitable(result):

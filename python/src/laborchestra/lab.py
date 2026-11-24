@@ -72,12 +72,12 @@ class AsyncDevice:
 
 
 class AsyncLab:
-    def __init__(self, url: str | None = None, token: str | None = None):
+    def __init__(self, url: str | None = None, token: str | None = None, name: str = "script"):
         self.url = (url or os.environ.get("LABORCHESTRA_URL") or DEFAULT_URL).rstrip("/")
         self.token = token or os.environ.get("LABORCHESTRA_TOKEN")
         self._devices: dict[str, dict] = {}
         self._synced = asyncio.Event()
-        self._hub = Hub(f"{self.url}/hub/control", self.token, on_connected=self._sync)
+        self._hub = Hub(f"{self.url}/hub/control?client={name}", self.token, on_connected=self._sync)  # name: who changes things
         self._hub.on("device")(self._on_device)
         self._hub.on("device_patch")(self._on_patch)
         self._resyncing: set[str] = set()
@@ -137,6 +137,31 @@ class AsyncLab:
     async def _call(self, device_id: str, action: str, args: tuple) -> Any:
         return await self._hub.invoke("action", device_id, action, list(args), timeout=None)
 
+    async def get_recording(self) -> dict:
+        """{"active": False} or name, start_time, elapsed_s, events, tags of the running recording."""
+        return await self._hub.invoke("get_recording")
+
+    async def start_recording(self, name: str, tags: dict | None = None) -> dict:
+        """Start recording every change of every device (and the data streams) under this name."""
+        return await self._hub.invoke("start_recording", name, tags)
+
+    async def stop_recording(self) -> dict:
+        return await self._hub.invoke("stop_recording")
+
+    async def abort_recording(self, discard: bool = False) -> dict:
+        return await self._hub.invoke("abort_recording", discard)
+
+    async def snapshot(self, name: str, tags: dict | None = None) -> dict:
+        """Save the state of all devices now, in one file."""
+        return await self._hub.invoke("snapshot", name, tags)
+
+    async def list_recordings(self, limit: int = 100) -> list[dict]:
+        return await self._hub.invoke("list_recordings", limit)
+
+    def recording(self, name: str, tags: dict | None = None) -> "_AsyncRecording":
+        """``async with lab.recording("scan 1", tags={...}):`` starts and, even after an error, stops it."""
+        return _AsyncRecording(self, name, tags)
+
     async def restart_device(self, device_id: str) -> None:
         await self._hub.invoke("restart_device", device_id)
 
@@ -170,6 +195,30 @@ class AsyncLab:
         if name.startswith("_"):
             raise AttributeError(name)
         return AsyncDevice(self, name)
+
+
+class _AsyncRecording:
+    def __init__(self, lab: AsyncLab, name: str, tags: dict | None):
+        self._lab, self._name, self._tags = lab, name, tags
+
+    async def __aenter__(self) -> AsyncLab:
+        await self._lab.start_recording(self._name, self._tags)
+        return self._lab
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        await self._lab.stop_recording()
+
+
+class _Recording:
+    def __init__(self, lab: "Lab", name: str, tags: dict | None):
+        self._lab, self._name, self._tags = lab, name, tags
+
+    def __enter__(self) -> "Lab":
+        self._lab.start_recording(self._name, self._tags)
+        return self._lab
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        self._lab.stop_recording()
 
 
 class SyncDevice:
@@ -210,15 +259,15 @@ class SyncDevice:
 class Lab:
     """Blocking client. ``lab = laborchestra.connect()``, then ``lab.pressure.state``."""
 
-    def __init__(self, url: str | None = None, token: str | None = None, timeout: float = 10):
+    def __init__(self, url: str | None = None, token: str | None = None, timeout: float = 10, name: str = "script"):
         self._loop = asyncio.new_event_loop()
         self._thread = threading.Thread(target=self._loop.run_forever, name="laborchestra-lab", daemon=True)
         self._thread.start()
-        self._async: AsyncLab = self._run(self._create(url, token, timeout))
+        self._async: AsyncLab = self._run(self._create(url, token, timeout, name))
 
     @staticmethod
-    async def _create(url, token, timeout) -> AsyncLab:
-        return await AsyncLab(url, token).connect(timeout)
+    async def _create(url, token, timeout, name) -> AsyncLab:
+        return await AsyncLab(url, token, name).connect(timeout)
 
     def _run(self, coroutine, timeout: float | None = None):
         return asyncio.run_coroutine_threadsafe(coroutine, self._loop).result(timeout)
@@ -239,6 +288,28 @@ class Lab:
 
     def logs(self, source: str | None = None, level: str | None = None, since: int = 0, limit: int = 200) -> list[dict]:
         return self._run(self._async.logs(source, level, since, limit))
+
+    def get_recording(self) -> dict:
+        return self._run(self._async.get_recording())
+
+    def start_recording(self, name: str, tags: dict | None = None) -> dict:
+        return self._run(self._async.start_recording(name, tags))
+
+    def stop_recording(self) -> dict:
+        return self._run(self._async.stop_recording())
+
+    def abort_recording(self, discard: bool = False) -> dict:
+        return self._run(self._async.abort_recording(discard))
+
+    def snapshot(self, name: str, tags: dict | None = None) -> dict:
+        return self._run(self._async.snapshot(name, tags))
+
+    def list_recordings(self, limit: int = 100) -> list[dict]:
+        return self._run(self._async.list_recordings(limit))
+
+    def recording(self, name: str, tags: dict | None = None) -> _Recording:
+        """``with lab.recording("scan 1", tags={...}):`` starts and, even after an error, stops it."""
+        return _Recording(self, name, tags)
 
     def restart_device(self, device_id: str) -> None:
         self._run(self._async.restart_device(device_id))
@@ -265,10 +336,13 @@ class Lab:
         return SyncDevice(self, name)
 
 
-def connect(url: str | None = None, token: str | None = None, timeout: float = 10) -> Lab:
-    """Connect to the server (``LABORCHESTRA_URL`` / ``LABORCHESTRA_TOKEN`` if not given)."""
-    return Lab(url, token, timeout)
+def connect(url: str | None = None, token: str | None = None, timeout: float = 10, name: str = "script") -> Lab:
+    """Connect to the server (``LABORCHESTRA_URL`` / ``LABORCHESTRA_TOKEN`` if not given).
+
+    ``name`` says who you are in the record of changes ("script", or e.g. "notebook").
+    """
+    return Lab(url, token, timeout, name)
 
 
-async def connect_async(url: str | None = None, token: str | None = None, timeout: float = 10) -> AsyncLab:
-    return await AsyncLab(url, token).connect(timeout)
+async def connect_async(url: str | None = None, token: str | None = None, timeout: float = 10, name: str = "script") -> AsyncLab:
+    return await AsyncLab(url, token, name).connect(timeout)

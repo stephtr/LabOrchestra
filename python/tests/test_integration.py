@@ -36,6 +36,38 @@ class Server:
     data_dir: Path
     workspace: Path
 
+    @property
+    def recordings(self) -> Path:
+        return self.data_dir / "recordings"
+
+
+def free_port() -> int:
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+def launch(workspace: Path, data_dir: Path, url: str):
+    out = CSPROJ.parent / "bin" / "Release" / "net11.0" / "LabOrchestra.Server.dll"
+    env = {
+        **os.environ,
+        "LABORCHESTRA_WORKSPACE": str(workspace),
+        "LABORCHESTRA_PYTHON": sys.executable,
+        "LABORCHESTRA_PASSPHRASE": PASSPHRASE,
+        "LABORCHESTRA_DATA_DIR": str(data_dir),
+    }
+    log = (workspace / f"server-{url.rsplit(':', 1)[1]}.log").open("w")
+    process = subprocess.Popen(
+        ["dotnet", str(out), "--urls", url], env=env, stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL
+    )
+    port = int(url.rsplit(":", 1)[1])
+
+    def up():
+        with socket.create_connection(("127.0.0.1", port), timeout=0.5):
+            return True
+
+    wait_for(up, 30, "server start")
+    return process, log
 
 def wait_for(condition, timeout=20, message="condition", interval=0.1):
     end = time.time() + timeout
@@ -56,8 +88,6 @@ def server(tmp_path_factory):
         ["dotnet", "build", str(CSPROJ), "-c", "Release", "-v", "q", "--nologo"], capture_output=True, text=True
     )
     assert build.returncode == 0, build.stdout + build.stderr
-    out = CSPROJ.parent / "bin" / "Release" / "net11.0" / "LabOrchestra.Server.dll"
-
     workspace = tmp_path_factory.mktemp("workspace")
     (workspace / "devices").mkdir()
     shutil.copy(DEMO, workspace / "devices" / "demo_pressure.py")
@@ -65,27 +95,9 @@ def server(tmp_path_factory):
         shutil.copy(Path(__file__).parent / "devices" / name, workspace / "devices" / name)
     (workspace / "devices.json").write_text(json.dumps({"devices": BASE_DEVICES}))
     data_dir = tmp_path_factory.mktemp("data")
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        port = s.getsockname()[1]
-    url = f"http://127.0.0.1:{port}"
-    env = {
-        **os.environ,
-        "LABORCHESTRA_WORKSPACE": str(workspace),
-        "LABORCHESTRA_PYTHON": sys.executable,
-        "LABORCHESTRA_PASSPHRASE": PASSPHRASE,
-        "LABORCHESTRA_DATA_DIR": str(data_dir),
-    }
-    log = (workspace / "server.log").open("w")
-    process = subprocess.Popen(
-        ["dotnet", str(out), "--urls", url], env=env, stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL
-    )
+    url = f"http://127.0.0.1:{free_port()}"
+    process, log = launch(workspace, data_dir, url)
     try:
-        def up():
-            with socket.create_connection(("127.0.0.1", port), timeout=0.5):
-                return True
-
-        wait_for(up, 30, "server start")
         yield Server(url, data_dir, workspace)
     finally:
         process.terminate()
@@ -94,7 +106,7 @@ def server(tmp_path_factory):
         except subprocess.TimeoutExpired:
             process.kill()
         log.close()
-        print((workspace / "server.log").read_text())
+        print((workspace / f"server-{url.rsplit(':', 1)[1]}.log").read_text())
 
 
 def write_devices(server, devices):
@@ -266,6 +278,113 @@ def test_secrets_reach_the_device_and_nothing_else(server, lab, reset_devices):
     assert "abcdef-secret" not in (server.workspace / "devices.json").read_text()
     lab.delete_secret("demo_key")
     assert "demo_key" not in lab.list_secrets()
+
+
+def test_recording_captures_every_change_with_its_cause(server, lab):
+    name = f"run {int(time.time() * 1000)}.1"
+    wait_for(lambda: lab.counter.status == "ready" and lab.pressure.status == "ready", message="devices ready")
+    start = lab.counter.state["count"]
+    with pytest.raises(RemoteError, match="already exists|Nothing"):
+        lab.stop_recording()
+
+    lab.start_recording(name, tags={"detuning": 1.5, "run": 3})
+    assert lab.get_recording()["active"] and lab.get_recording()["name"] == name
+    with pytest.raises(RemoteError, match="Already recording"):
+        lab.start_recording("other")
+    lab.counter.increment()
+    lab.counter.scramble(5, 20)
+    lab.pressure.restart()  # status changes and a new registration
+    wait_for(lambda: lab.pressure.status == "ready" and lab.counter.state["count"] == start + 1, message="settled")
+    time.sleep(0.5)
+    lab.stop_recording()
+    assert not lab.get_recording()["active"]
+    assert name in [r["name"] for r in lab.list_recordings()]
+
+    rec = laborchestra.load_recording(server.recordings / name)
+    assert rec.kind == "recording" and not rec.interrupted and rec.duration > 0
+    assert rec.tags == {"detuning": 1.5, "run": 3} and {"counter", "pressure"} <= set(rec.devices)
+    assert rec.header["format"] == 1 and rec.header["started_by"] == "script" and rec.start_time.tzinfo is not None and rec.end_time > rec.start_time
+
+    actions = list(rec.changes(device="counter", by="script"))
+    assert [e["action"] for e in actions if "action" in e][:2] == ["increment", "scramble"]
+    assert any("set" in e for e in actions)  # the changes made by the actions carry the caller
+    assert any(e["device"] == "pressure" and e.get("status") == "starting" for e in rec.events)
+    assert any(e["device"] == "pressure" and "state" in e and e["by"] == "device" for e in rec.events)
+    assert [e["t"] for e in rec.events] == sorted(e["t"] for e in rec.events)
+
+    # the header's final state and the states rebuilt from the start state and the events agree
+    rebuilt, final = rec.state_at(), rec.header["final_state"]
+    for device in ("counter", "pressure"):
+        assert rebuilt[device] == final[device]["state"], device
+    t, count = rec.series("counter.count")
+    assert count[0] == start and count[-1] == start + 1 and t[0] == 0.0
+
+    snapshot = f"snap {int(time.time() * 1000)}"
+    lab.snapshot(snapshot, tags={"purpose": "test"})
+    snap = laborchestra.load_recording(server.recordings / snapshot)
+    assert snap.kind == "snapshot" and snap.tags == {"purpose": "test"} and snap.state_at()["counter"]["count"] == start + 1
+    with pytest.raises(RemoteError, match="already exists"):
+        lab.snapshot(snapshot)
+    with pytest.raises(RemoteError) as e:
+        lab.snapshot("../escape")
+    assert e.value.type == "ValueError"
+
+
+def test_recording_context_manager_and_discarding(server, lab):
+    name = f"ctx {int(time.time() * 1000)}"
+    with pytest.raises(ZeroDivisionError):
+        with lab.recording(name):
+            assert lab.get_recording()["active"]
+            1 / 0
+    assert not lab.get_recording()["active"]  # stopped although the block failed
+    assert laborchestra.load_recording(server.recordings / name).kind == "recording"
+
+    gone = f"gone {int(time.time() * 1000)}"
+    lab.start_recording(gone)
+    lab.abort_recording(discard=True)
+    assert not (server.recordings / f"{gone}.yaml").exists() and not (server.recordings / gone).exists()
+
+
+def test_interrupted_recording_is_repaired_when_the_server_starts_again(tmp_path):
+    workspace, data = tmp_path / "workspace", tmp_path / "data"
+    (workspace / "devices").mkdir(parents=True)
+    shutil.copy(Path(__file__).parent / "devices" / "counter.py", workspace / "devices" / "counter.py")
+    (workspace / "devices.json").write_text(json.dumps({"devices": {"counter": {"file": "devices/counter.py"}}}))
+    url = f"http://127.0.0.1:{free_port()}"
+    first, log1 = launch(workspace, data, url)
+    try:
+        with laborchestra.connect(url, PASSPHRASE) as lab:
+            wait_for(lambda: lab.counter.status == "ready", message="counter ready")
+            lab.start_recording("crash", tags={"why": "kill"})
+            for _ in range(5):
+                lab.counter.increment()
+            time.sleep(0.5)
+        first.kill()  # no chance to close anything
+        first.wait()
+    finally:
+        log1.close()
+    yaml_file = data / "recordings" / "crash.yaml"
+    assert "end_time" not in yaml_file.read_text()
+    assert not (data / "recordings" / "crash" / "events.json").read_text().rstrip().endswith("]")
+
+    second, log2 = launch(workspace, data, f"http://127.0.0.1:{free_port()}")
+    try:
+        assert "interrupted: true" in yaml_file.read_text()
+        rec = laborchestra.load_recording(data / "recordings" / "crash")
+        assert rec.interrupted and rec.tags == {"why": "kill"}
+        assert len([e for e in rec.events if e.get("action") == "increment"]) == 5
+        assert rec.state_at()["counter"]["count"] == 5 and rec.duration > 0
+    finally:
+        second.terminate()
+        try:
+            second.wait(15)
+        except subprocess.TimeoutExpired:
+            children = [f"{c.pid} {c.status()} {' '.join(c.cmdline())[-80:]}" for c in psutil.Process(second.pid).children(recursive=True)]
+            second.kill()
+            port = second.args[-1].rsplit(":", 1)[1]
+            pytest.fail(f"the server did not stop; its children: {children}\n{(workspace / f'server-{port}.log').read_text()[-1800:]}")
+        log2.close()
+    assert not [p for p in psutil.process_iter(["cmdline"]) if str(workspace) in " ".join(p.info["cmdline"] or [])]
 
 
 def test_wrong_or_missing_token_is_rejected(server):

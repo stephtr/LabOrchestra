@@ -68,6 +68,7 @@ Done (CI green on all three systems; see `python/tests/test_integration.py`):
 - [x] Structured logging end to end: workers (also what they log before registering), server and supervisor, ring buffer per source plus daily files, live log view in the client, `lab.pressure.logs()` for scripts; action errors carry type, message and traceback
 - [x] State patches (`{"set": {"channels.1.pressure": 3e-7}}`) with a revision per device; server, Python client and browser client apply them and resync on a gap (randomized test of 12 x 25 changes)
 - [x] Persisted settings (`persist = [...]`): saved by the server, restored when a worker starts
+- [x] Recording service: recordings and snapshots with tags, every change of every device as an event with time and cause (`device`, `ui`, `script`, `device:<id>`, `supervisor`), header with the states at start and end, crash-safe (a recording the server did not finish is repaired at the next start), `lab.recording(...)`, `load_recording` with `series`, `state_at`, `changes`
 - [x] Authentication basics: no localhost bypass, token per started worker, `Origin` check (done in phase 1)
 
 Open:
@@ -75,14 +76,14 @@ Open:
 - [ ] uv environments per device (interpreter selection, PEP 723 dependencies, bundled `laborchestra` wheel); until then `python` in `devices.json` or the server's `python` setting names the interpreter
 - [ ] Lifecycle states `degraded` (rejected state update, repeated action errors) and `reconnecting`; startup cleanup of leftover workers and a Windows Job Object
 - [ ] Watching the device source files (shows "changed" with a restart button) and the management UI (add/edit/remove device, secrets, restart)
-- [ ] State change events with the caller (UI, script, device, procedure, MCP), SQLite event log, history store of slow numeric values, stable IDs
+- [ ] SQLite event log (persistent, outside recordings), history store of slow numeric values, stable IDs
 - [ ] Authentication: tokens for MCP and for remote workers (created and revoked in the UI), TLS
 - [ ] C# SDK and plugin loading
 - [ ] Protocol version negotiation, config migrations, immutable environments with rollback
-- [ ] Recording service (format in CLAUDE.md) and `load_recording`: snapshots, recordings, tags, change events, crash-safe
+- [ ] Data streams of devices into recordings (`.npy`, comes with the oscilloscope in phase 3); recording controls in the client (phase 4)
 - [ ] Client errors reported to the server (React error boundary, `window.onerror`)
 
-Lessons (kept so they are not learned twice): SignalR rejects a void completion for a call that expects a result; a worker must not send anything before its first registration (a patch that overtakes `register` is rejected), found only on a slow CI machine and reproduced locally with CPU load; tests that wait for "some" warning or "some" status change are racy, wait for the specific effect.
+Lessons (kept so they are not learned twice): hosted services stop in reverse order and the web server stops first, so something that the web server waits for (workers connected over WebSockets) must be told to stop when the shutdown begins (`ApplicationStopping`), not in `StopAsync`; SignalR rejects a void completion for a call that expects a result; a worker must not send anything before its first registration (a patch that overtakes `register` is rejected), found only on a slow CI machine and reproduced locally with CPU load; tests that wait for "some" warning or "some" status change are racy, wait for the specific effect.
 
 **Exit:** devices can be added, changed and removed at runtime; an interrupted recording (server killed) stays readable.
 

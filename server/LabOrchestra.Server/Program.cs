@@ -2,6 +2,8 @@ using System.Text.RegularExpressions;
 using LabOrchestra.Server;
 using LabOrchestra.Server.Auth;
 using LabOrchestra.Server.Devices;
+using LabOrchestra.Server.Events;
+using LabOrchestra.Server.Recording;
 using LabOrchestra.Server.Hubs;
 using LabOrchestra.Server.Logging;
 using Microsoft.AspNetCore.SignalR;
@@ -40,7 +42,10 @@ builder.Services.AddSingleton(new SecretStore(Path.Combine(dataDir, "secrets.jso
 builder.Services.AddSingleton(new TokenService(passphrase));
 builder.Services.AddSingleton(workspace);
 builder.Services.AddSingleton(new ServerInfo(workerUrl));
+builder.Services.AddSingleton<EventBus>();
 builder.Services.AddSingleton<DeviceRegistry>();
+var recordingsDir = Path.GetFullPath(config["recordings_dir"] ?? Path.Combine(dataDir, "recordings"));
+builder.Services.AddSingleton(sp => new RecordingService(recordingsDir, sp.GetRequiredService<DeviceRegistry>(), sp.GetRequiredService<IHubContext<ControlHub>>(), sp.GetRequiredService<ILogger<RecordingService>>()));
 builder.Services.AddSingleton<WorkerSupervisor>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<WorkerSupervisor>());
 builder.Services.AddSignalR(o => o.MaximumReceiveMessageSize = 16 * 1024 * 1024).AddMessagePackProtocol();
@@ -65,6 +70,7 @@ app.Use(async (context, next) =>
 	}
 	await next();
 });
+app.Services.GetRequiredService<RecordingService>().RepairInterrupted();
 workspace.Watch(app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("LabOrchestra.Workspace"));
 var controlHub = app.Services.GetRequiredService<IHubContext<ControlHub>>();
 logStore.Added += entry => _ = controlHub.Clients.Group("logs:" + entry["source"]).SendAsync("log", entry);
@@ -86,6 +92,7 @@ app.Lifetime.ApplicationStarted.Register(() =>
 {
 	Console.WriteLine($"\nLabOrchestra is running at {firstUrl}");
 	Console.WriteLine($"Login: {firstUrl}/#token={passphrase}");
+	Console.WriteLine($"Recordings: {recordingsDir}");
 	Console.WriteLine(clientDir is null ? "No client found (build it with 'pnpm build' in client/)\n" : $"Client: {Path.GetFullPath(clientDir)}\n");
 });
 

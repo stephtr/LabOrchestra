@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import collections
+import contextvars
 import importlib
 import importlib.util
 import inspect
@@ -35,12 +36,16 @@ from ._schema import (
 )
 from ._patch import diff
 from ._state import plain
+from . import __version__
 from .device import Device
 from .errors import ConnectionLost, RemoteError, SchemaError
 from .lab import DEFAULT_URL
 
 EXIT_OK, EXIT_ERROR, EXIT_CONFIG, EXIT_FORCED, EXIT_AUTH = 0, 1, 2, 3, 4
 log = logging.getLogger("laborchestra.worker")
+
+# who called the action that is running ("ui", "script", "device:other", ...); state changes during it are attributed to them
+_current_caller: contextvars.ContextVar[str | None] = contextvars.ContextVar("lab_caller", default=None)
 
 
 def load_class(target: str) -> type[Device]:
@@ -84,6 +89,7 @@ def build_schema(device_id: str, cls: type[Device], actions: dict) -> dict:
         "id": device_id,
         "class": cls.__name__,
         "doc": inspect.cleandoc(cls.__doc__) if cls.__doc__ else None,
+        "laborchestra_version": __version__,
         "config": config_options(cls, Device),
         "actions": [action_schema(n, f) for n, f in sorted(actions.items())],
         "persist": list(cls.persist),
@@ -155,6 +161,8 @@ class Worker:
         self.settings: dict = settings or {}
         self._saved_settings: dict = {}
         self._sent: dict = {}  # the state the server has
+        self._callers: set[str] = set()
+        self._callers_lock = threading.Lock()
         self.exit_code = EXIT_OK
         self._registered_gen = -1  # the connection generation we registered on; -1: never, so nothing is sent before
         self._run_thread: threading.Thread | None = None
@@ -209,7 +217,7 @@ class Worker:
         self.hub = Hub(f"{self.url}/hub/devices", self.token, on_connected=self._register)
         self.hub.on("call")(self._on_call)
         self.hub.on("get_state")(self._snapshot)
-        self.device._state_hook = lambda: self.loop.call_soon_threadsafe(self.dirty.set)
+        self.device._state_hook = self._on_state_changed
         await self.hub.start()
         background = [
             asyncio.create_task(self._flush_loop()),
@@ -305,6 +313,18 @@ class Worker:
             log.exception("run() failed")
             self.loop.call_soon_threadsafe(self._fail)
 
+    def _on_state_changed(self) -> None:
+        caller = _current_caller.get()
+        if caller:
+            with self._callers_lock:
+                self._callers.add(caller)
+        self.loop.call_soon_threadsafe(self.dirty.set)
+
+    def _take_callers(self) -> str:
+        with self._callers_lock:
+            callers, self._callers = self._callers, set()
+        return ",".join(sorted(callers)) or "device"
+
     # protocol --------------------------------------------------------------------------------
     def _persisted(self, state: dict) -> dict:
         return {key: state[key] for key in self.device.persist if key in state}
@@ -342,9 +362,10 @@ class Worker:
             try:
                 validate_state(state)
                 patch = diff(self._sent, state)
+                by = self._take_callers()
                 if patch:
                     try:
-                        await self.hub.invoke("patch_state", patch)
+                        await self.hub.invoke("patch_state", patch, by)
                     except RemoteError as e:
                         log.warning("The server rejected a state patch (%s), sending the whole state", e)
                         await self.hub.invoke("update_state", state)
@@ -380,16 +401,27 @@ class Worker:
                 await asyncio.sleep(1)
                 self.log_wake.set()
 
-    async def _on_call(self, name: str, args: list | None) -> Any:
+    def _in_context(self, caller: str | None, fn, arguments: list) -> Any:
+        token = _current_caller.set(caller)  # threads of the executor do not inherit the context
+        try:
+            return fn(self.device, *arguments)
+        finally:
+            _current_caller.reset(token)
+
+    async def _on_call(self, name: str, args: list | None, caller: str | None = None) -> Any:
         fn = self.actions.get(name)
         if fn is None:
             raise LookupError(f"Device '{self.device_id}' has no action '{name}' (actions: {', '.join(self.actions)})")
         try:
             arguments = coerce_arguments(fn, list(args or []))
             if inspect.iscoroutinefunction(fn):
-                result = await fn(self.device, *arguments)
+                token = _current_caller.set(caller)
+                try:
+                    result = await fn(self.device, *arguments)
+                finally:
+                    _current_caller.reset(token)
             else:
-                result = await self.loop.run_in_executor(None, lambda: fn(self.device, *arguments))
+                result = await self.loop.run_in_executor(None, self._in_context, caller, fn, arguments)
         except Exception as e:
             self.device.log.warning("Action %s failed: %s: %s", name, type(e).__name__, e, exc_info=True)
             raise

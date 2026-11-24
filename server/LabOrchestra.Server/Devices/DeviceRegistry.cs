@@ -1,3 +1,4 @@
+using LabOrchestra.Server.Events;
 using LabOrchestra.Server.Hubs;
 using Microsoft.AspNetCore.SignalR;
 
@@ -19,7 +20,7 @@ public sealed class DeviceEntry
 
 /// <summary>All configured devices with their status, schema and last reported state. Changes go to the clients as
 /// "device" (everything about one device) or "device_patch" (only what changed in the state, with the new revision).</summary>
-public sealed class DeviceRegistry(IHubContext<ControlHub> control, ILogger<DeviceRegistry> log)
+public sealed class DeviceRegistry(IHubContext<ControlHub> control, EventBus bus, ILogger<DeviceRegistry> log)
 {
 	private readonly object _lock = new();
 	private readonly Dictionary<string, DeviceEntry> _devices = new();
@@ -35,7 +36,7 @@ public sealed class DeviceRegistry(IHubContext<ControlHub> control, ILogger<Devi
 			e.Status = "ready"; e.Error = null; e.ConnectionId = connectionId; e.Schema = schema; e.State = state;
 			e.Revision++; e.Registrations++;
 			return true;
-		});
+		}, replaced: true);
 
 	/// <summary>The device sends its whole state (it does so when a patch was rejected).</summary>
 	public bool StateReplaced(string id, string connectionId, Dictionary<string, object?> state) =>
@@ -44,9 +45,9 @@ public sealed class DeviceRegistry(IHubContext<ControlHub> control, ILogger<Devi
 			if (e.ConnectionId != connectionId) return false;
 			e.State = state; e.Revision++;
 			return true;
-		});
+		}, replaced: true);
 
-	public void StatePatched(string id, string connectionId, Dictionary<string, object?> patch)
+	public void StatePatched(string id, string connectionId, Dictionary<string, object?> patch, string by)
 	{
 		lock (_lock)
 		{
@@ -55,6 +56,7 @@ public sealed class DeviceRegistry(IHubContext<ControlHub> control, ILogger<Devi
 			StatePatch.Apply(e.State, patch);
 			e.Revision++;
 			Send("device_patch", id, e.Revision, patch); // inside the lock: updates reach the clients in order
+			bus.Publish(id, "patch", by, patch);
 		}
 	}
 
@@ -87,7 +89,8 @@ public sealed class DeviceRegistry(IHubContext<ControlHub> control, ILogger<Devi
 		lock (_lock) return _devices.ToDictionary(kv => kv.Key, kv => Snapshot(kv.Value));
 	}
 
-	private bool Mutate(string id, bool create, Func<DeviceEntry, bool> change)
+	/// <summary>Runs a change; if it changed something, tells the clients and publishes events (status, and the whole state when it was replaced).</summary>
+	private bool Mutate(string id, bool create, Func<DeviceEntry, bool> change, bool replaced = false)
 	{
 		lock (_lock)
 		{
@@ -96,11 +99,29 @@ public sealed class DeviceRegistry(IHubContext<ControlHub> control, ILogger<Devi
 				if (!create) return false;
 				_devices[id] = entry = new DeviceEntry { Id = id };
 			}
+			var (status, error) = (entry.Status, entry.Error);
 			if (!change(entry)) return false;
 			Send("device", id, Snapshot(entry));
+			if (entry.Status != status || entry.Error != error)
+				bus.Publish(id, "status", "supervisor", new() { ["status"] = entry.Status, ["error"] = entry.Error });
+			if (replaced && entry.State is not null)
+				bus.Publish(id, "replace", "device", new() { ["state"] = Plain.Clone(entry.State) });
 			return true;
 		}
 	}
+
+	/// <summary>Takes the current states and starts listening for events in one step, so that nothing is lost or counted twice.</summary>
+	public Dictionary<string, Dictionary<string, object?>> SnapshotAndSubscribe(Action<DeviceEvent> listener)
+	{
+		lock (_lock)
+		{
+			var all = _devices.ToDictionary(kv => kv.Key, kv => (Dictionary<string, object?>)Plain.Clone(Snapshot(kv.Value))!);
+			bus.Published += listener;
+			return all;
+		}
+	}
+
+	public void Unsubscribe(Action<DeviceEvent> listener) => bus.Published -= listener;
 
 	private void Send(string method, params object?[] args) =>
 		control.Clients.All.SendCoreAsync(method, args).ContinueWith(
