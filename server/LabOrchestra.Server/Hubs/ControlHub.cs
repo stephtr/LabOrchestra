@@ -14,6 +14,17 @@ public static class Errors
 {
 	/// <summary>Errors cross the wire as JSON text: type, message and optionally the traceback of the original.</summary>
 	public static string Json(string type, string message, string? traceback = null) => JsonSerializer.Serialize(new { type, message, traceback });
+
+	/// <summary>Type and message of an error made by <see cref="Json"/> (and of a worker's, which has the same form).</summary>
+	public static (string Type, string Message) Parse(string text)
+	{
+		try
+		{
+			using var doc = JsonDocument.Parse(text);
+			return (doc.RootElement.GetProperty("type").GetString() ?? "Error", doc.RootElement.TryGetProperty("message", out var m) ? m.GetString() ?? "" : "");
+		}
+		catch (Exception e) when (e is JsonException or KeyNotFoundException or InvalidOperationException) { return ("Error", text); }
+	}
 }
 
 /// <summary>Connection of browsers, scripts and devices that talk to other devices.</summary>
@@ -203,8 +214,24 @@ public sealed class ControlHub(
 	[HubMethodName("action")]
 	public async Task<object?> Action(string device, string name, object?[] args)
 	{
+		try
+		{
+			var result = await Invoke(device, name, args);
+			registry.ActionFinished(device, null, null);
+			return result;
+		}
+		catch (HubException e)
+		{
+			var (type, message) = Errors.Parse(e.Message);
+			registry.ActionFinished(device, type, message);
+			throw;
+		}
+	}
+
+	private async Task<object?> Invoke(string device, string name, object?[] args)
+	{
 		var entry = registry.Get(device) ?? throw new HubException(Errors.Json("LookupError", $"Device '{device}' does not exist"));
-		if (entry.ConnectionId is null || entry.Status != "ready")
+		if (entry.ConnectionId is null || !DeviceRegistry.IsUp(entry.Status))
 			throw new HubException(Errors.Json("DeviceNotReady", $"Device '{device}' is not ready (status: {entry.Status})"));
 		var caller = Caller();
 		bus.Publish(device, "action", caller, new() { ["action"] = name, ["args"] = Plain.From(args) });

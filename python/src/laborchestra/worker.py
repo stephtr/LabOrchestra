@@ -439,6 +439,17 @@ class Worker:
         return plain(result)
 
 
+def _die_with_parent() -> None:
+    """Linux: have the kernel kill this worker when the server ends, also when it is stuck in a driver call and cannot notice that its
+    input ended (a worker holding the GIL). The server starts workers from a thread that lives as long as it does."""
+    try:
+        import ctypes
+
+        ctypes.CDLL(None, use_errno=True).prctl(1, 9)  # PR_SET_PDEATHSIG, SIGKILL
+    except Exception as e:  # not fatal: the end of input still stops a worker that is not stuck
+        logging.getLogger("laborchestra").debug("Could not set PR_SET_PDEATHSIG: %s", e)
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="laborchestra-worker", description="Run one LabOrchestra device.")
     parser.add_argument("target", help="path/to/device.py[:Class] or module:Class")
@@ -462,6 +473,8 @@ def main(argv: list[str] | None = None) -> None:
             sys.exit(EXIT_CONFIG)
         print("LABORCHESTRA-SCHEMA " + json.dumps(schema))  # a marker: the device may print on its own while it loads
         sys.exit(EXIT_OK)
+    if os.environ.get("LABORCHESTRA_DIE_WITH_PARENT") and sys.platform == "linux":
+        _die_with_parent()
     forwarder = _LogForwarder()  # collects from the start; sent once the worker is registered
     logging.getLogger().addHandler(forwarder)
     if not args.id:

@@ -51,6 +51,7 @@ builder.Services.AddSingleton(sp => new LabOrchestra.Server.Drivers.DriverCatalo
 	[Path.Combine(AppContext.BaseDirectory, "plugins"), Path.Combine(workspace.Path, "plugins")], sp.GetRequiredService<ILogger<LabOrchestra.Server.Drivers.DriverCatalog>>()));
 var recordingsDir = Path.GetFullPath(config["recordings_dir"] ?? Path.Combine(dataDir, "recordings"));
 builder.Services.AddSingleton(sp => new RecordingService(recordingsDir, sp.GetRequiredService<DeviceRegistry>(), sp.GetRequiredService<IHubContext<ControlHub>>(), sp.GetRequiredService<ILogger<RecordingService>>()));
+builder.Services.AddSingleton(sp => new WorkerGuard(dataDir, sp.GetRequiredService<ILogger<WorkerGuard>>()));
 builder.Services.AddSingleton<WorkerSupervisor>();
 builder.Services.AddSingleton<DeviceCatalog>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<WorkerSupervisor>());

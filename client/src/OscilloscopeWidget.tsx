@@ -101,7 +101,7 @@ function draw(canvas: HTMLCanvasElement, frame: StreamFrame, view: { min: number
 /** The oscilloscope: spectrum or time trace from the display stream, with the controls of the instrument. */
 export function OscilloscopeWidget({ id, info }: { id: string; info: DeviceInfo }) {
 	const state = (info.state ?? {}) as Record<string, any>;
-	const ready = info.status === 'ready';
+	const ready = info.status === 'ready' || info.status === 'degraded';
 	const canvas = useRef<HTMLCanvasElement>(null);
 	const stream = useRef<StreamSubscription | null>(null);
 	const lastFrame = useRef<StreamFrame | null>(null);

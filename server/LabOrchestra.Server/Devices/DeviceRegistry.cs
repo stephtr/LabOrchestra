@@ -22,6 +22,10 @@ public sealed class DeviceEntry
 	public LabOrchestra.Sdk.Device? LocalDevice { get; set; }
 	/// <summary>How often a worker registered; lets the supervisor tell whether a process ever came up.</summary>
 	public int Registrations { get; set; }
+	/// <summary>Actions in a row that failed for a reason on the device's side (not a wrong argument).</summary>
+	public int ActionFailures { get; set; }
+	/// <summary>Why the status is "degraded": "actions" or "state"; null otherwise.</summary>
+	public string? DegradedBy { get; set; }
 }
 
 /// <summary>All configured devices with their status, schema and last reported state. Changes go to the clients as
@@ -33,13 +37,60 @@ public sealed class DeviceRegistry(IHubContext<ControlHub> control, EventBus bus
 
 	public void Declare(string id) => Mutate(id, true, e => { e.Status = "starting"; e.Error = null; e.ConnectionId = null; return true; });
 
+	/// <summary>A device that can be used: connected, and either fine ("ready") or working with problems ("degraded").</summary>
+	public static bool IsUp(string status) => status is "ready" or "degraded";
+
+	private const int DegradedAfter = 3;
+
 	public void SetStatus(string id, string status, string? error = null) =>
-		Mutate(id, false, e => { e.Status = status; e.Error = error; if (status != "ready") e.ConnectionId = null; return true; });
+		Mutate(id, false, e =>
+		{
+			e.Status = status; e.Error = error; e.ActionFailures = 0; e.DegradedBy = null;
+			if (!IsUp(status)) e.ConnectionId = null;
+			return true;
+		});
+
+	/// <summary>An action ended. Several failures in a row that are not the caller's mistakes make the device "degraded"; a success ends it.</summary>
+	public void ActionFinished(string id, string? errorType, string? message)
+	{
+		Mutate(id, false, e =>
+		{
+			if (!IsUp(e.Status)) return false;
+			if (errorType is null)
+			{
+				e.ActionFailures = 0;
+				if (e.DegradedBy != "actions") return false;
+				(e.Status, e.Error, e.DegradedBy) = ("ready", null, null);
+				return true;
+			}
+			if (CallerMistakes.Contains(errorType)) return false;
+			e.ActionFailures++;
+			if (e.ActionFailures < DegradedAfter || e.Status == "degraded" && e.DegradedBy != "actions") return false;
+			(e.Status, e.DegradedBy, e.Error) = ("degraded", "actions", $"{e.ActionFailures} actions in a row failed, the last with {errorType}: {message}");
+			return true;
+		});
+	}
+
+	/// <summary>The device sent a state update that could not be applied (the device resends its whole state; accepting that ends this).</summary>
+	public void StateRejected(string id, string connectionId, string reason) =>
+		Mutate(id, false, e =>
+		{
+			if (e.ConnectionId != connectionId || e.Status != "ready") return false;
+			(e.Status, e.DegradedBy, e.Error) = ("degraded", "state", $"A state update was rejected: {reason}");
+			return true;
+		});
+
+	/// <summary>Errors that say the call was wrong or was stopped on purpose, not that the device has a problem.</summary>
+	private static readonly HashSet<string> CallerMistakes =
+	[
+		"ValueError", "TypeError", "KeyError", "LookupError", "IndexError", "SchemaError", "InterruptedError", "DeviceNotReady",
+		"ArgumentException", "ArgumentNullException", "ArgumentOutOfRangeException", "NotSupportedException", "OperationCanceledException",
+	];
 
 	public void Registered(string id, string connectionId, object schema, Dictionary<string, object?> state) =>
 		Mutate(id, false, e =>
 		{
-			e.Status = "ready"; e.Error = null; e.ConnectionId = connectionId; e.Schema = schema; e.State = state;
+			e.Status = "ready"; e.Error = null; e.DegradedBy = null; e.ActionFailures = 0; e.ConnectionId = connectionId; e.Schema = schema; e.State = state;
 			e.Revision++; e.Registrations++;
 			return true;
 		}, replaced: true);
@@ -50,6 +101,7 @@ public sealed class DeviceRegistry(IHubContext<ControlHub> control, EventBus bus
 		{
 			if (e.ConnectionId != connectionId) return false;
 			e.State = state; e.Revision++;
+			if (e.DegradedBy == "state") (e.Status, e.Error, e.DegradedBy) = ("ready", null, null);
 			return true;
 		}, replaced: true);
 
@@ -70,7 +122,7 @@ public sealed class DeviceRegistry(IHubContext<ControlHub> control, EventBus bus
 		Mutate(id, false, e =>
 		{
 			if (e.ConnectionId != connectionId) return false; // a newer connection already took over
-			e.Status = "disconnected"; e.ConnectionId = null;
+			e.Status = "reconnecting"; e.ConnectionId = null; // the process lives and connects again by itself; if it ended, the supervisor says so
 			return true;
 		});
 
@@ -83,7 +135,7 @@ public sealed class DeviceRegistry(IHubContext<ControlHub> control, EventBus bus
 	/// <summary>The devices that run inside the server and are ready.</summary>
 	public List<(string Id, LabOrchestra.Sdk.Device Device)> LocalDevices()
 	{
-		lock (_lock) return _devices.Values.Where(e => e is { Status: "ready", LocalDevice: not null }).Select(e => (e.Id, e.LocalDevice!)).ToList();
+		lock (_lock) return _devices.Values.Where(e => e is { LocalDevice: not null } && IsUp(e.Status)).Select(e => (e.Id, e.LocalDevice!)).ToList();
 	}
 
 	public void Remove(string id)

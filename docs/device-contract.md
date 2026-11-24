@@ -30,6 +30,7 @@ class Generator(Device):
   `with self.lock:` (an `RLock`). Keep the lock only for the access itself, never for the whole wait.
 - **When an action returns, its effects are in the state the caller sees.** The worker sends pending changes before the result, also when
   the action fails. A caller of a blocking action (a move) gets the answer when the stage has arrived.
+- **Statuses:** `ready`, `degraded` (three failed actions in a row, not counting wrong arguments (`ValueError`, `TypeError`, `LookupError`, ...) or `InterruptedError`; a success ends it), `reconnecting`, `error`, `stopped`. Raise `InterruptedError` for a move that was stopped on purpose.
 - **Errors reach the caller** as an error with type, message and traceback; nothing is swallowed. Background errors are logged once (not at
   every poll) and shown in the state (`status`).
 - **Invalid readings are `None` plus a status**, never 0 (`status`: `ok`, `error`, ...).

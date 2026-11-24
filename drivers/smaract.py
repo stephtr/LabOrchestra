@@ -239,7 +239,7 @@ class Smaract(Device):
                     state["actual_position"] = self._hardware.position(channel)
                 state["moving"] = moving
                 if self._stopped[channel].is_set():
-                    raise RuntimeError(f"The move of channel {channel} was stopped")
+                    raise InterruptedError(f"The move of channel {channel} was stopped")
                 if not moving:
                     return
                 if time.monotonic() > end:

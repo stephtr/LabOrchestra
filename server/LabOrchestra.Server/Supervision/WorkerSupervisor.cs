@@ -22,6 +22,7 @@ public sealed class WorkerSupervisor(
 	EnvironmentManager environments,
 	Drivers.DriverCatalog drivers,
 	TokenService tokens,
+	WorkerGuard guard,
 	ServerInfo info,
 	IHostApplicationLifetime lifetime,
 	ILogger<WorkerSupervisor> log) : BackgroundService
@@ -41,6 +42,7 @@ public sealed class WorkerSupervisor(
 		// first and waits for the workers' connections, which only close once the workers have been told to stop.
 		using var combined = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken, lifetime.ApplicationStopping);
 		var stop = _stop = combined.Token;
+		guard.KillLeftovers(); // before any device opens its hardware again
 		await ReconcileAsync();
 		workspace.Changed += () => _ = ReconcileAsync();
 		try { await Task.Delay(Timeout.Infinite, stop); } catch (OperationCanceledException) { }
@@ -238,11 +240,12 @@ public sealed class WorkerSupervisor(
 		startInfo.Environment["LABORCHESTRA_CONFIG"] = ResolveConfig(device);
 		startInfo.Environment["LABORCHESTRA_WATCH_STDIN"] = "1";
 		if (settings.Load(id) is { } saved) startInfo.Environment["LABORCHESTRA_SETTINGS"] = saved;
+		startInfo.Environment["LABORCHESTRA_DIE_WITH_PARENT"] = "1"; // Linux: the kernel kills the worker when the server ends
 		startInfo.Environment["PYTHONUNBUFFERED"] = "1";
 		var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
 		process.OutputDataReceived += (_, e) => Line(id, e.Data, tail);
 		process.ErrorDataReceived += (_, e) => Line(id, e.Data, tail);
-		process.Start();
+		guard.Start(process, id);
 		process.BeginOutputReadLine();
 		process.BeginErrorReadLine();
 		return process;

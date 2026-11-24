@@ -39,6 +39,7 @@ public sealed class DeviceHub(DeviceRegistry registry, LogStore logs, SettingsSt
 		}
 		catch (Exception e) when (e is InvalidOperationException or InvalidCastException)
 		{
+			registry.StateRejected(DeviceId, Context.ConnectionId, e.Message);
 			throw new HubException(Errors.Json("PatchError", e.Message));
 		}
 	}

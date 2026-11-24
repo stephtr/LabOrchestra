@@ -160,7 +160,7 @@ class AsyncLab:
         end = loop.time() + timeout
         while True:
             info = self._devices.get(device_id)
-            if info is not None and info.get("status") == "ready" and info.get("state") is not None and predicate(info["state"]):
+            if info is not None and info.get("status") in ("ready", "degraded") and info.get("state") is not None and predicate(info["state"]):
                 return info["state"]
             remaining = end - loop.time()
             if remaining <= 0:

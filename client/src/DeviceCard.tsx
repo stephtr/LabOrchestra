@@ -47,7 +47,8 @@ export const STATUS_STYLE: Record<string, string> = {
 	ready: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
 	preparing: 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300',
 	starting: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
-	disconnected: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
+	reconnecting: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
+	degraded: 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300',
 	error: 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300',
 	stopped: 'bg-zinc-200 text-zinc-700 dark:bg-slate-800 dark:text-zinc-300',
 };
@@ -176,7 +177,7 @@ function ActionRow({ device, action }: { device: string; action: ActionSchema })
 
 /** The generated widget: shows any device from its schema, state and status. */
 export function DeviceCard({ id, info }: { id: string; info: DeviceInfo }) {
-	const ready = info.status === 'ready';
+	const ready = info.status === 'ready' || info.status === 'degraded';
 	const [logsOpen, setLogsOpen] = useState(false);
 	return (
 		<section data-testid={`device-${id}`} className="rounded-lg bg-white p-4 shadow dark:bg-slate-900">
