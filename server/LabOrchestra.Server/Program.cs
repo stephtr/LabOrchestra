@@ -4,6 +4,7 @@ using LabOrchestra.Server.Auth;
 using LabOrchestra.Server.Devices;
 using LabOrchestra.Server.Events;
 using LabOrchestra.Server.Recording;
+using LabOrchestra.Server.Streaming;
 using LabOrchestra.Server.Hubs;
 using LabOrchestra.Server.Logging;
 using Microsoft.AspNetCore.SignalR;
@@ -44,6 +45,7 @@ builder.Services.AddSingleton(workspace);
 builder.Services.AddSingleton(new ServerInfo(workerUrl));
 builder.Services.AddSingleton(sp => new EnvironmentManager(config, dataDir, sp.GetRequiredService<LogStore>(), sp.GetRequiredService<ILogger<EnvironmentManager>>()));
 builder.Services.AddSingleton<EventBus>();
+builder.Services.AddSingleton<StreamManager>();
 builder.Services.AddSingleton<DeviceRegistry>();
 builder.Services.AddSingleton(sp => new LabOrchestra.Server.Drivers.DriverCatalog(
 	[Path.Combine(AppContext.BaseDirectory, "plugins"), Path.Combine(workspace.Path, "plugins")], sp.GetRequiredService<ILogger<LabOrchestra.Server.Drivers.DriverCatalog>>()));
@@ -82,6 +84,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapHub<DeviceHub>("/hub/devices");
 app.MapHub<ControlHub>("/hub/control");
+app.MapHub<StreamHub>("/hub/streaming");
 
 var clientDir = config["client_dir"] ?? FindClientDir();
 if (clientDir is not null && Directory.Exists(clientDir))

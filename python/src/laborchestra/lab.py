@@ -9,6 +9,7 @@ from typing import Any
 
 from ._hub import Hub
 from ._patch import PatchError, apply_patch
+from .stream import AsyncStream, SyncStream
 from .errors import LabOrchestraError
 
 DEFAULT_URL = "http://127.0.0.1:5095"
@@ -90,6 +91,9 @@ class AsyncLab:
         self._hub.on("device_patch")(self._on_patch)
         self._resyncing: set[str] = set()
         self._waiters: list[asyncio.Future] = []
+        self._subscriptions: dict[str, AsyncStream] = {}
+        self._streams_hub: Hub | None = None
+        self._name = name
         self._hub.on("device_removed")(lambda device_id: self._devices.pop(device_id, None) and None)
 
     async def connect(self, timeout: float = 10) -> "AsyncLab":
@@ -105,7 +109,33 @@ class AsyncLab:
             raise
         return self
 
+    async def _stream_hub(self) -> Hub:
+        """The second connection, for frames; made when the first stream is opened."""
+        if self._streams_hub is None:
+            self._streams_hub = Hub(f"{self.url}/hub/streaming?client={self._name}", self.token, on_connected=self._resubscribe)
+            self._streams_hub.on("frame")(self._on_frame)
+            await self._streams_hub.start()
+        await self._streams_hub.wait_connected(10)
+        return self._streams_hub
+
+    def _on_frame(self, subscription: str, sequence: int, meta: dict, data: bytes) -> None:
+        if (stream := self._subscriptions.get(subscription)) is not None:
+            stream._on_frame(sequence, meta, data)
+
+    async def _resubscribe(self) -> None:
+        """After a reconnect the server knows nothing of our subscriptions: subscribe again."""
+        for old_id, stream in list(self._subscriptions.items()):
+            if self._streams_hub is not None and stream._id == old_id and self._streams_hub.connects > 1:
+                self._subscriptions.pop(old_id)
+                await stream._subscribe()
+
+    def stream(self, device: str, stream: str, parameters: dict | None = None, window: int = 2, max_fps: float = 30) -> AsyncStream:
+        """``async with lab.stream("het", "display", {...}) as frames: async for frame in frames:`` (see laborchestra.stream)."""
+        return AsyncStream(self, device, stream, parameters, window, max_fps)
+
     async def close(self) -> None:
+        if self._streams_hub is not None:
+            await self._streams_hub.close()
         await self._hub.close()
 
     async def __aenter__(self) -> "AsyncLab":
@@ -367,6 +397,10 @@ class Lab:
 
     def logs(self, source: str | None = None, level: str | None = None, since: int = 0, limit: int = 200) -> list[dict]:
         return self._run(self._async.logs(source, level, since, limit))
+
+    def stream(self, device: str, stream: str, parameters: dict | None = None, window: int = 2, max_fps: float = 30) -> SyncStream:
+        """``with lab.stream("het", "display", {...}) as frames: for frame in frames:`` (see laborchestra.stream)."""
+        return SyncStream(self, self._async.stream(device, stream, parameters, window, max_fps))
 
     def get_recording(self) -> dict:
         return self._run(self._async.get_recording())

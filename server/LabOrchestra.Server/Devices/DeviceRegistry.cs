@@ -16,6 +16,8 @@ public sealed class DeviceEntry
 	public string? ConnectionId { get; set; }
 	/// <summary>For devices that run inside the server: how to call their actions (no hub in between).</summary>
 	public Func<string, object?[], string, CancellationToken, Task<object?>>? LocalCall { get; set; }
+	/// <summary>The streams of a device that runs inside the server.</summary>
+	public LabOrchestra.Sdk.StreamRegistry? Streams { get; set; }
 	/// <summary>How often a worker registered; lets the supervisor tell whether a process ever came up.</summary>
 	public int Registrations { get; set; }
 }
@@ -70,10 +72,10 @@ public sealed class DeviceRegistry(IHubContext<ControlHub> control, EventBus bus
 			return true;
 		});
 
-	public void SetLocalCall(string id, string connectionId, Func<string, object?[], string, CancellationToken, Task<object?>> call)
+	public void SetLocalCall(string id, string connectionId, Func<string, object?[], string, CancellationToken, Task<object?>> call, LabOrchestra.Sdk.StreamRegistry streams)
 	{
 		lock (_lock)
-			if (_devices.TryGetValue(id, out var e) && e.ConnectionId == connectionId) e.LocalCall = call;
+			if (_devices.TryGetValue(id, out var e) && e.ConnectionId == connectionId) (e.LocalCall, e.Streams) = (call, streams);
 	}
 
 	public void Remove(string id)

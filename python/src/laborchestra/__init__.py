@@ -4,6 +4,7 @@ from .device import Device, action
 from .errors import AuthError, ConnectionLost, LabOrchestraError, RemoteError, SchemaError
 from .lab import AsyncLab, Lab, connect, connect_async
 from .recording import Recording, load_recording
+from .stream import Frame
 
 __version__ = "0.0.1"
 __all__ = [
@@ -14,6 +15,7 @@ __all__ = [
     "Lab",
     "AsyncLab",
     "Recording",
+    "Frame",
     "load_recording",
     "LabOrchestraError",
     "RemoteError",

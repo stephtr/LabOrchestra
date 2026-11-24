@@ -10,6 +10,9 @@ public sealed record StreamFrame(long Sequence, Dictionary<string, object?> Meta
 /// </summary>
 public interface IStreamSource
 {
+	/// <summary>The sequence number of the newest frame; cheap to read, it is looked at often.</summary>
+	long LatestSequence { get; }
+
 	/// <param name="parameters">What this client asked for (e.g. the range of the x axis); an empty dictionary for the defaults.</param>
 	/// <param name="afterSequence">The sequence number of the last frame this client got; return null if there is nothing newer.</param>
 	StreamFrame? Render(IReadOnlyDictionary<string, object?> parameters, long afterSequence);
