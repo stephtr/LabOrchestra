@@ -18,7 +18,7 @@ def drivers_server(tmp_path_factory):
     build_server()
     workspace, data = tmp_path_factory.mktemp("workspace"), tmp_path_factory.mktemp("data")
     (workspace / "devices").mkdir()
-    for name in ("elliptec.py", "thorlabs_polarimeter.py", "pfeiffer_pressure.py"):
+    for name in ("elliptec.py", "thorlabs_polarimeter.py", "pfeiffer_pressure.py", "smaract.py"):
         shutil.copy(ROOT / "drivers" / name, workspace / "devices" / name)
     for name in ("physics_polarimeter.py", "polarization_lock.py"):  # test devices: a lab-internal control loop and some physics
         shutil.copy(DEVICES / name, workspace / "devices" / name)
@@ -33,6 +33,7 @@ def drivers_server(tmp_path_factory):
         "polarization_lock": {"file": "devices/polarization_lock.py"},
         "pressure": {"file": "devices/pfeiffer_pressure.py", "config": {"simulate": True}},
         "pressure_faulty": {"file": "devices/pfeiffer_pressure.py", "config": {"simulate": True, "simulate_fault": True}},
+        "stage": {"file": "devices/smaract.py", "config": {"simulate": True}},
         "no_hardware": {"file": "devices/elliptec.py"},  # neither a port nor simulate
     }
     (workspace / "devices.json").write_text(json.dumps({"devices": devices}))
@@ -47,7 +48,7 @@ def drivers_server(tmp_path_factory):
 @pytest.fixture()
 def lab(drivers_server):
     with laborchestra.connect(drivers_server[0], PASSPHRASE) as lab:
-        for name in ("elliptec", "elliptec_quiet", "elliptec_checked", "elliptec_flaky", "tweezer_polarization", "real_polarimeter", "polarization_lock", "pressure", "pressure_faulty"):
+        for name in ("elliptec", "elliptec_quiet", "elliptec_checked", "elliptec_flaky", "tweezer_polarization", "real_polarimeter", "polarization_lock", "pressure", "pressure_faulty", "stage"):
             lab[name].wait_ready(30)
         yield lab
 
@@ -271,3 +272,64 @@ def test_pfeiffer_simulated_runs_in_the_server_and_a_fault_is_none(lab):
     wait_for(lambda: len(lab.pressure_faulty.state["channels"]) == 2, 10, "readings")
     assert lab.pressure_faulty.state["channels"][1] == {"pressure": None, "status": "error"}
     assert lab.pressure_faulty.state["status"] == "check gauges"
+
+
+# --- SmarAct positioners --------------------------------------------------------------------------------------------------
+from concurrent.futures import ThreadPoolExecutor
+
+
+def test_smaract_returns_when_the_stage_has_arrived_and_the_state_says_so(lab):
+    lab.stage.set_mode(0, "closed-loop")
+    lab.stage.set_velocity(0, 2000)
+    lab.stage.set_position(0, 0)
+    started = time.monotonic()
+    lab.stage.set_position(0, 400)  # 0.2 s at 2000 um/s
+    assert 0.15 < time.monotonic() - started < 3
+    channel = lab.stage.state["channels"][0]
+    assert channel["actual_position"] == pytest.approx(400, abs=1) and channel["target_position"] == 400 and channel["moving"] is False
+    lab.stage.set_position(0, 0)
+
+
+def test_stop_ends_a_move_in_progress_and_the_move_fails_with_stopped(lab):
+    lab.stage.set_mode(1, "closed-loop")
+    lab.stage.set_velocity(1, 10)
+    lab.stage.set_position(1, 0)
+    with ThreadPoolExecutor(1) as pool:
+        move = pool.submit(lab.stage.set_position, 1, 1000)  # 100 s at 10 um/s
+        wait_for(lambda: lab.stage.state["channels"][1]["moving"], 5, "the move to start")
+        time.sleep(0.3)
+        lab.stage.stop(1)
+        with pytest.raises(RemoteError, match="stopped"):
+            move.result(10)
+    channel = lab.stage.state["channels"][1]
+    assert channel["moving"] is False and 0 < channel["actual_position"] < 20
+    time.sleep(0.4)
+    assert lab.stage.state["channels"][1]["actual_position"] == pytest.approx(channel["actual_position"], abs=0.01)  # it stays where it stopped
+    lab.stage.set_velocity(1, 1000)
+    lab.stage.set_position(1, 0)  # and moves again afterwards
+
+
+def test_smaract_modes_have_their_own_moves_and_units(lab):
+    lab.stage.set_mode(0, "open-loop")
+    assert lab.stage.state["channels"][0]["mode"] == "open-loop" and lab.stage.state["channels"][0]["target_position"] == 0
+    lab.stage.move_steps(0, 50)
+    lab.stage.move_steps(0, -20)
+    assert lab.stage.state["channels"][0]["target_position"] == 30  # steps taken since the mode was set
+    for call, text in ((lambda: lab.stage.set_position(0, 5), "move_steps"), (lambda: lab.stage.set_velocity(0, 5), "no velocity")):
+        with pytest.raises(RemoteError, match=text):
+            call()
+    lab.stage.set_mode(0, "scan")
+    with pytest.raises(RemoteError, match="between 0 and 100"):
+        lab.stage.set_position(0, 120)
+    lab.stage.set_velocity(0, 500)
+    lab.stage.set_position(0, 50)
+    assert lab.stage.state["channels"][0]["actual_position"] == pytest.approx(50, abs=0.5)
+    with pytest.raises(RemoteError, match="move_steps|open-loop"):
+        lab.stage.move_steps(0, 1)
+    lab.stage.set_mode(0, "closed-loop")
+
+
+def test_smaract_checks_its_arguments(lab):
+    for call, text in ((lambda: lab.stage.set_position(7, 1), "no channel 7"), (lambda: lab.stage.set_mode(0, "fast"), "Invalid move mode")):
+        with pytest.raises(RemoteError, match=text):
+            call()

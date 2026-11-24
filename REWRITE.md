@@ -93,7 +93,7 @@ Lessons (kept so they are not learned twice): hosted services stop in reverse or
 
 Track A, Python devices:
 - [x] Elliptec, polarimeter and PolarizationLock ported to `drivers/` (simulated in CI, closed-loop test); the API changes they led to are in CLAUDE.md (flush before the result, `lock`, `wait_for`, `simulate`)
-- [ ] Smaract (SmarAct MCS2; a `stop` that must interrupt a running move) and Pfeiffer (streaming device), then RS SMA100B: revise the contract, **then freeze it as v1**. The lab's own locks (polarization, Smaract z) are not part of the public drivers
+- [x] Smaract (SmarAct MCS2; `stop` interrupts a move, found and fixed the one-call-at-a-time SignalR default) and Pfeiffer (streaming device) ported (Smaract CTL calls untested on hardware); still open: RS SMA100B, revise the contract, **then freeze it as v1**. The lab's own locks (polarization, Smaract z) are not part of the public drivers
 - [ ] Pfeiffer, RS SMA100B, Smaract
 - [ ] Profiles extracted from at least two devices each where possible (real + simulator), conformance tests
 

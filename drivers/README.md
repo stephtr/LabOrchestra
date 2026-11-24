@@ -8,6 +8,7 @@ device gets an environment with exactly that.
 |---|---|
 | `elliptec.py` | Thorlabs Elliptec rotation / linear / slider stages |
 | `thorlabs_polarimeter.py` | Thorlabs PAX polarimeter |
+| `smaract.py` | SmarAct MCS2 positioners (closed-loop, open-loop, scan); `stop` ends a move in progress. Not yet tried on hardware |
 | `pfeiffer_pressure.py` | Pfeiffer vacuum gauge controller (TPG 36x), continuous mode; invalid readings are `None` with a status |
 
 Lab-specific control loops (a polarization lock, a position lock) are not drivers and do not belong here: they live in the

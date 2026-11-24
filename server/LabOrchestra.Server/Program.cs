@@ -55,6 +55,9 @@ builder.Services.AddSingleton<WorkerSupervisor>();
 builder.Services.AddSingleton<DeviceCatalog>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<WorkerSupervisor>());
 builder.Services.AddSignalR(o => o.MaximumReceiveMessageSize = 16 * 1024 * 1024).AddMessagePackProtocol();
+// SignalR runs the invocations of one connection one after the other by default: then a stop could not reach a device while a
+// long move of the same client is running. Calls of the control hub are independent, so they run in parallel.
+builder.Services.AddSignalR().AddHubOptions<ControlHub>(o => o.MaximumParallelInvocationsPerClient = 64);
 builder.Services.AddAuthentication(TokenAuthHandler.SchemeName)
 	.AddScheme<AuthenticationSchemeOptions, TokenAuthHandler>(TokenAuthHandler.SchemeName, null);
 builder.Services.AddAuthorization();
