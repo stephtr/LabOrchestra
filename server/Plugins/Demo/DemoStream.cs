@@ -46,12 +46,16 @@ public sealed class DemoStream : Device<DemoStream.Settings, DemoStream.Data>
 	public override async Task RunAsync(CancellationToken cancel)
 	{
 		var period = TimeSpan.FromSeconds(1 / Options.FramesPerSecond);
+		var clock = System.Diagnostics.Stopwatch.StartNew();
 		try
 		{
 			while (!cancel.IsCancellationRequested)
 			{
 				await Task.Delay(period, cancel);
-				Update(s => s.Produced = Interlocked.Increment(ref _sequence));
+				// numbered by the clock, not by the ticks: timers are coarse on some systems (15 ms on Windows), the rate stays exact
+				var number = (long)(clock.Elapsed.TotalSeconds * Options.FramesPerSecond);
+				Interlocked.Exchange(ref _sequence, number);
+				Update(s => s.Produced = number);
 			}
 		}
 		catch (OperationCanceledException) { }

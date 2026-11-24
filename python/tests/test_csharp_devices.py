@@ -65,7 +65,8 @@ def test_state_changes_of_the_run_loop_and_of_actions_arrive_as_patches(cs_serve
         time.sleep(0.4)
     rec = laborchestra.load_recording(cs_server[2] / "recordings" / name)
     by_script = [e for e in rec.changes(device="demo", by="script") if "set" in e]
-    assert by_script and by_script[0]["set"] == {"channels.0.value": 9.0}  # a patch of one value, not the whole list
+    # a patch of the value, not the whole list (a tick of the run loop in the same 50 ms may come along: both are in one patch)
+    assert by_script and by_script[0]["set"]["channels.0.value"] == 9.0 and set(by_script[0]["set"]) <= {"channels.0.value", "ticks"}
     assert any(e["by"] == "device" and "ticks" in json.dumps(e) for e in rec.events)  # the run loop is not blamed on the script
 
 
