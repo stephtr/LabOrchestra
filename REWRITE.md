@@ -48,13 +48,15 @@ Spikes (throwaway code, 1-2 days each):
 
 ## Phase 1: walking skeleton
 
-- [ ] Device contract v0: state, `@action`, schema export from type hints, naming validation
-- [ ] `laborchestra` package: `Device`, worker, `connect()`
-- [ ] Server: registry, `ControlHub`, `DeviceHub`, worker token, passphrase login
-- [ ] Vite client: connection with resync, one auto-generated widget
-- [ ] End-to-end test: start server, demo pressure sensor, change state, read it from browser and script
+- [x] Device contract v0: state, `@action`, schema export from type hints, naming validation
+- [x] `laborchestra` package: `Device`, worker, `connect()`
+- [x] Server: registry, `ControlHub`, `DeviceHub`, worker token, passphrase login
+- [x] Vite client: connection with resync, one auto-generated widget
+- [x] End-to-end test: start server, demo pressure sensor, change state, read it from browser and script
 
-**Exit:** killing the worker shows an error and recovers by itself; a script and the browser see the same state.
+**Exit:** killing the worker shows an error and recovers by itself; a script and the browser see the same state. *(Met locally on macOS, see `python/tests/test_integration.py` and `client/e2e/e2e.mjs`; CI on all three systems in `.github/workflows/ci.yml`.)*
+
+Known gaps of the skeleton, all belonging to phase 2: whole-state updates instead of patches; `persist` is declared in the schema but not yet stored; worker logs go to the server console only (not to the UI or to scripts); no uv environments (a configured interpreter is used); no leftover-worker cleanup at start and no Job Object on Windows; no TLS; the first-start passphrase file is only created, not yet shown to scripts; the generic widget shows the state as a tree only.
 
 ## Phase 2: core
 

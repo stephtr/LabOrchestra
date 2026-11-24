@@ -1,0 +1,48 @@
+name: ci
+on:
+  push:
+    branches: [next]
+    paths-ignore: ['spikes/**', 'legacy/**', '**.md', '.github/workflows/spikes.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.13' }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm install -g pnpm@11
+      - name: Python package
+        run: |
+          pip install -e "python[dev]"
+          echo "LABORCHESTRA_PYTHON=$(python -c 'import sys; print(sys.executable)')" >> "$GITHUB_ENV"
+      - name: Server
+        run: dotnet build server/LabOrchestra.Server -c Release --nologo -v q
+      - name: Client
+        working-directory: client
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+      - name: Python tests (unit and integration)
+        working-directory: python
+        run: python -m pytest -q
+      - name: Browser end-to-end test
+        working-directory: client
+        env:
+          CI: 'true'
+        run: pnpm e2e

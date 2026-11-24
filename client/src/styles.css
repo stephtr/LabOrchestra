@@ -1,0 +1,15 @@
+@import 'tailwindcss';
+
+@theme {
+	--color-brand: #0e4d3a;
+	--color-gold: #e3b23c;
+	--font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+:root {
+	color-scheme: light dark;
+}
+
+body {
+	@apply bg-zinc-100 text-zinc-900 dark:bg-slate-950 dark:text-zinc-100;
+}
