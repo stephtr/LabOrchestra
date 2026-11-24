@@ -129,6 +129,15 @@ def test_naming_rule():
         action_methods(BadAction)
 
 
+def test_persisted_keys_must_exist_in_the_state():
+    class Bad(Device):
+        state = {"a": 1}
+        persist = ["b"]
+
+    with pytest.raises(SchemaError, match="Persisted key 'b' is not in the state of Bad"):
+        build_schema("bad", Bad, {})
+
+
 def test_stop_flag():
     device = make(port="x")
     assert device.running

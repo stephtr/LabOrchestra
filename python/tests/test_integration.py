@@ -5,6 +5,7 @@ import os
 import shutil
 import signal
 import socket
+from dataclasses import dataclass
 import subprocess
 import sys
 import time
@@ -22,7 +23,13 @@ DEMO = ROOT / "workspace" / "devices" / "demo_pressure.py"
 PASSPHRASE = "test-passphrase"
 
 
-def wait_for(condition, timeout=20, message="condition"):
+@dataclass
+class Server:
+    url: str
+    data_dir: Path
+
+
+def wait_for(condition, timeout=20, message="condition", interval=0.1):
     end = time.time() + timeout
     while time.time() < end:
         try:
@@ -31,7 +38,7 @@ def wait_for(condition, timeout=20, message="condition"):
                 return value
         except Exception:
             pass
-        time.sleep(0.1)
+        time.sleep(interval)
     raise AssertionError(f"Timed out waiting for {message}")
 
 
@@ -46,16 +53,19 @@ def server(tmp_path_factory):
     workspace = tmp_path_factory.mktemp("workspace")
     (workspace / "devices").mkdir()
     shutil.copy(DEMO, workspace / "devices" / "demo_pressure.py")
+    shutil.copy(Path(__file__).parent / "devices" / "counter.py", workspace / "devices" / "counter.py")
     (workspace / "devices.json").write_text(
         json.dumps(
             {
                 "devices": {
                     "pressure": {"file": "devices/demo_pressure.py", "config": {"noise": 0.0}},
+                    "counter": {"file": "devices/counter.py"},
                     "broken": {"file": "devices/demo_pressure.py", "config": {"speed": 1}},  # no such option
                 }
             }
         )
     )
+    data_dir = tmp_path_factory.mktemp("data")
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
@@ -65,7 +75,7 @@ def server(tmp_path_factory):
         "LABORCHESTRA_WORKSPACE": str(workspace),
         "LABORCHESTRA_PYTHON": sys.executable,
         "LABORCHESTRA_PASSPHRASE": PASSPHRASE,
-        "LABORCHESTRA_DATA_DIR": str(tmp_path_factory.mktemp("data")),
+        "LABORCHESTRA_DATA_DIR": str(data_dir),
     }
     log = (workspace / "server.log").open("w")
     process = subprocess.Popen(
@@ -77,7 +87,7 @@ def server(tmp_path_factory):
                 return True
 
         wait_for(up, 30, "server start")
-        yield url
+        yield Server(url, data_dir)
     finally:
         process.terminate()
         try:
@@ -90,13 +100,13 @@ def server(tmp_path_factory):
 
 @pytest.fixture()
 def lab(server):
-    with laborchestra.connect(server, PASSPHRASE) as lab:
+    with laborchestra.connect(server.url, PASSPHRASE) as lab:
         wait_for(lambda: lab.devices and lab.pressure.status == "ready", message="device ready")
         yield lab
 
 
 def test_script_reads_state_and_calls_actions(lab):
-    assert sorted(lab.devices) == ["broken", "pressure"]
+    assert sorted(lab.devices) == ["broken", "counter", "pressure"]
     assert lab.pressure.state["channels"][0]["status"] == "ok"
     assert lab.pressure.schema["class"] == "DemoPressure"
     assert [a["name"] for a in lab.pressure.schema["actions"]] == ["set_pressure"]
@@ -106,7 +116,7 @@ def test_script_reads_state_and_calls_actions(lab):
 
 
 def test_two_clients_see_the_same_state(server, lab):
-    with laborchestra.connect(server, PASSPHRASE) as other:
+    with laborchestra.connect(server.url, PASSPHRASE) as other:
         lab.pressure.set_pressure(0, 1.25e-2)
         wait_for(lambda: other.pressure.state["channels"][0]["pressure"] == 1.25e-2, message="state in second client")
 
@@ -157,18 +167,37 @@ def test_device_that_cannot_start_reports_why(lab):
     assert lab.pressure.status == "ready"  # the others are not affected
 
 
+def test_persisted_state_survives_a_restart_of_the_worker(server, lab):
+    wait_for(lambda: lab.counter.status == "ready", message="counter ready")
+    start = lab.counter.state["count"]
+    lab.counter.increment()
+    lab.counter.increment()
+    wait_for(lambda: lab.counter.state["count"] == start + 2, message="count")
+    saved = server.data_dir / "settings" / "counter.json"
+    wait_for(lambda: saved.exists() and json.loads(saved.read_text())["count"] == start + 2, message="saved file")
+    assert json.loads(saved.read_text()) == {"count": start + 2, "channels": [21, 2]}  # not `scratch`
+
+    pid = lab.counter.state.get("process_id")
+    psutil_pid = next(p.pid for p in psutil.process_iter(["cmdline"]) if "counter.py" in " ".join(p.info["cmdline"] or []))
+    os.kill(psutil_pid, signal.SIGKILL if hasattr(signal, "SIGKILL") else signal.SIGTERM)
+    wait_for(lambda: lab.counter.status == "ready" and lab.counter.state["scratch"] == 0, 20, "restart")
+    assert lab.counter.state["count"] == start + 2
+    assert lab.counter.state["channels"] == [21, 2]
+    assert lab.counter.state["scratch"] == 0  # not persisted: back to the default
+
+
 def test_wrong_or_missing_token_is_rejected(server):
     with pytest.raises(AuthError):
-        laborchestra.connect(server, "wrong")
+        laborchestra.connect(server.url, "wrong")
     with pytest.raises(AuthError):
-        laborchestra.connect(server, "")
+        laborchestra.connect(server.url, "")
 
 
 def test_killed_worker_is_reported_and_restarted(lab):
     pid = lab.pressure.state["process_id"]
     assert psutil.pid_exists(pid)
     os.kill(pid, signal.SIGKILL if hasattr(signal, "SIGKILL") else signal.SIGTERM)
-    wait_for(lambda: lab.pressure.status in ("error", "starting"), 10, "status after the kill")
+    wait_for(lambda: lab.pressure.status in ("error", "starting"), 10, "status after the kill", interval=0.005)
     wait_for(lambda: lab.pressure.status == "ready" and lab.pressure.state["process_id"] != pid, 20, "restart")
     assert lab.pressure.set_pressure(1, 2e-8) is None  # works again
     wait_for(lambda: lab.pressure.state["channels"][1]["pressure"] == 2e-8, message="state after restart")

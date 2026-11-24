@@ -77,6 +77,8 @@ def load_class(target: str) -> type[Device]:
 def build_schema(device_id: str, cls: type[Device], actions: dict) -> dict:
     for key in cls.persist:
         check_name(key, "Persisted state key")
+        if key not in cls.state:
+            raise SchemaError(f"Persisted key '{key}' is not in the state of {cls.__name__}")
     return {
         "id": device_id,
         "class": cls.__name__,
@@ -136,11 +138,21 @@ class _LogForwarder(logging.Handler):
 
 class Worker:
     def __init__(
-        self, target: str, device_id: str, url: str, token: str | None, config: dict, watch_stdin: bool, forwarder: _LogForwarder
+        self,
+        target: str,
+        device_id: str,
+        url: str,
+        token: str | None,
+        config: dict,
+        watch_stdin: bool,
+        forwarder: _LogForwarder,
+        settings: dict | None = None,
     ):
         self.target, self.device_id, self.url, self.token = target, device_id, url.rstrip("/"), token
         self.forwarder = forwarder
         self.config, self.watch_stdin = config, watch_stdin
+        self.settings: dict = settings or {}
+        self._saved_settings: dict = {}
         self.exit_code = EXIT_OK
         self._registered_gen = 0
         self._run_thread: threading.Thread | None = None
@@ -162,6 +174,12 @@ class Worker:
         config = coerce_config(cls, self.config)
         self.device = cls()
         self.device._setup(self.device_id, config, self._make_lab)
+        for key, value in self.settings.items():  # saved values replace the defaults of the persisted keys
+            if key in cls.persist:
+                self.device.state[key] = value
+            else:
+                log.warning("Ignoring the saved setting '%s' (not in persist)", key)
+        self._saved_settings = self._persisted(plain(self.device.state))
         validate_state(plain(self.device.state))
 
     def _make_lab(self):
@@ -286,6 +304,15 @@ class Worker:
             self.loop.call_soon_threadsafe(self._fail)
 
     # protocol --------------------------------------------------------------------------------
+    def _persisted(self, state: dict) -> dict:
+        return {key: state[key] for key in self.device.persist if key in state}
+
+    async def _save_settings(self, state: dict) -> None:
+        values = self._persisted(state)
+        if values != self._saved_settings:
+            self._saved_settings = values
+            await self.hub.send("save_settings", values)
+
     def _snapshot(self) -> dict:
         for _ in range(5):
             try:
@@ -311,6 +338,7 @@ class Worker:
             try:
                 validate_state(state)
                 await self.hub.invoke("update_state", state)
+                await self._save_settings(state)
             except SchemaError as e:
                 log.error("Rejected state update: %s", e)
             except (ConnectionLost, asyncio.TimeoutError):
@@ -377,13 +405,14 @@ def main(argv: list[str] | None = None) -> None:
     try:
         check_name(args.id, "Device id")
         config = json.loads(args.config)
-        if not isinstance(config, dict):
+        settings = json.loads(os.environ.get("LABORCHESTRA_SETTINGS", "{}"))
+        if not isinstance(config, dict) or not isinstance(settings, dict):
             raise ValueError("must be an object")
     except (SchemaError, ValueError) as e:
         log.error("Invalid argument: %s", e)
         sys.exit(EXIT_CONFIG)
     code = Worker(
-        args.target, args.id, args.url, args.token, config, bool(os.environ.get("LABORCHESTRA_WATCH_STDIN")), forwarder
+        args.target, args.id, args.url, args.token, config, bool(os.environ.get("LABORCHESTRA_WATCH_STDIN")), forwarder, settings
     ).run()
     sys.exit(code)
 

@@ -35,6 +35,7 @@ catch (InvalidOperationException e)
 var logStore = new LogStore(Path.Combine(dataDir, "logs"));
 builder.Logging.AddProvider(new LogStoreProvider(logStore));
 builder.Services.AddSingleton(logStore);
+builder.Services.AddSingleton(new SettingsStore(Path.Combine(dataDir, "settings")));
 builder.Services.AddSingleton(new TokenService(passphrase));
 builder.Services.AddSingleton(workspace);
 builder.Services.AddSingleton(new ServerInfo(workerUrl));

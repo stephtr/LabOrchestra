@@ -17,6 +17,7 @@ public sealed class WorkerSupervisor(
 	Workspace workspace,
 	DeviceRegistry registry,
 	LogStore logs,
+	SettingsStore settings,
 	TokenService tokens,
 	ServerInfo info,
 	IConfiguration config,
@@ -94,6 +95,7 @@ public sealed class WorkerSupervisor(
 		info2.Environment["LABORCHESTRA_DEVICE_ID"] = id;
 		info2.Environment["LABORCHESTRA_CONFIG"] = JsonSerializer.Serialize(device.Config ?? []);
 		info2.Environment["LABORCHESTRA_WATCH_STDIN"] = "1";
+		if (settings.Load(id) is { } saved) info2.Environment["LABORCHESTRA_SETTINGS"] = saved;
 		info2.Environment["PYTHONUNBUFFERED"] = "1";
 		var process = new Process { StartInfo = info2, EnableRaisingEvents = true };
 		process.OutputDataReceived += (_, e) => Line(id, e.Data, tail);
