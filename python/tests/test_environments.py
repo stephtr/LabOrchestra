@@ -36,6 +36,21 @@ def finished(data: Path) -> list[str]:
     return sorted(p.parent.name for p in (data / "envs").glob("*/.ready"))
 
 
+def explain(lab, device: str) -> str:
+    entries = "\n".join(f"  {e['level']} {e['logger']}: {e['message']}" for e in lab[device].logs())
+    return f"{device}: status={lab[device].status}\nerror={lab[device].error}\nlog:\n{entries}\nserver log:\n" + "\n".join(
+        f"  {e['level']} {e['message']}" for e in lab.logs('server', limit=40)
+    )
+
+
+def until(lab, device: str, condition, timeout: float, message: str):
+    """wait_for that says what the device was doing when it gave up."""
+    try:
+        wait_for(condition, timeout, message)
+    except AssertionError as e:
+        raise AssertionError(f"{e}\n{explain(lab, device)}") from None
+
+
 def uv_path() -> str:
     found = shutil.which("uv") or str(Path(sys.executable).parent / ("uv.exe" if sys.platform == "win32" else "uv"))
     if not Path(found).exists():
@@ -72,7 +87,7 @@ def lab(uv_server):
 def test_each_device_gets_the_environment_its_file_asks_for(uv_server, lab):
     workspace, data, _ = uv_server
     for device in ("plain", "six_a", "six_b", "six_idna", "names_itself"):
-        wait_for(lambda: lab[device].status == "ready", 180, f"{device} ready")
+        until(lab, device, lambda: lab[device].status == "ready", 120, f"{device} ready")
     python = {d: lab[d].state.get("python") for d in ("six_a", "six_b", "six_idna", "names_itself")}
     assert python["six_a"] == python["six_b"] == python["names_itself"]  # same needs: one environment
     assert python["six_idna"] != python["six_a"]  # other dependencies: another one
@@ -86,7 +101,7 @@ def test_each_device_gets_the_environment_its_file_asks_for(uv_server, lab):
 
 def test_restart_reuses_the_environment(uv_server, lab):
     data = uv_server[1]
-    wait_for(lambda: lab.six_a.status == "ready", 180, "six_a ready")
+    until(lab, "six_a", lambda: lab.six_a.status == "ready", 120, "six_a ready")
     before = finished(data)
     lab.six_a.restart()
     wait_for(lambda: lab.six_a.status == "ready", 20, "restart")
@@ -95,7 +110,7 @@ def test_restart_reuses_the_environment(uv_server, lab):
 
 def test_a_dependency_that_cannot_be_installed_is_reported_and_leaves_nothing_behind(uv_server, lab):
     workspace, data, _ = uv_server
-    wait_for(lambda: lab.wrong.status == "error" and "no-such-package-xyz-123" in (lab.wrong.error or ""), 120, "install error")
+    until(lab, "wrong", lambda: lab.wrong.status == "error" and "no-such-package-xyz-123" in (lab.wrong.error or ""), 120, "install error")
     assert "Could not start the worker" in lab.wrong.error
     assert any(e["logger"] == "uv" and e["level"] == "ERROR" for e in lab.wrong.logs())
     # between two attempts nothing half-built is left in the folder
@@ -103,7 +118,7 @@ def test_a_dependency_that_cannot_be_installed_is_reported_and_leaves_nothing_be
 
     (workspace / "devices" / "wrong.py").write_text(TEMPLATE.format(deps='"six"'))  # fixed: restarting picks it up
     lab.wrong.restart()
-    wait_for(lambda: lab.wrong.status == "ready", 60, "ready after the fix")
+    until(lab, "wrong", lambda: lab.wrong.status == "ready", 60, "ready after the fix")
     assert lab.wrong.state["python"] == lab.six_a.state["python"]
 
 
