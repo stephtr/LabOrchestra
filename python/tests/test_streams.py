@@ -55,30 +55,94 @@ def test_a_slow_client_gets_fewer_frames_and_nothing_piles_up(lab):
             time.sleep(0.1)  # 10 frames/s from a source that makes 200
         stats = frames.stats()
     assert 8 <= len(taken) <= 20  # about what the client could take
-    assert most_waiting <= 2  # never more than the window
+    assert most_waiting <= 3  # two waiting at the client (and one that was on its way): no backlog
     skipped = taken[-1] - taken[0] + 1 - len(taken)
     assert skipped > 100  # the frames in between were replaced by newer ones, not queued
-    assert stats["skipped"] >= skipped and stats["sent"] >= len(taken) and stats["rtt_ms"] > 0
+    assert stats["skipped"] >= skipped and stats["sent"] >= len(taken) and 0 < stats["rtt_ms"] < 50  # the slowness is not mistaken for distance
 
 
-def test_without_acknowledgements_exactly_the_window_is_sent(stream_server):
+def test_a_far_away_client_still_gets_the_full_frame_rate(stream_server):
+    # acknowledgements come 300 ms late, as over a long distance: with a window of 2 that would be 6 frames/s
+    async def main():
+        received = []
+        hub = Hub(f"{stream_server}/hub/streaming", PASSPHRASE)
+        loop = asyncio.get_running_loop()
+
+        def on_frame(sub, seq, meta, data):
+            received.append((loop.time(), seq))
+            # the frame arrives, and the confirmation takes 300 ms to get back: that is what a far away server sees
+            loop.call_later(0.3, lambda: asyncio.ensure_future(hub.send("received", sub, seq)))
+            loop.call_later(0.3, lambda: asyncio.ensure_future(hub.send("ack", sub, seq)))
+
+        hub.on("frame")(on_frame)
+        await hub.start()
+        await hub.wait_connected(10)
+        sub = await hub.invoke("subscribe", "source", "frames", {}, 2, 30)
+        await asyncio.sleep(4.0)
+        stats = next(s for s in await hub.invoke("get_stats") if s["subscription"] == sub)
+        await hub.close()
+        return received, stats
+
+    received, stats = asyncio.run(main())
+    start = received[0][0]
+    late = [t for t, _ in received if t - start > 2.0]  # after the window had time to adapt
+    assert len(late) >= 40, f"{len(late)} frames in 2 s: the long round trip slowed the stream down"  # 30 fps would be 60
+    assert 250 < stats["rtt_ms"] < 450 and 9 <= stats["window"] <= 64
+    assert stats["in_flight"] <= stats["window"]
+
+
+def test_a_far_away_and_busy_client_has_a_bounded_backlog(stream_server):
+    # 300 ms away (received comes late) and slow: it processes 5 frames/s
+    async def main():
+        arrived, processed = [], []
+        hub = Hub(f"{stream_server}/hub/streaming", PASSPHRASE)
+        loop = asyncio.get_running_loop()
+        queue = asyncio.Queue()
+
+        def on_frame(sub, seq, meta, data):
+            arrived.append(seq)
+            queue.put_nowait((sub, seq))
+            loop.call_later(0.3, lambda: asyncio.ensure_future(hub.send("received", sub, seq)))
+
+        hub.on("frame")(on_frame)
+        await hub.start()
+        await hub.wait_connected(10)
+        await hub.invoke("subscribe", "source", "frames", {}, 2, 30)
+        worst = 0
+        end = loop.time() + 4
+        while loop.time() < end:
+            try:
+                sub, seq = await asyncio.wait_for(queue.get(), 1)
+            except asyncio.TimeoutError:
+                continue
+            worst = max(worst, queue.qsize())
+            processed.append(seq)
+            await asyncio.sleep(0.2)
+            await hub.send("ack", sub, seq)
+        await hub.close()
+        return worst, len(arrived), len(processed)
+
+    worst, arrived, processed = asyncio.run(main())
+    # The server learns that the client is busy one round trip late: 2 frames waiting plus what 300 ms put on the way (9 at 30 fps),
+    # not the dozens that a window of 64 would allow. A display draws the newest frame and skips the rest.
+    assert worst <= 2 + 9 + 3
+    assert arrived <= processed + 16
+
+
+def test_a_client_that_never_acknowledges_gets_a_bounded_number_of_frames(stream_server):
     async def main():
         received = []
         hub = Hub(f"{stream_server}/hub/streaming", PASSPHRASE)
         hub.on("frame")(lambda sub, seq, meta, data: received.append(seq))
         await hub.start()
         await hub.wait_connected(10)
-        sub = await hub.invoke("subscribe", "source", "frames", {}, 3, 30)
-        await asyncio.sleep(1.0)
-        before = len(received)
-        await hub.send("ack", sub, received[0])  # one acknowledged: one more may come
-        await asyncio.sleep(0.5)
-        after_one = len(received)
+        await hub.invoke("subscribe", "source", "frames", {}, 8, 30)
+        await asyncio.sleep(2.0)
+        count = len(received)
         await hub.close()
-        return before, after_one
+        return count
 
-    before, after_one = asyncio.run(main())
-    assert before == 3 and after_one == 4
+    assert asyncio.run(main()) == 8  # the window, not 60 frames
 
 
 def test_every_client_can_ask_for_its_own_view(stream_server, lab):

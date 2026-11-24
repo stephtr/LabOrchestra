@@ -44,7 +44,7 @@ The old code is in `legacy/` (paths below such as `server/...` and `client/...` 
 - Clients subscribe per stream with their own parameters (decimation, FFT size, averaging); keep and extend `StreamingContexts`.
 - **Backpressure fix.** Today `DeviceManager.SendStreamData` calls `SendAsync` without awaiting, so a slow client causes unbounded queuing. Replace with:
   - one **latest-frame-wins slot per client and stream** (e.g. `Channel<T>` with capacity 1 and `BoundedChannelFullMode.DropOldest`) and a per-client sender loop that **awaits** `SendAsync`; never use `Clients.All` for streams;
-  - **ack-based credit window** (1-2 frames in flight, client acks after rendering), because send completion only reflects the TCP buffer, not browser rendering speed;
+  - **two signals from the client, not one**, because send completion only reflects the TCP buffer and a single ack cannot tell distance from busyness: `received` (sent at once; measures the round trip time and sizes the number of frames on their way: about 2 x fps x RTT + 1, at most 64, so that a client in another country keeps 30 fps; a fixed window of 2 would give 2/RTT frames per second) and `ack` (the frame is processed, e.g. drawn; at most 2 frames may wait for it at the client). With the delay in the feedback the backlog of a client that is both far away and busy is bounded by 2 + fps x RTT (about 0.3 s of data at 300 ms), not by 2; a display client draws the newest frame and skips older ones;
   - count dropped frames and measure RTT per client for a status display.
 
 ### Python devices: out-of-process, no pythonnet

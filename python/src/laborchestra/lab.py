@@ -129,7 +129,7 @@ class AsyncLab:
                 self._subscriptions.pop(old_id)
                 await stream._subscribe()
 
-    def stream(self, device: str, stream: str, parameters: dict | None = None, window: int = 2, max_fps: float = 30) -> AsyncStream:
+    def stream(self, device: str, stream: str, parameters: dict | None = None, window: int = 8, max_fps: float = 30) -> AsyncStream:
         """``async with lab.stream("het", "display", {...}) as frames: async for frame in frames:`` (see laborchestra.stream)."""
         return AsyncStream(self, device, stream, parameters, window, max_fps)
 
@@ -398,7 +398,7 @@ class Lab:
     def logs(self, source: str | None = None, level: str | None = None, since: int = 0, limit: int = 200) -> list[dict]:
         return self._run(self._async.logs(source, level, since, limit))
 
-    def stream(self, device: str, stream: str, parameters: dict | None = None, window: int = 2, max_fps: float = 30) -> SyncStream:
+    def stream(self, device: str, stream: str, parameters: dict | None = None, window: int = 8, max_fps: float = 30) -> SyncStream:
         """``with lab.stream("het", "display", {...}) as frames: for frame in frames:`` (see laborchestra.stream)."""
         return SyncStream(self, self._async.stream(device, stream, parameters, window, max_fps))
 

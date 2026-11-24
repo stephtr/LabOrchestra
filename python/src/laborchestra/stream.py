@@ -4,8 +4,9 @@
         for frame in frames:
             frame.sequence, frame.meta, frame.array   # array: float32 numpy array (numpy is optional)
 
-The server sends the next frame only after you asked for it (the previous one counts as acknowledged when you take the next), so a
-slow loop sees fewer frames of the same freshness instead of an ever longer backlog. ``window`` frames may be on their way.
+A frame counts as processed when you take the next one. The server keeps the frame rate for as long as you keep up, also over a
+link with a long round trip (the number of frames on their way grows with the round trip time; ``window`` is the least). If you
+fall behind, at most two frames wait for you (plus those that the distance has put on the way) instead of an ever longer backlog.
 """
 
 from __future__ import annotations
@@ -100,6 +101,15 @@ class AsyncStream:
 
     def _on_frame(self, sequence: int, meta: dict, data: bytes) -> None:
         self._queue.put_nowait(Frame(sequence, meta, bytes(data)))
+        # at once: this is how the server measures the distance to us (taking the frame may take much longer)
+        if self._id is not None:
+            asyncio.ensure_future(self._send_received(self._id, sequence))
+
+    async def _send_received(self, subscription: str, sequence: int) -> None:
+        try:
+            await (await self._lab._stream_hub()).send("received", subscription, sequence)
+        except Exception:
+            pass
 
 
 class SyncStream:

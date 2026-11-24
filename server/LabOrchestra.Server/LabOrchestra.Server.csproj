@@ -12,6 +12,7 @@
 		<ProjectReference Include="../LabOrchestra.Sdk/LabOrchestra.Sdk.csproj" />
 		<!-- plugins: built into the plugins folder next to the server, loaded at runtime like any plugin -->
 		<ProjectReference Include="../Plugins/Demo/LabOrchestra.Plugins.Demo.csproj" ReferenceOutputAssembly="false" />
+		<ProjectReference Include="../Plugins/Oscilloscope/LabOrchestra.Plugins.Oscilloscope.csproj" ReferenceOutputAssembly="false" />
 	</ItemGroup>
 
 	<ItemGroup>
