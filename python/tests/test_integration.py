@@ -72,7 +72,7 @@ def reset_devices(server):
 @pytest.fixture()
 def lab(server):
     with laborchestra.connect(server.url, PASSPHRASE) as lab:
-        wait_for(lambda: lab.devices and lab.pressure.status == "ready", message="device ready")
+        wait_for(lambda: lab.devices and lab.pressure.status == "ready", 40, "device ready")
         yield lab
 
 
