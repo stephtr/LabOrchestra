@@ -17,7 +17,7 @@ server/LabOrchestra.Sdk         public C# device API (plugins reference only thi
 server/LabOrchestra.Picoscope   oscilloscope plugin
 server/LabOrchestra.Tests
 python/laborchestra             SDK, client, worker, CLI, profiles
-python/devices/                 one package per ported driver
+drivers/                        single-file drivers of the lab (one package per driver once they are shared)
 client/                         Vite app + widget SDK
 templates/  docs/  examples/workspace/
 ```
@@ -92,8 +92,9 @@ Lessons (kept so they are not learned twice): hosted services stop in reverse or
 ## Phase 3: devices and streaming (two independent tracks)
 
 Track A, Python devices:
-- [ ] Elliptec, then PolarizationLock (proof of the API); revise the contract, **then freeze it as v1**
-- [ ] Pfeiffer, RS SMA100B, Smaract, SmaractLock, polarimeter
+- [x] Elliptec, polarimeter and PolarizationLock ported to `drivers/` (simulated in CI, closed-loop test); the API changes they led to are in CLAUDE.md (flush before the result, `lock`, `wait_for`, `simulate`)
+- [ ] Smaract and SmaractLock (concurrent `stop`), then Pfeiffer (streaming device): revise the contract, **then freeze it as v1**
+- [ ] Pfeiffer, RS SMA100B, Smaract, SmaractLock
 - [ ] Profiles extracted from at least two devices each where possible (real + simulator), conformance tests
 
 Track B, oscilloscope:

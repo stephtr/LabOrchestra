@@ -28,12 +28,14 @@ class Device:
     # set by the worker -----------------------------------------------------------------------
     id: str
     log: logging.Logger
+    lock: threading.RLock  # for hardware that must not be used by two threads at once (actions run in parallel)
 
     def _setup(self, device_id: str, config: dict, lab_factory: Callable[[], Any] | None = None) -> None:
         object.__setattr__(self, "_state_hook", None)
         self.id = device_id
         self.log = logging.getLogger(f"lab.{device_id}")
         self._stop = threading.Event()
+        self.lock = threading.RLock()
         self._lab = None
         self._lab_factory = lab_factory
         for name, value in config.items():

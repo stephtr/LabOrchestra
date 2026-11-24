@@ -12,7 +12,7 @@ from typing import Any, Callable
 from .errors import SchemaError
 
 _SNAKE = re.compile(r"^[a-z][a-z0-9]*(_[a-z0-9]+)*$")
-RESERVED = frozenset({"state", "persist", "id", "lab", "log", "running"})
+RESERVED = frozenset({"state", "persist", "id", "lab", "log", "running", "lock"})
 MISSING = object()
 
 

@@ -25,7 +25,7 @@ The server prints a login link with the access token and serves `client/dist`. W
 
 If `uv` is not on the PATH, give its location: `LABORCHESTRA_UV=/path/to/uv`. Without uv you can name an interpreter that has the package installed (`pip install -e python`): `LABORCHESTRA_PYTHON=/path/to/python`, used by all devices as it is. For client development run `pnpm dev` in `client/` (it proxies `/hub` to the server).
 
-The **Devices** page (`/devices`) adds, changes, restarts and removes devices and manages secrets: choose a Python file of the workspace, and the form for its options is generated from the file itself (the server loads it in its environment without starting it). The server writes `devices.json` and applies the change at once; files edited by hand are picked up as well. The same operations are available from scripts: `lab.add_device("tweezer_pressure", "devices/pfeiffer.py", config={"port": "COM4"})`, `lab.describe_device_file(...)`, `lab.update_device(...)`, `lab.remove_device(...)`.
+The **Devices** page (`/devices`) adds, changes, restarts and removes devices and manages secrets: choose a Python file of the workspace, and the form for its options is generated from the file itself (the server loads it in its environment without starting it). The server writes `devices.json` and applies the change at once; files edited by hand are picked up as well. The same operations are available from scripts: `lab.add_device("vacuum_pressure", "devices/pfeiffer.py", config={"port": "COM4"})`, `lab.describe_device_file(...)`, `lab.update_device(...)`, `lab.remove_device(...)`.
 
 A device file may start with a header (PEP 723) that names what it needs; devices with the same needs share an environment:
 
@@ -48,6 +48,16 @@ lab.pressure.set_pressure(0, 1e-3)
 ```
 
 `devices.json` is watched: added devices start, removed ones stop, changed ones restart; a broken file is reported in the server log and changes nothing. An option can refer to a stored secret: `"api_key": {"secret": "openai"}` (set with `lab.set_secret("openai", "...")`; the value never appears in the workspace, the logs or the state).
+
+## Writing a device
+
+See `drivers/` for real ones and `workspace/devices/demo_pressure.py` for the smallest. What to rely on:
+
+- Class attributes are options (annotated without default: required). `state` is a dict; every change, also nested, is published. `persist = ["key"]` saves state keys.
+- `connect()` opens hardware (raise to say why not), `run()` is the long loop (`while self.running:` and `self.sleep(s)` instead of `time.sleep`), `close()` releases hardware.
+- `@action` methods run in parallel threads: protect hardware access with `with self.lock:`. **When an action returns, its effects are already in the state** the caller sees.
+- `self.lab["other"].state`, `self.lab["other"].some_action(...)` (blocks until done), `.wait_ready()`, `.wait_for(lambda state: ...)` talk to other devices; the same works in scripts.
+- Offer `simulate = False` so that the device can run without its instrument; say so in the state (`simulated`).
 
 ## Recordings
 

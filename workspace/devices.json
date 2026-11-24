@@ -1,5 +1,10 @@
 {
 	"devices": {
-		"pressure": { "file": "devices/demo_pressure.py" }
+		"pressure": {
+			"file": "devices/demo_pressure.py"
+		},
+		"pressure2": {
+			"file": "devices/demo_pressure.py"
+		}
 	}
 }

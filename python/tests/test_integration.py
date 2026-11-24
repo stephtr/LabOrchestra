@@ -278,6 +278,17 @@ def test_secrets_reach_the_device_and_nothing_else(server, lab, reset_devices):
     assert "demo_key" not in lab.list_secrets()
 
 
+def test_when_an_action_returns_its_effects_are_already_in_the_state(lab):
+    """No waiting, no sleeping: a script (or a lock loop) reads the state right after the call."""
+    wait_for(lambda: lab.counter.status == "ready", message="counter ready")
+    for _ in range(40):
+        before = lab.counter.state["count"]
+        lab.counter.increment()
+        assert lab.counter.state["count"] == before + 1
+    with pytest.raises(RemoteError):
+        lab.counter.scramble("x", 1)  # a failing action: what it changed before failing is there as well
+
+
 def test_recording_captures_every_change_with_its_cause(server, lab):
     name = f"run {int(time.time() * 1000)}.1"
     wait_for(lambda: lab.counter.status == "ready" and lab.pressure.status == "ready", message="devices ready")

@@ -46,6 +46,14 @@ class AsyncDevice:
     async def call(self, action: str, *args: Any) -> Any:
         return await self._lab._call(self.id, action, args)
 
+    async def wait_for(self, predicate, timeout: float = 30) -> dict:
+        """Wait until the device is ready and ``predicate(state)`` is true; returns the state. Raises TimeoutError."""
+        return await self._lab._wait_for(self.id, predicate, timeout)
+
+    async def wait_ready(self, timeout: float = 30) -> dict:
+        """Wait until the device is ready (registered and running); returns its state."""
+        return await self._lab._wait_for(self.id, lambda state: True, timeout)
+
     async def restart(self) -> None:
         """Stop the worker of this device and start it again."""
         await self._lab.restart_device(self.id)
@@ -81,6 +89,7 @@ class AsyncLab:
         self._hub.on("device")(self._on_device)
         self._hub.on("device_patch")(self._on_patch)
         self._resyncing: set[str] = set()
+        self._waiters: list[asyncio.Future] = []
         self._hub.on("device_removed")(lambda device_id: self._devices.pop(device_id, None) and None)
 
     async def connect(self, timeout: float = 10) -> "AsyncLab":
@@ -107,10 +116,36 @@ class AsyncLab:
 
     async def _sync(self) -> None:
         self._devices = dict(await self._hub.invoke("get_devices"))
+        self._wake()
         self._synced.set()
+
+    def _wake(self) -> None:
+        waiters, self._waiters = self._waiters, []
+        for waiter in waiters:
+            if not waiter.done():
+                waiter.set_result(None)
+
+    async def _wait_for(self, device_id: str, predicate, timeout: float) -> dict:
+        loop = asyncio.get_running_loop()
+        end = loop.time() + timeout
+        while True:
+            info = self._devices.get(device_id)
+            if info is not None and info.get("status") == "ready" and info.get("state") is not None and predicate(info["state"]):
+                return info["state"]
+            remaining = end - loop.time()
+            if remaining <= 0:
+                status = info.get("status") if info else "missing"
+                raise TimeoutError(f"Device '{device_id}' ({status}) did not get there within {timeout} s")
+            waiter = loop.create_future()  # no change can slip in between the check above and this registration
+            self._waiters.append(waiter)
+            try:
+                await asyncio.wait_for(waiter, remaining)
+            except asyncio.TimeoutError:
+                pass
 
     def _on_device(self, device_id: str, info: dict) -> None:
         self._devices[device_id] = info
+        self._wake()
 
     def _on_patch(self, device_id: str, revision: int, patch: dict) -> None:
         info = self._devices.get(device_id)
@@ -118,6 +153,7 @@ class AsyncLab:
             try:
                 apply_patch(info["state"], patch)
                 info["revision"] = revision
+                self._wake()
                 return
             except PatchError:
                 pass
@@ -129,6 +165,7 @@ class AsyncLab:
     async def _resync(self, device_id: str) -> None:
         try:
             self._devices[device_id] = await self._hub.invoke("get_device", device_id)
+            self._wake()
         except Exception:
             pass  # the next change or reconnect brings it back
         finally:
@@ -268,6 +305,13 @@ class SyncDevice:
 
     def restart(self) -> None:
         self._lab._run(self._device.restart())
+
+    def wait_for(self, predicate, timeout: float = 30) -> dict:
+        """Wait until the device is ready and ``predicate(state)`` is true; returns the state. Raises TimeoutError."""
+        return self._lab._run(self._device.wait_for(predicate, timeout))
+
+    def wait_ready(self, timeout: float = 30) -> dict:
+        return self._lab._run(self._device.wait_ready(timeout))
 
     def __getattr__(self, name: str):
         if name.startswith("_"):

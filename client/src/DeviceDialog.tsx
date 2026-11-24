@@ -187,7 +187,7 @@ export function DeviceDialog({ deviceId, onClose }: { deviceId: string | null; o
 				<h2 className="text-lg font-semibold">{editing ? `Change ${deviceId}` : 'Add a device'}</h2>
 				<div className="flex flex-wrap items-center gap-2">
 					<label className="w-40 text-sm" htmlFor="device-id">Id</label>
-					<input id="device-id" data-testid="field-id" className={`${FIELD} w-56 font-mono`} value={id} disabled={editing} placeholder="e.g. tweezer_pressure" onChange={(e) => setId(e.target.value)} />
+					<input id="device-id" data-testid="field-id" className={`${FIELD} w-56 font-mono`} value={id} disabled={editing} placeholder="e.g. vacuum_pressure" onChange={(e) => setId(e.target.value)} />
 				</div>
 				<div className="flex flex-wrap items-center gap-2">
 					<label className="w-40 text-sm" htmlFor="device-file">Device file</label>

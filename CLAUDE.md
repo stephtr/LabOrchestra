@@ -83,7 +83,15 @@ Mapping of today's injected names:
 
 - Exceptions must reach callers as structured errors (a script sees a real Python exception with the device's message), instead of today's wrapped `InvalidOperationException`.
 - **Simple devices stay simple.** Ordinary Python must be enough: no required imports of config, secret, reference or profile types, no mandatory typing, no `try/except` for survival (an error in `run` is logged, shown, and the device restarts with backoff). Types, profiles and checks are optional upgrades that need no rewrite. Test case: `ParticleName.py` in about 45 lines.
-- Port a couple of devices as API proof before fixing the design: Elliptec, and `PolarizationLock` (exercises cross-device calls).
+- Port a couple of devices as API proof before fixing the design: Elliptec, and `PolarizationLock` (exercises cross-device calls). **Done** (`drivers/`, plus the polarimeter; simulated in CI, closed loop with a test device that adds physics). What it taught, now part of the contract:
+  - **When an action returns, its effects are in the state the caller sees.** The worker sends pending state changes before it returns the result (also when the action fails). Without it a script or lock loop read values 50 ms old.
+  - **Actions run in parallel threads** (so that a `stop` can interrupt a long move). Hardware access that must not overlap uses `with self.lock:` (an `RLock` every device has).
+  - **Calling another device blocks until its action is done** (`lab.elliptec.set_position(...)`), unlike the fire-and-forget `action` of the old API. A control loop therefore cannot pile up commands. A non-blocking call is not needed yet.
+  - **`lab.<device>.wait_ready()` and `.wait_for(lambda state: ...)`** (also for scripts and the future MCP `wait_for`): devices that depend on others wait for them instead of polling or failing.
+  - **Simulation is an option of the driver** (`simulate = False`), not a separate demo file and never a silent fallback: the state says `simulated: True`, a missing port without `simulate` is an error that says what to set. One file per instrument.
+  - **Read errors are not swallowed:** state carries a per-channel `status` (`ok`/`error`), the first failure is logged once (not at every poll), actions raise to the caller.
+  - State is snake_case (`target_position`, `dop`); units stay in the docstring until profiles exist. A list option (`channels`) is a `json` option; the form for it is a plain JSON field so far.
+  - Not frozen yet: the contract is declared v1 after two more ports that stress other things: Smaract (a `stop` action that must interrupt a running move) and Pfeiffer (a device that streams).
 
 ### Device management and config
 - Replace the `DeviceManager` constructor with a **declarative config** (`devices.json`): driver, args, optional demo fallback. The same registry enables runtime add/remove.

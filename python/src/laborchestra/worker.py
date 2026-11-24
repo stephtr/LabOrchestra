@@ -202,6 +202,7 @@ class Worker:
         self.loop = asyncio.get_running_loop()
         self.stop = asyncio.Event()
         self.dirty = asyncio.Event()
+        self._flush_lock = asyncio.Lock()
         self.log_wake = asyncio.Event()
         self.forwarder.attach(self.loop, self.log_wake)
         self._install_signal_handlers()
@@ -354,9 +355,14 @@ class Worker:
         while True:
             await self.dirty.wait()
             await asyncio.sleep(0.05)  # collect further changes
-            if self._registered_gen != self.hub.connects:
+            if not await self._flush():
                 await asyncio.sleep(0.1)  # not registered on this connection yet
-                continue
+
+    async def _flush(self) -> bool:
+        """Send what changed in the state. False if that is not possible yet (not registered on this connection)."""
+        async with self._flush_lock:  # one at a time: patches must reach the server in order
+            if self._registered_gen != self.hub.connects:
+                return False
             self.dirty.clear()
             state = self._snapshot()
             try:
@@ -377,6 +383,7 @@ class Worker:
                 pass  # the full state is sent again after reconnecting
             except RemoteError as e:
                 log.warning("Server rejected the state update: %s", e)
+            return True
 
     async def _send_logs(self, timeout: float | None = None) -> None:
         while self.forwarder.buffer and self._registered_gen == self.hub.connects and self.hub.is_connected:
@@ -424,7 +431,10 @@ class Worker:
                 result = await self.loop.run_in_executor(None, self._in_context, caller, fn, arguments)
         except Exception as e:
             self.device.log.warning("Action %s failed: %s: %s", name, type(e).__name__, e, exc_info=True)
+            await self._flush()  # what the action changed before it failed
             raise
+        # the caller must find the effects of the action in the state when the answer arrives: send the changes first
+        await self._flush()
         return plain(result)
 
 
