@@ -100,7 +100,7 @@ Track A, Python devices:
 Track B, oscilloscope:
 - [x] `OscilloscopeWithStreaming` split: `OscilloscopeBase` (rings, FFT, averaging, display, recording) + a driver that only acquires; simulated oscilloscope; 8 tests (tones where they belong, zoom, decimation, time trace, controls, FFT against a DFT, stop/start, continuous `.npy` channels, crash repair)
 - [x] NumSharp and Accord replaced (`NpyWriter`, `ManagedRealFft`); buffers configurable (`ring_samples`, `recording_ring_samples`)
-- [ ] pffft through P/Invoke behind `IRealFft` (the managed FFT does about 44 MS/s on one thread; the target is 200 MB/s)
+- [x] pffft through P/Invoke behind `IRealFft` (built from `native/pffft`, managed fallback, windowing straight from the ring into the FFT input). Throughput at 200 MB/s still to be measured (the load test)
 - [x] Picoscope 4000a/5000a plugins (`server/Plugins/Picoscope`, `AcquireAsync`; PicoSDK installed by the user, loaded at runtime). Compiles and reports a missing SDK in CI; **not yet tried on hardware** (needs a unit in the lab: open, ranges, streaming at the FFT frequency, restart after a channel change, 5000a test signal)
 - [x] `StreamHub`: per-client subscriptions, newest frame at send time, `received` and `ack` as two signals, window that follows the round trip time (a client 300 ms away keeps 30 fps; tested with delayed confirmations); display rendering holds no lock of the FFT (only a short copy of the spectrum)
 - [ ] FFT results match the legacy reference data (needs a recording and a snapshot from the lab PC)

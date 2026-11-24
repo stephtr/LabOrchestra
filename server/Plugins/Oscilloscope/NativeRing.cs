@@ -56,6 +56,29 @@ public sealed unsafe class NativeRing : IDisposable
 		return count;
 	}
 
+	/// <summary>Reads <c>window.Length</c> samples multiplied by the window straight into <paramref name="destination"/> (no intermediate copy;
+	/// the wrap-around makes two segments). Requires that many samples to be available.</summary>
+	public void ReadWindowed(Span<float> destination, ReadOnlySpan<float> window)
+	{
+		var count = window.Length;
+		if (Available < count) throw new InvalidOperationException("Not enough samples in the ring");
+		var read = Volatile.Read(ref _read);
+		var start = (int)(read & _mask);
+		var first = Math.Min(count, Capacity - start);
+		Multiply(new ReadOnlySpan<float>(_data + start, first), window[..first], destination[..first]);
+		Multiply(new ReadOnlySpan<float>(_data, count - first), window[first..count], destination[first..count]);
+		Volatile.Write(ref _read, read + count);
+	}
+
+	private static void Multiply(ReadOnlySpan<float> a, ReadOnlySpan<float> b, Span<float> result)
+	{
+		var i = 0;
+		if (System.Numerics.Vector.IsHardwareAccelerated)
+			for (; i <= a.Length - System.Numerics.Vector<float>.Count; i += System.Numerics.Vector<float>.Count)
+				(new System.Numerics.Vector<float>(a[i..]) * new System.Numerics.Vector<float>(b[i..])).CopyTo(result[i..]);
+		for (; i < a.Length; i++) result[i] = a[i] * b[i];
+	}
+
 	/// <summary>The reader drops what has piled up and goes on with what comes next (asked for by the writer when it overran).</summary>
 	public void RequestReset() => _reset = true;
 

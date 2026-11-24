@@ -11,6 +11,16 @@
 		<GenerateDependencyFile>true</GenerateDependencyFile>
 	</PropertyGroup>
 
+	<!-- pffft (native/pffft) next to the plugin; without a C compiler the build goes on and the plugin uses its managed FFT -->
+	<PropertyGroup>
+		<PffftFile Condition="$([MSBuild]::IsOSPlatform('Windows'))">pffft.dll</PffftFile>
+		<PffftFile Condition="$([MSBuild]::IsOSPlatform('OSX'))">libpffft.dylib</PffftFile>
+		<PffftFile Condition="$([MSBuild]::IsOSPlatform('Linux'))">libpffft.so</PffftFile>
+	</PropertyGroup>
+	<Target Name="BuildPffft" AfterTargets="Build" Condition="!Exists('$(OutputPath)$(PffftFile)')">
+		<Exec Command="bash &quot;$(MSBuildThisFileDirectory)../../../native/build.sh&quot; &quot;$(OutputPath)&quot;" ContinueOnError="true" IgnoreExitCode="true" StandardErrorImportance="low" />
+	</Target>
+
 	<ItemGroup>
 		<ProjectReference Include="../../LabOrchestra.Sdk/LabOrchestra.Sdk.csproj">
 			<Private>false</Private>

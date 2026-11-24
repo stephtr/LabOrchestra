@@ -29,6 +29,8 @@ public sealed class OscilloscopeState
 	/// <summary>The top of the spectrum in Hz (half the sample rate).</summary>
 	public double FftFrequency { get; set; } = 1e6;
 	public int FftLength { get; set; } = 8192;
+	/// <summary>"pffft" (native) or "managed" (slower fallback).</summary>
+	public string FftEngine { get; set; } = "";
 	public string FftAveragingMode { get; set; } = "prefer-data";
 	public int FftAveragingDurationMs { get; set; } = 200;
 	public string FftWindowFunction { get; set; } = "blackman";
@@ -308,7 +310,10 @@ public abstract class OscilloscopeBase<TOptions> : Device<TOptions, Oscilloscope
 		var x = new float[length];
 		for (var i = 0; i < length; i++) x[i] = (float)(rnd.NextDouble() - 0.5);
 		var power = new float[length / 2 + 1];
-		new ManagedRealFft(length).Power(x, power, 1);
+		var real = FftFactory.Create(length, Log);
+		using var _ = real as IDisposable;
+		x.CopyTo(real.Input);
+		real.Power(power, 1);
 		double worst = 0;
 		for (var k = 0; k <= length / 2; k++)
 		{
@@ -366,11 +371,13 @@ public abstract class OscilloscopeBase<TOptions> : Device<TOptions, Oscilloscope
 		try
 		{
 			_n = length;
-			_fft = ManagedRealFft.Create(length);
+			(_fft as IDisposable)?.Dispose();
+			_fft = FftFactory.Create(length, Log);
 			_window = WindowFunction.Create(window, length);
 			ResetStore();
 		}
 		finally { _parameters.ExitWriteLock(); }
+		Update(s => s.FftEngine = _fft is PffftRealFft ? "pffft" : "managed");
 	}
 
 	private void ResetStore(int? channel = null)
@@ -390,7 +397,6 @@ public abstract class OscilloscopeBase<TOptions> : Device<TOptions, Oscilloscope
 
 	private void FftLoop(CancellationToken cancel)
 	{
-		var x = new float[0];
 		var power = new float[0];
 		while (!cancel.IsCancellationRequested)
 		{
@@ -399,14 +405,13 @@ public abstract class OscilloscopeBase<TOptions> : Device<TOptions, Oscilloscope
 			try
 			{
 				var n = _n;
-				if (x.Length != n) (x, power) = (new float[n], new float[n / 2 + 1]);
+				if (power.Length != n / 2 + 1) power = new float[n / 2 + 1];
 				var factor = (float)(2 * _dt / n);
 				for (var c = 0; c < _active.Length; c++)
 				{
 					if (!_active[c] || _rings[c].Available < n) continue;
-					_rings[c].Read(x);
-					for (var i = 0; i < n; i++) x[i] *= _window[i];
-					_fft.Power(x, power, factor);
+					_rings[c].ReadWindowed(_fft.Input, _window);
+					_fft.Power(power, factor);
 					var weight = 1.0 / (_acquired[c] + 1);
 					if (_averagingMs == 0) weight = 1;
 					else if (_averagingMs > 0) weight = Math.Max(weight, 1 - Math.Exp(-_dt * n / (_averagingMs / 1000.0)));

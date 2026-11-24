@@ -122,6 +122,7 @@ def test_controls_change_the_pipeline_and_mistakes_are_explained(lab):
 
 
 def test_the_fft_agrees_with_a_plain_dft_and_get_fft_returns_the_spectrum(lab):
+    assert lab.osc.state["fft_engine"] == ("managed" if os.environ.get("LABORCHESTRA_MANAGED_FFT") else "pffft")  # CI must build the native library
     assert lab.osc.fft_self_test() < 1e-3
     lab.osc.set_fft_bin_count(8192)
     wait_for(lambda: lab.osc.get_fft(0, 90e3, 110e3)[0], 10, "a spectrum")

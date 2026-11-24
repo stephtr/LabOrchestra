@@ -4,7 +4,10 @@ namespace LabOrchestra.Plugins.Oscilloscope;
 public interface IRealFft
 {
 	int Size { get; }
-	void Power(ReadOnlySpan<float> input, Span<float> power, float scale);
+	/// <summary>The samples to transform go here (native, aligned memory for the native FFT: fill it directly, without another copy).</summary>
+	Span<float> Input { get; }
+	/// <summary>Transforms <see cref="Input"/>; <c>power</c> has Size / 2 + 1 values. The input is left in an undefined state.</summary>
+	void Power(Span<float> power, float scale);
 }
 
 /// <summary>A plain radix-2 FFT in managed code (a real FFT through a complex one of half the size). Slower than a native library but
@@ -47,7 +50,10 @@ public sealed class ManagedRealFft : IRealFft
 
 	public int Size => _n;
 
-	public static IRealFft Create(int n) => new ManagedRealFft(n);
+	private float[]? _input;
+	public Span<float> Input => _input ??= new float[_n];
+
+	public void Power(Span<float> power, float scale) => Power(Input, power, scale);
 
 	public void Power(ReadOnlySpan<float> input, Span<float> power, float scale)
 	{

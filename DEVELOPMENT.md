@@ -113,3 +113,7 @@ Errors cross the wire as JSON text `{type, message, traceback}`. SignalR needs e
 ## Picoscope
 
 `picoscope_4000a` and `picoscope_5000a` (C# drivers in `server/Plugins/Picoscope`) need the PicoSDK or PicoScope 7 installed (https://www.picotech.com/downloads); LabOrchestra does not ship it. Add one in the Devices page (kind: C# driver) or `devices.json`: `{"driver": "picoscope_5000a", "config": {"auto_start": true}}`. Without the library or without a unit the device shows an error saying what is missing. The pipeline, widget and recording are the same as for `simulated_oscilloscope`.
+
+## Native FFT
+
+The oscilloscope plugin uses pffft (`native/pffft`, built by `native/build.sh` as part of `dotnet build` and put next to the plugin; needs `bash` and `clang`/`cc`). Without a compiler the build goes on and the plugin falls back to the managed FFT (about 30 times slower); the device state `fft_engine` shows which one runs. `LABORCHESTRA_MANAGED_FFT=1` forces the fallback.
