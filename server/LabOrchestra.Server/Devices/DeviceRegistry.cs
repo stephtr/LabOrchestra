@@ -11,6 +11,8 @@ public sealed class DeviceEntry
 	public object? Schema { get; set; }
 	public object? State { get; set; }
 	public string? ConnectionId { get; set; }
+	/// <summary>How often a worker registered; lets the supervisor tell whether a process ever came up.</summary>
+	public int Registrations { get; set; }
 }
 
 /// <summary>All configured devices with their status, schema and last reported state. Schema and state are kept as
@@ -26,7 +28,7 @@ public sealed class DeviceRegistry(IHubContext<ControlHub> control, ILogger<Devi
 		Change(id, e => { e.Status = status; e.Error = error; if (status != "ready") e.ConnectionId = null; });
 
 	public void Registered(string id, string connectionId, object schema, object state) =>
-		Change(id, e => { e.Status = "ready"; e.Error = null; e.ConnectionId = connectionId; e.Schema = schema; e.State = state; });
+		Change(id, e => { e.Status = "ready"; e.Error = null; e.ConnectionId = connectionId; e.Schema = schema; e.State = state; e.Registrations++; });
 
 	public bool StateUpdated(string id, string connectionId, object state)
 	{

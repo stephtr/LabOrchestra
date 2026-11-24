@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using LabOrchestra.Server.Auth;
 using LabOrchestra.Server.Devices;
+using LabOrchestra.Server.Logging;
 
 namespace LabOrchestra.Server.Supervision;
 
@@ -15,6 +16,7 @@ public sealed record ServerInfo(string WorkerUrl);
 public sealed class WorkerSupervisor(
 	Workspace workspace,
 	DeviceRegistry registry,
+	LogStore logs,
 	TokenService tokens,
 	ServerInfo info,
 	IConfiguration config,
@@ -34,17 +36,23 @@ public sealed class WorkerSupervisor(
 		{
 			var tail = new Queue<string>();
 			var started = DateTime.UtcNow;
+			var registrations = registry.Get(id)?.Registrations ?? 0;
 			Process? process = null;
 			try
 			{
 				process = Start(id, device, tokens.IssueDeviceToken(id), tail);
 				log.LogInformation("Started the worker of {Device} (pid {Pid})", id, process.Id);
+				logs.Add($"device:{id}", "INFO", "supervisor", $"Started the worker (pid {process.Id})");
 				await process.WaitForExitAsync(stop);
 				string[] lines;
 				lock (tail) lines = tail.ToArray();
+				if ((registry.Get(id)?.Registrations ?? 0) == registrations)
+					// never came up, so nothing was sent over the hub: keep its output in the device's log
+					foreach (var line in lines) logs.Add($"device:{id}", LevelOf(line), "process", line);
 				var message = $"The worker ended with exit code {process.ExitCode}" + (lines.Length > 0 ? ":\n" + string.Join('\n', lines) : "");
 				registry.SetStatus(id, "error", message);
 				log.LogWarning("The worker of {Device} ended with exit code {Code}", id, process.ExitCode);
+				logs.Add($"device:{id}", "WARNING", "supervisor", $"The worker ended with exit code {process.ExitCode}; restarting in {delay.TotalSeconds:0.#} s");
 			}
 			catch (OperationCanceledException)
 			{
@@ -96,6 +104,9 @@ public sealed class WorkerSupervisor(
 		return process;
 	}
 
+	private static string LevelOf(string line) =>
+		line.StartsWith("CRITICAL") ? "CRITICAL" : line.StartsWith("ERROR") ? "ERROR" : line.StartsWith("WARNING") ? "WARNING" : "INFO";
+
 	private void Line(string id, string? line, Queue<string> tail)
 	{
 		if (string.IsNullOrWhiteSpace(line)) return;
@@ -104,7 +115,6 @@ public sealed class WorkerSupervisor(
 			tail.Enqueue(line);
 			while (tail.Count > 15) tail.Dequeue();
 		}
-		// the worker logs as "LEVEL logger: message"
 		if (line.StartsWith("ERROR") || line.StartsWith("CRITICAL")) log.LogError("[{Device}] {Line}", id, line);
 		else if (line.StartsWith("WARNING")) log.LogWarning("[{Device}] {Line}", id, line);
 		else log.LogInformation("[{Device}] {Line}", id, line);

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import collections
 import importlib
 import importlib.util
 import inspect
@@ -18,6 +19,7 @@ import os
 import signal
 import sys
 import threading
+import traceback
 from pathlib import Path
 from typing import Any
 
@@ -99,9 +101,45 @@ def coerce_config(cls: type[Device], config: dict) -> dict:
     }
 
 
+class _LogForwarder(logging.Handler):
+    """Collects log records (from any thread) so that they can be sent to the server in batches."""
+
+    def __init__(self):
+        super().__init__(level=logging.INFO)
+        self.loop: asyncio.AbstractEventLoop | None = None
+        self.wake: asyncio.Event | None = None
+        self.buffer: collections.deque = collections.deque(maxlen=1000)
+
+    def attach(self, loop: asyncio.AbstractEventLoop, wake: asyncio.Event) -> None:
+        self.loop, self.wake = loop, wake
+        if self.buffer:
+            wake.set()
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            self.buffer.append(
+                {
+                    "time": record.created,
+                    "level": record.levelname,
+                    "logger": record.name,
+                    "message": record.getMessage(),
+                    "traceback": "".join(traceback.format_exception(*record.exc_info)) if record.exc_info else None,
+                }
+            )
+            if self.loop is not None:
+                self.loop.call_soon_threadsafe(self.wake.set)
+        except RuntimeError:  # the loop is already closed
+            pass
+        except Exception:
+            self.handleError(record)
+
+
 class Worker:
-    def __init__(self, target: str, device_id: str, url: str, token: str | None, config: dict, watch_stdin: bool):
+    def __init__(
+        self, target: str, device_id: str, url: str, token: str | None, config: dict, watch_stdin: bool, forwarder: _LogForwarder
+    ):
         self.target, self.device_id, self.url, self.token = target, device_id, url.rstrip("/"), token
+        self.forwarder = forwarder
         self.config, self.watch_stdin = config, watch_stdin
         self.exit_code = EXIT_OK
         self._registered_gen = 0
@@ -136,6 +174,8 @@ class Worker:
         self.loop = asyncio.get_running_loop()
         self.stop = asyncio.Event()
         self.dirty = asyncio.Event()
+        self.log_wake = asyncio.Event()
+        self.forwarder.attach(self.loop, self.log_wake)
         self._install_signal_handlers()
         if self.watch_stdin:
             threading.Thread(target=self._watch_stdin, name="stdin-watch", daemon=True).start()
@@ -151,7 +191,11 @@ class Worker:
         self.hub.on("get_state")(self._snapshot)
         self.device._state_hook = lambda: self.loop.call_soon_threadsafe(self.dirty.set)
         await self.hub.start()
-        background = [asyncio.create_task(self._flush_loop()), asyncio.create_task(self._watch_hub())]
+        background = [
+            asyncio.create_task(self._flush_loop()),
+            asyncio.create_task(self._log_loop()),
+            asyncio.create_task(self._watch_hub()),
+        ]
         self._start_run()
 
         await self.stop.wait()
@@ -173,6 +217,7 @@ class Worker:
             log.exception("close() failed")
         for task in background:
             task.cancel()
+        await self._send_logs(timeout=1.0)  # the last messages (also those of close())
         await self.hub.close()
         timer.cancel()
         return self.exit_code
@@ -273,15 +318,42 @@ class Worker:
             except RemoteError as e:
                 log.warning("Server rejected the state update: %s", e)
 
+    async def _send_logs(self, timeout: float | None = None) -> None:
+        while self.forwarder.buffer and self._registered_gen == self.hub.connects and self.hub.is_connected:
+            batch = [self.forwarder.buffer.popleft() for _ in range(min(200, len(self.forwarder.buffer)))]
+            try:
+                await asyncio.wait_for(self.hub.send("log", batch), timeout or 10)
+            except Exception:
+                self.forwarder.buffer.extendleft(reversed(batch))  # try again later
+                return
+
+    async def _log_loop(self) -> None:
+        while True:
+            await self.log_wake.wait()
+            await asyncio.sleep(0.2)  # collect a batch
+            self.log_wake.clear()
+            if self.forwarder.buffer and self._registered_gen != self.hub.connects:
+                await asyncio.sleep(0.5)  # not registered on this connection yet
+                self.log_wake.set()
+                continue
+            await self._send_logs()
+            if self.forwarder.buffer:
+                await asyncio.sleep(1)
+                self.log_wake.set()
+
     async def _on_call(self, name: str, args: list | None) -> Any:
         fn = self.actions.get(name)
         if fn is None:
             raise LookupError(f"Device '{self.device_id}' has no action '{name}' (actions: {', '.join(self.actions)})")
-        arguments = coerce_arguments(fn, list(args or []))
-        if inspect.iscoroutinefunction(fn):
-            result = await fn(self.device, *arguments)
-        else:
-            result = await self.loop.run_in_executor(None, lambda: fn(self.device, *arguments))
+        try:
+            arguments = coerce_arguments(fn, list(args or []))
+            if inspect.iscoroutinefunction(fn):
+                result = await fn(self.device, *arguments)
+            else:
+                result = await self.loop.run_in_executor(None, lambda: fn(self.device, *arguments))
+        except Exception as e:
+            self.device.log.warning("Action %s failed: %s: %s", name, type(e).__name__, e, exc_info=True)
+            raise
         return plain(result)
 
 
@@ -298,6 +370,8 @@ def main(argv: list[str] | None = None) -> None:
         level=os.environ.get("LABORCHESTRA_LOG_LEVEL", "INFO"),
         format="%(levelname)s %(name)s: %(message)s",
     )
+    forwarder = _LogForwarder()  # collects from the start; sent once the worker is registered
+    logging.getLogger().addHandler(forwarder)
     if not args.id:
         parser.error("--id (or LABORCHESTRA_DEVICE_ID) is required")
     try:
@@ -308,7 +382,9 @@ def main(argv: list[str] | None = None) -> None:
     except (SchemaError, ValueError) as e:
         log.error("Invalid argument: %s", e)
         sys.exit(EXIT_CONFIG)
-    code = Worker(args.target, args.id, args.url, args.token, config, bool(os.environ.get("LABORCHESTRA_WATCH_STDIN"))).run()
+    code = Worker(
+        args.target, args.id, args.url, args.token, config, bool(os.environ.get("LABORCHESTRA_WATCH_STDIN")), forwarder
+    ).run()
     sys.exit(code)
 
 

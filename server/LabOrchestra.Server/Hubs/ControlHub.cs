@@ -1,6 +1,7 @@
 using System.Text.Json;
 using LabOrchestra.Server.Auth;
 using LabOrchestra.Server.Devices;
+using LabOrchestra.Server.Logging;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 
@@ -14,10 +15,21 @@ public static class Errors
 
 /// <summary>Connection of browsers, scripts and devices that talk to other devices.</summary>
 [Authorize(Roles = $"{Roles.Client},{Roles.Device}")]
-public sealed class ControlHub(DeviceRegistry registry, IHubContext<DeviceHub> devices) : Hub
+public sealed class ControlHub(DeviceRegistry registry, LogStore logs, IHubContext<DeviceHub> devices) : Hub
 {
 	[HubMethodName("get_devices")]
 	public Dictionary<string, Dictionary<string, object?>> GetDevices() => registry.All();
+
+	/// <param name="source">"server", "device:pressure" or null for all; since = 0 returns the latest entries.</param>
+	[HubMethodName("get_logs")]
+	public List<Dictionary<string, object?>> GetLogs(string? source, string? level, long since, int limit) =>
+		logs.Get(source, level, since, Math.Clamp(limit, 1, 2000));
+
+	[HubMethodName("subscribe_logs")]
+	public Task SubscribeLogs(string source) => Groups.AddToGroupAsync(Context.ConnectionId, "logs:" + source);
+
+	[HubMethodName("unsubscribe_logs")]
+	public Task UnsubscribeLogs(string source) => Groups.RemoveFromGroupAsync(Context.ConnectionId, "logs:" + source);
 
 	[HubMethodName("action")]
 	public async Task<object?> Action(string device, string name, object?[] args)

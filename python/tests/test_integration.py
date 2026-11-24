@@ -47,7 +47,14 @@ def server(tmp_path_factory):
     (workspace / "devices").mkdir()
     shutil.copy(DEMO, workspace / "devices" / "demo_pressure.py")
     (workspace / "devices.json").write_text(
-        json.dumps({"devices": {"pressure": {"file": "devices/demo_pressure.py", "config": {"noise": 0.0}}}})
+        json.dumps(
+            {
+                "devices": {
+                    "pressure": {"file": "devices/demo_pressure.py", "config": {"noise": 0.0}},
+                    "broken": {"file": "devices/demo_pressure.py", "config": {"speed": 1}},  # no such option
+                }
+            }
+        )
     )
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
@@ -89,7 +96,7 @@ def lab(server):
 
 
 def test_script_reads_state_and_calls_actions(lab):
-    assert lab.devices == ["pressure"]
+    assert sorted(lab.devices) == ["broken", "pressure"]
     assert lab.pressure.state["channels"][0]["status"] == "ok"
     assert lab.pressure.schema["class"] == "DemoPressure"
     assert [a["name"] for a in lab.pressure.schema["actions"]] == ["set_pressure"]
@@ -118,6 +125,36 @@ def test_errors_reach_the_caller(lab):
     assert e.value.type == "LookupError"
     with pytest.raises(laborchestra.LabOrchestraError, match="does not exist"):
         lab.missing.state
+
+
+def test_logs_of_devices_and_server(lab):
+    entries = wait_for(lambda: [e for e in lab.pressure.logs() if "Demo gauge ready" in e["message"]], message="device log")
+    assert entries[0]["level"] == "INFO" and entries[0]["source"] == "device:pressure"
+    assert entries[0]["logger"] == "lab.pressure" and entries[0]["time"].endswith("Z")
+
+    with pytest.raises(RemoteError):
+        lab.pressure.set_pressure(7, 1.0)
+    failed = wait_for(lambda: lab.pressure.logs(level="WARNING"), message="warning in the log")
+    assert "set_pressure failed" in failed[-1]["message"] and "no channel 7" in failed[-1]["traceback"]
+
+    last = lab.pressure.logs()[-1]["seq"]
+    assert lab.pressure.logs(since=last) == []  # following the log
+    server_log = lab.logs("server", limit=500)
+    assert any("pressure" in e["message"] and e["source"] == "server" for e in server_log)
+    assert all(e["level"] in ("INFO", "WARNING", "ERROR") for e in server_log)
+    assert {e["source"] for e in lab.logs()} >= {"server", "device:pressure"}
+
+
+def test_device_that_cannot_start_reports_why(lab):
+    wait_for(lambda: lab.broken.status == "error", message="error status")
+    assert "Unknown option(s): speed" in lab.broken.error and "exit code 2" in lab.broken.error
+    entries = wait_for(lambda: lab.broken.logs(), message="log of the broken device")
+    assert any(e["logger"] == "process" and "Unknown option" in e["message"] for e in entries)
+    assert any(e["logger"] == "supervisor" and "restarting" in e["message"] for e in entries)
+    with pytest.raises(RemoteError) as e:
+        lab.broken.call("set_pressure", 0, 1.0)
+    assert e.value.type == "DeviceNotReady"
+    assert lab.pressure.status == "ready"  # the others are not affected
 
 
 def test_wrong_or_missing_token_is_rejected(server):

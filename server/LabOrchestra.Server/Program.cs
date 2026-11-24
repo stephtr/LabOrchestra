@@ -3,6 +3,8 @@ using LabOrchestra.Server;
 using LabOrchestra.Server.Auth;
 using LabOrchestra.Server.Devices;
 using LabOrchestra.Server.Hubs;
+using LabOrchestra.Server.Logging;
+using Microsoft.AspNetCore.SignalR;
 using LabOrchestra.Server.Supervision;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.FileProviders;
@@ -30,6 +32,9 @@ catch (InvalidOperationException e)
 	return 2;
 }
 
+var logStore = new LogStore(Path.Combine(dataDir, "logs"));
+builder.Logging.AddProvider(new LogStoreProvider(logStore));
+builder.Services.AddSingleton(logStore);
 builder.Services.AddSingleton(new TokenService(passphrase));
 builder.Services.AddSingleton(workspace);
 builder.Services.AddSingleton(new ServerInfo(workerUrl));
@@ -57,6 +62,8 @@ app.Use(async (context, next) =>
 	}
 	await next();
 });
+var controlHub = app.Services.GetRequiredService<IHubContext<ControlHub>>();
+logStore.Added += entry => _ = controlHub.Clients.Group("logs:" + entry["source"]).SendAsync("log", entry);
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapHub<DeviceHub>("/hub/devices");

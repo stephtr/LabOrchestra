@@ -1,6 +1,47 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { formatNumber } from './format';
-import { callAction, DeviceInfo, Param, RemoteError, ActionSchema } from './store';
+import {
+	ActionSchema,
+	callAction,
+	DeviceInfo,
+	Param,
+	RemoteError,
+	subscribeLogs,
+	unsubscribeLogs,
+	useStore,
+} from './store';
+
+const LEVEL_STYLE: Record<string, string> = {
+	DEBUG: 'text-zinc-400',
+	INFO: 'text-zinc-600 dark:text-zinc-300',
+	WARNING: 'text-amber-700 dark:text-amber-400',
+	ERROR: 'text-red-700 dark:text-red-400',
+	CRITICAL: 'text-red-700 dark:text-red-400 font-bold',
+};
+
+function LogView({ source }: { source: string }) {
+	const entries = useStore().logs[source] ?? [];
+	useEffect(() => {
+		void subscribeLogs(source);
+		return () => unsubscribeLogs(source);
+	}, [source]);
+	return (
+		<div data-testid={`logs-${source}`} className="mt-1 max-h-48 overflow-auto font-mono text-xs">
+			{entries.length === 0 && <p className="text-zinc-500">No entries yet.</p>}
+			{entries.map((e) => (
+				<div key={e.seq} className={LEVEL_STYLE[e.level]}>
+					<span className="text-zinc-400">{e.time.slice(11, 19)}</span> {e.level} {e.message}
+					{e.traceback && (
+						<details>
+							<summary className="cursor-pointer text-zinc-500">Traceback</summary>
+							<pre className="overflow-x-auto">{e.traceback}</pre>
+						</details>
+					)}
+				</div>
+			))}
+		</div>
+	);
+}
 
 const STATUS_STYLE: Record<string, string> = {
 	ready: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
@@ -135,6 +176,7 @@ function ActionRow({ device, action }: { device: string; action: ActionSchema })
 /** The generated widget: shows any device from its schema, state and status. */
 export function DeviceCard({ id, info }: { id: string; info: DeviceInfo }) {
 	const ready = info.status === 'ready';
+	const [logsOpen, setLogsOpen] = useState(false);
 	return (
 		<section data-testid={`device-${id}`} className="rounded-lg bg-white p-4 shadow dark:bg-slate-900">
 			<div className="mb-2 flex items-center gap-2">
@@ -164,6 +206,10 @@ export function DeviceCard({ id, info }: { id: string; info: DeviceInfo }) {
 					<ActionRow key={action.name} device={id} action={action} />
 				))}
 			</div>
+			<details className="mt-3 text-sm" onToggle={(e) => setLogsOpen(e.currentTarget.open)}>
+				<summary className="cursor-pointer text-zinc-500">Log</summary>
+				{logsOpen && <LogView source={`device:${id}`} />}
+			</details>
 		</section>
 	);
 }

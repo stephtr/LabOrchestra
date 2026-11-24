@@ -19,10 +19,25 @@ export type DeviceInfo = {
 	state: Record<string, unknown> | null;
 };
 export type ConnectionState = 'login' | 'connecting' | 'connected' | 'reconnecting';
-type Store = { connection: ConnectionState; devices: Record<string, DeviceInfo>; loginError: string | null };
+export type LogEntry = {
+	seq: number;
+	time: string;
+	level: string;
+	source: string;
+	logger: string;
+	message: string;
+	traceback: string | null;
+};
+type Store = {
+	connection: ConnectionState;
+	devices: Record<string, DeviceInfo>;
+	logs: Record<string, LogEntry[]>;
+	loginError: string | null;
+};
 
 const TOKEN_KEY = 'laborchestra.token';
-let store: Store = { connection: 'connecting', devices: {}, loginError: null };
+let store: Store = { connection: 'connecting', devices: {}, logs: {}, loginError: null };
+const subscribedLogs = new Set<string>();
 const listeners = new Set<() => void>();
 let hub: HubConnection | null = null;
 let attempt = 0;
@@ -107,6 +122,10 @@ async function connect(token: string) {
 		const { [id]: _removed, ...rest } = store.devices;
 		set({ devices: rest });
 	});
+	connection.on('log', (entry: LogEntry) => {
+		if (!subscribedLogs.has(entry.source)) return;
+		set({ logs: { ...store.logs, [entry.source]: mergeLogs(store.logs[entry.source] ?? [], [entry]) } });
+	});
 	connection.onreconnecting(() => set({ connection: 'reconnecting' }));
 	// everything may have changed while we were away: fetch it all again
 	connection.onreconnected(() => void sync(connection));
@@ -126,6 +145,29 @@ async function connect(token: string) {
 async function sync(connection: HubConnection) {
 	const devices = await connection.invoke<Record<string, DeviceInfo>>('get_devices');
 	set({ connection: 'connected', devices });
+	await Promise.all([...subscribedLogs].map((source) => loadLogs(connection, source)));
+}
+
+function mergeLogs(a: LogEntry[], b: LogEntry[]): LogEntry[] {
+	const bySeq = new Map([...a, ...b].map((e) => [e.seq, e]));
+	return [...bySeq.values()].sort((x, y) => x.seq - y.seq).slice(-500);
+}
+
+async function loadLogs(connection: HubConnection, source: string) {
+	await connection.invoke('subscribe_logs', source);
+	const entries = await connection.invoke<LogEntry[]>('get_logs', source, null, 0, 200);
+	set({ logs: { ...store.logs, [source]: mergeLogs(store.logs[source] ?? [], entries) } });
+}
+
+/** Follow the log of "server" or "device:<id>" (live, with the latest entries first loaded). */
+export async function subscribeLogs(source: string) {
+	subscribedLogs.add(source);
+	if (hub && store.connection === 'connected') await loadLogs(hub, source);
+}
+
+export function unsubscribeLogs(source: string) {
+	subscribedLogs.delete(source);
+	if (hub && store.connection === 'connected') void hub.invoke('unsubscribe_logs', source);
 }
 
 export class RemoteError extends Error {

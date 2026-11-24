@@ -109,6 +109,12 @@ try {
 	assert.match(await text('result-pressure-set_pressure'), /ValueError: There is no channel 9/);
 	ok('error with its type reaches the browser');
 
+	await page.getByTestId('device-pressure').getByText('Log', { exact: true }).click();
+	const logs = page.getByTestId('logs-device:pressure');
+	await logs.getByText('Demo gauge ready').waitFor();
+	await logs.getByText(/Action set_pressure failed: ValueError/).waitFor();
+	ok('log of the device is shown, live');
+
 	assert.equal(script("print(lab.pressure.state['channels'][0]['pressure'])"), '0.0123');
 	script('lab.pressure.set_pressure(0, 0.0456)');
 	await waitText('state-pressure-channels.0.pressure', '0.0456');

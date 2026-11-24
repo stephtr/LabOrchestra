@@ -45,6 +45,10 @@ class AsyncDevice:
     async def call(self, action: str, *args: Any) -> Any:
         return await self._lab._call(self.id, action, args)
 
+    async def logs(self, level: str | None = None, since: int = 0, limit: int = 200) -> list[dict]:
+        """Log entries of this device (see AsyncLab.logs)."""
+        return await self._lab.logs(f"device:{self.id}", level, since, limit)
+
     def __getattr__(self, name: str):
         if name.startswith("_"):
             raise AttributeError(name)
@@ -104,6 +108,14 @@ class AsyncLab:
     async def _call(self, device_id: str, action: str, args: tuple) -> Any:
         return await self._hub.invoke("action", device_id, action, list(args), timeout=None)
 
+    async def logs(self, source: str | None = None, level: str | None = None, since: int = 0, limit: int = 200) -> list[dict]:
+        """Log entries as dicts (seq, time, level, source, logger, message, traceback).
+
+        ``source`` is "server", "device:<id>" or None for all. With ``since=0`` you get the latest entries,
+        otherwise the entries after that ``seq``, so that ``since=entries[-1]["seq"]`` follows the log.
+        """
+        return await self._hub.invoke("get_logs", source, level, since, limit)
+
     @property
     def devices(self) -> list[str]:
         return list(self._devices)
@@ -130,6 +142,9 @@ class SyncDevice:
 
     def call(self, action: str, *args: Any) -> Any:
         return self._lab._run(self._device.call(action, *args))
+
+    def logs(self, level: str | None = None, since: int = 0, limit: int = 200) -> list[dict]:
+        return self._lab._run(self._device.logs(level, since, limit))
 
     def __getattr__(self, name: str):
         if name.startswith("_"):
@@ -175,6 +190,9 @@ class Lab:
 
     def __exit__(self, *exc) -> None:
         self.close()
+
+    def logs(self, source: str | None = None, level: str | None = None, since: int = 0, limit: int = 200) -> list[dict]:
+        return self._run(self._async.logs(source, level, since, limit))
 
     @property
     def devices(self) -> list[str]:

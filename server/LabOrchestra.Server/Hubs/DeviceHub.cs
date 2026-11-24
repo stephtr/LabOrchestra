@@ -1,5 +1,6 @@
 using LabOrchestra.Server.Auth;
 using LabOrchestra.Server.Devices;
+using LabOrchestra.Server.Logging;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 
@@ -7,7 +8,7 @@ namespace LabOrchestra.Server.Hubs;
 
 /// <summary>Connection of the device workers. The server calls "call" and "get_state" on them.</summary>
 [Authorize(Roles = Roles.Device)]
-public sealed class DeviceHub(DeviceRegistry registry, ILogger<DeviceHub> log) : Hub
+public sealed class DeviceHub(DeviceRegistry registry, LogStore logs, ILogger<DeviceHub> log) : Hub
 {
 	private string DeviceId => Context.User!.FindFirst("device_id")!.Value;
 
@@ -25,6 +26,19 @@ public sealed class DeviceHub(DeviceRegistry registry, ILogger<DeviceHub> log) :
 	{
 		if (!registry.StateUpdated(DeviceId, Context.ConnectionId, state))
 			throw new HubException(Errors.Json("RuntimeError", "The device is not registered on this connection"));
+	}
+
+	/// <summary>Batches of log records of the device: time (epoch seconds), level, logger, message, traceback.</summary>
+	[HubMethodName("log")]
+	public void Log(object?[] records)
+	{
+		foreach (var record in records)
+		{
+			if (record is not IDictionary<object, object?> r) continue;
+			string? Text(string key) => r.TryGetValue(key, out var v) ? v as string : null;
+			var time = r.TryGetValue("time", out var t) && t is not null ? DateTimeOffset.FromUnixTimeMilliseconds((long)(Convert.ToDouble(t) * 1000)) : (DateTimeOffset?)null;
+			logs.Add($"device:{DeviceId}", Text("level"), Text("logger") ?? "", Text("message") ?? "", Text("traceback"), time);
+		}
 	}
 
 	public override Task OnDisconnectedAsync(Exception? exception)

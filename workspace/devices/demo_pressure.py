@@ -20,6 +20,7 @@ class DemoPressure(Device):
 
     def connect(self):
         self.state["process_id"] = os.getpid()
+        self.log.info("Demo gauge ready (noise %.1f %%)", 100 * self.noise)
 
     @action
     def set_pressure(self, channel: int, pressure: float):
