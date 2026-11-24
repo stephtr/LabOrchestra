@@ -10,6 +10,7 @@
 		<PackageReference Include="PetterPet.FFTSSharp" Version="0.0.1" />
 		<PackageReference Include="Accord.Math" Version="3.8.0" />
 		<PackageReference Include="MathNet.Numerics" Version="5.0.0" />
+		<PackageReference Include="System.Numerics.Tensors" Version="9.0.4" />
 		<PackageReference Include="NWaves" Version="0.9.6" />
 	</ItemGroup>
 	<ItemGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">

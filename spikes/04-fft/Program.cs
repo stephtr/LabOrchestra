@@ -61,6 +61,25 @@ unsafe
 			Pf.pffft_transform_ordered(setup, input, output, work, 0);
 		}, i => { var p = (float*)output; return (double)p[2 * i] * p[2 * i] + (double)p[2 * i + 1] * p[2 * i + 1]; });
 
+		Func<int, double> pw = i => { var p = (float*)output; return (double)p[2 * i] * p[2 * i] + (double)p[2 * i + 1] * p[2 * i + 1]; };
+		x.AsSpan().CopyTo(new Span<float>((void*)input, n));
+		Run("pffft no copy", () => Pf.pffft_transform_ordered(setup, input, output, work, 0), pw);
+		var window = new float[n];
+		Array.Fill(window, 1f);
+		var temp = new float[n];
+		Run("copy+window+fft", () =>
+		{
+			x.AsSpan().CopyTo(temp);
+			System.Numerics.Tensors.TensorPrimitives.Multiply<float>(temp, window, temp);
+			temp.AsSpan().CopyTo(new Span<float>((void*)input, n));
+			Pf.pffft_transform_ordered(setup, input, output, work, 0);
+		}, pw);
+		Run("window-into+fft", () =>
+		{
+			System.Numerics.Tensors.TensorPrimitives.Multiply<float>(x, window, new Span<float>((void*)input, n));
+			Pf.pffft_transform_ordered(setup, input, output, work, 0);
+		}, pw);
+
 		foreach (var variant in new[] { "fork", "scalar", "neon" })
 		{
 			var file = Path.GetFullPath(OperatingSystem.IsWindows() ? $"ffts-{variant}.dll" : OperatingSystem.IsMacOS() ? $"libffts-{variant}.dylib" : $"libffts-{variant}.so");

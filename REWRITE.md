@@ -25,11 +25,12 @@ templates/  docs/  examples/workspace/
 ## Phase 0: preparation and spikes
 
 - [x] Push branch `legacy` and tag `legacy-v0`
-- [ ] Switch the lab PC's clone to `legacy` **before** the rewrite reaches `main`
+- [ ] **Save the lab PC's local code first:** the running UI shows turbo pump widgets (COM7, COM8) and an "X" voltage control that are in no branch on GitHub. Commit and push them to `legacy`
+- [ ] Then switch the lab PC's clone to `legacy` **before** the rewrite reaches `main`
 - [ ] Replace `server/.env` by `.env.example`; full secret scan (e.g. gitleaks)
 - [ ] License files, plugin exception, CLA text + bot, name policy (after ownership is settled)
 - [ ] ffts redistribution check
-- [ ] .NET 11 with `global.json` (.NET 9 reached end of support in November 2026)
+- [x] .NET 11 with `global.json` (.NET 9 reached end of support in November 2026)
 - [ ] Capture reference data from legacy: a recording, a snapshot, FFT output for a known input, a screenshot of each UI part
 - [x] Author's Python `MessagePackHubProtocol` (`server/SignalRMessagePackHubProtocol.py`, reference for the own client)
 - [x] CI on Windows, macOS and Linux (spikes; code in `spikes/`)
