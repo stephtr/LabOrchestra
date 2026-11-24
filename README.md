@@ -1,11 +1,9 @@
-# LabOrchestra
+![LabOrchestra logo](https://laborchestra.com/img/laborchestra-logo-dark.svg "LabOrchestra")
 
 > **Orchestrate your lab – without the tangle.**
 > *A modular C# + Python framework for controlling and orchestrating multiple scientific instruments.*
 
-*Disclaimer: LabOrchestra is currently under heavy development. We will be working on documentation soon. In case you want to start using it now, keep in mind that breaking code changes will happen.*
-
-![LabOrchestra logo](docs/assets/laborchestra-logo.png "LabOrchestra"){width=200}
+*NOTE: LabOrchestra is currently under heavy development. We plan for a public release in December 2026 (including an optimized device API).*
 
 ---
 
@@ -47,9 +45,9 @@ Scientific experiments often juggle dozens of devices, each with its own user in
 
 ## Roadmap
 
-* **0.1** – Improve device management (dynamic addition/removal of devices) + device management UI
-* **in parallel** - Write documentation for the framework
-* **0.2** - Adaptable UI via drag & drop
+* **0.1** [WIP] – Improve device management (dynamic addition/removal of devices) + device management UI
+* **in parallel** [WIP] - Write documentation for the framework
+* **0.2** [WIP] - Adaptable UI via drag & drop
 * **future** - Create basic UI controls from within Python devices
 * **fuuuture** - Add a marketplace for sharing device drivers
 
