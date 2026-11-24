@@ -20,6 +20,7 @@ public sealed class WorkerSupervisor(
 	SettingsStore settings,
 	SecretStore secrets,
 	EnvironmentManager environments,
+	Drivers.DriverCatalog drivers,
 	TokenService tokens,
 	ServerInfo info,
 	IHostApplicationLifetime lifetime,
@@ -107,7 +108,7 @@ public sealed class WorkerSupervisor(
 	private void StartRunner(string id, DeviceConfig device, string signature)
 	{
 		var cancel = CancellationTokenSource.CreateLinkedTokenSource(_stop);
-		_runners[id] = new Runner(device, signature, cancel, Task.Run(() => SuperviseAsync(id, device, cancel.Token), CancellationToken.None));
+		_runners[id] = new Runner(device, signature, cancel, Task.Run(() => device.Driver is null ? SuperviseAsync(id, device, cancel.Token) : SuperviseDriverAsync(id, device, cancel.Token), CancellationToken.None));
 	}
 
 	private async Task StopRunnerAsync(string id)
@@ -116,6 +117,37 @@ public sealed class WorkerSupervisor(
 		runner.Cancel.Cancel();
 		try { await runner.Task; } catch (Exception e) { log.LogWarning("Stopping {Device}: {Message}", id, e.Message); }
 		runner.Cancel.Dispose();
+	}
+
+	/// <summary>The same loop for a C# device: it runs inside the server, and is started again with increasing delays when it fails.</summary>
+	private async Task SuperviseDriverAsync(string id, DeviceConfig device, CancellationToken stop)
+	{
+		var delay = TimeSpan.FromMilliseconds(250);
+		registry.Declare(id);
+		while (!stop.IsCancellationRequested)
+		{
+			var started = DateTime.UtcNow;
+			try
+			{
+				registry.SetStatus(id, "starting");
+				var type = drivers.Find(device.Driver!) ?? throw new InvalidOperationException($"There is no driver '{device.Driver}' (drivers: {string.Join(", ", drivers.Names)})");
+				logs.Add($"device:{id}", "INFO", "supervisor", $"Starting the driver '{device.Driver}'");
+				await new Drivers.InProcessDevice(id, device, type, registry, logs).RunAsync(stop);
+				break; // stopped
+			}
+			catch (OperationCanceledException) when (stop.IsCancellationRequested) { break; }
+			catch (Exception e)
+			{
+				registry.SetStatus(id, "error", e.Message);
+				log.LogWarning("The device {Device} failed: {Message}", id, e.Message);
+				logs.Add($"device:{id}", "ERROR", "supervisor", $"{e.GetType().Name}: {e.Message}; starting again in {delay.TotalSeconds:0.#} s", e.ToString());
+			}
+			if (DateTime.UtcNow - started > TimeSpan.FromSeconds(30)) delay = TimeSpan.FromMilliseconds(250);
+			try { await Task.Delay(delay, stop); } catch (OperationCanceledException) { break; }
+			delay = TimeSpan.FromMilliseconds(Math.Min(delay.TotalMilliseconds * 2, MaxDelay.TotalMilliseconds));
+			registry.Declare(id);
+		}
+		registry.SetStatus(id, "stopped");
 	}
 
 	private async Task SuperviseAsync(string id, DeviceConfig device, CancellationToken stop)

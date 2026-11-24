@@ -211,17 +211,24 @@ class AsyncLab:
         return await self._hub.invoke("describe_device_file", file, timeout=180)
 
     @staticmethod
-    def _device_entry(file: str, config: dict | None, python: str | None, description: str | None) -> dict:
-        entry = {"file": file, "config": config, "python": python, "description": description}
+    def _device_entry(file, config, python, description, driver=None) -> dict:
+        entry = {"file": file, "driver": driver, "config": config, "python": python, "description": description}
         return {k: v for k, v in entry.items() if v is not None}
 
-    async def add_device(self, device_id: str, file: str, config: dict | None = None, python: str | None = None, description: str | None = None) -> None:
-        """Add a device to devices.json and start it. ``config`` holds its options; a value ``{"secret": "name"}`` refers to a secret."""
-        await self._hub.invoke("add_device", device_id, self._device_entry(file, config, python, description))
+    async def list_drivers(self) -> list[dict]:
+        """C# drivers that can be used with ``driver=``: driver, class, doc."""
+        return await self._hub.invoke("list_drivers")
 
-    async def update_device(self, device_id: str, file: str, config: dict | None = None, python: str | None = None, description: str | None = None) -> None:
+    async def describe_driver(self, driver: str) -> dict:
+        return await self._hub.invoke("describe_driver", driver)
+
+    async def add_device(self, device_id: str, file: str | None = None, config: dict | None = None, python: str | None = None, description: str | None = None, driver: str | None = None) -> None:
+        """Add a device to devices.json and start it: a Python ``file`` or a C# ``driver``. ``config`` holds its options; a value ``{"secret": "name"}`` refers to a secret."""
+        await self._hub.invoke("add_device", device_id, self._device_entry(file, config, python, description, driver))
+
+    async def update_device(self, device_id: str, file: str | None = None, config: dict | None = None, python: str | None = None, description: str | None = None, driver: str | None = None) -> None:
         """Replace the entry of a device (it restarts if anything but the description changed)."""
-        await self._hub.invoke("update_device", device_id, self._device_entry(file, config, python, description))
+        await self._hub.invoke("update_device", device_id, self._device_entry(file, config, python, description, driver))
 
     async def remove_device(self, device_id: str) -> None:
         await self._hub.invoke("remove_device", device_id)
@@ -392,11 +399,17 @@ class Lab:
     def describe_device_file(self, file: str) -> dict:
         return self._run(self._async.describe_device_file(file))
 
-    def add_device(self, device_id: str, file: str, config: dict | None = None, python: str | None = None, description: str | None = None) -> None:
-        self._run(self._async.add_device(device_id, file, config, python, description))
+    def list_drivers(self) -> list[dict]:
+        return self._run(self._async.list_drivers())
 
-    def update_device(self, device_id: str, file: str, config: dict | None = None, python: str | None = None, description: str | None = None) -> None:
-        self._run(self._async.update_device(device_id, file, config, python, description))
+    def describe_driver(self, driver: str) -> dict:
+        return self._run(self._async.describe_driver(driver))
+
+    def add_device(self, device_id: str, file: str | None = None, config: dict | None = None, python: str | None = None, description: str | None = None, driver: str | None = None) -> None:
+        self._run(self._async.add_device(device_id, file, config, python, description, driver))
+
+    def update_device(self, device_id: str, file: str | None = None, config: dict | None = None, python: str | None = None, description: str | None = None, driver: str | None = None) -> None:
+        self._run(self._async.update_device(device_id, file, config, python, description, driver))
 
     def remove_device(self, device_id: str) -> None:
         self._run(self._async.remove_device(device_id))

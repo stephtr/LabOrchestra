@@ -9,6 +9,12 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<ProjectReference Include="../LabOrchestra.Sdk/LabOrchestra.Sdk.csproj" />
+		<!-- plugins: built into the plugins folder next to the server, loaded at runtime like any plugin -->
+		<ProjectReference Include="../Plugins/Demo/LabOrchestra.Plugins.Demo.csproj" ReferenceOutputAssembly="false" />
+	</ItemGroup>
+
+	<ItemGroup>
 	  <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="11.0.0" />
 	  <PackageReference Include="YamlDotNet" Version="18.1.0" />
 	</ItemGroup>

@@ -4,7 +4,8 @@ using System.Text.RegularExpressions;
 namespace LabOrchestra.Server;
 
 /// <summary>One entry of devices.json. <c>File</c> is relative to the workspace folder.</summary>
-public sealed record DeviceConfig(string File, string? Python = null, Dictionary<string, JsonElement>? Config = null, string? Description = null);
+/// <summary>A Python device names its <c>File</c>; a C# device names its <c>Driver</c> (a class with [Driver] in the server or in a plugin).</summary>
+public sealed record DeviceConfig(string? File = null, string? Python = null, Dictionary<string, JsonElement>? Config = null, string? Description = null, string? Driver = null);
 
 public sealed record DevicesFile(Dictionary<string, DeviceConfig>? Devices);
 
@@ -61,8 +62,8 @@ public sealed partial class Workspace : IDisposable
 		{
 			if (!SnakeCase().IsMatch(id))
 				throw new InvalidOperationException($"{file}: device id '{id}' must be snake_case (lowercase letters, digits, underscores)");
-			if (string.IsNullOrWhiteSpace(device.File))
-				throw new InvalidOperationException($"{file}: device '{id}' needs a \"file\"");
+			if (string.IsNullOrWhiteSpace(device.File) == string.IsNullOrWhiteSpace(device.Driver))
+				throw new InvalidOperationException($"{file}: device '{id}' needs either a \"file\" (Python) or a \"driver\" (C#), not both");
 			devices[id] = device;
 		}
 		return devices;

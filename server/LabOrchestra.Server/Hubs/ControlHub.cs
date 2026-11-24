@@ -13,7 +13,7 @@ namespace LabOrchestra.Server.Hubs;
 public static class Errors
 {
 	/// <summary>Errors cross the wire as JSON text: type, message and optionally the traceback of the original.</summary>
-	public static string Json(string type, string message) => JsonSerializer.Serialize(new { type, message, traceback = (string?)null });
+	public static string Json(string type, string message, string? traceback = null) => JsonSerializer.Serialize(new { type, message, traceback });
 }
 
 /// <summary>Connection of browsers, scripts and devices that talk to other devices.</summary>
@@ -23,6 +23,7 @@ public sealed class ControlHub(
 	LogStore logs,
 	SecretStore secrets,
 	DeviceCatalog catalog,
+	Drivers.DriverCatalog drivers,
 	WorkerSupervisor supervisor,
 	RecordingService recordings,
 	Workspace workspace,
@@ -113,6 +114,16 @@ public sealed class ControlHub(
 	}
 
 	/// <param name="device">{file, python?, config?, description?}</param>
+	/// <summary>C# drivers that can be used with {"driver": "name"}: driver, class, doc.</summary>
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("list_drivers")]
+	public List<Dictionary<string, object?>> ListDrivers() => drivers.List();
+
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("describe_driver")]
+	public Dictionary<string, object?> DescribeDriver(string driver) =>
+		drivers.Find(driver) is { } type ? Drivers.DriverSchema.Build("describe", type) : throw new HubException(Errors.Json("LookupError", $"There is no driver '{driver}' (drivers: {string.Join(", ", drivers.Names)})"));
+
 	[Authorize(Roles = Roles.Client)]
 	[HubMethodName("add_device")]
 	public async Task AddDevice(string id, object device)
@@ -187,6 +198,11 @@ public sealed class ControlHub(
 			throw new HubException(Errors.Json("DeviceNotReady", $"Device '{device}' is not ready (status: {entry.Status})"));
 		var caller = Caller();
 		bus.Publish(device, "action", caller, new() { ["action"] = name, ["args"] = Plain.From(args) });
+		if (entry.LocalCall is { } local && entry.ConnectionId.StartsWith(Drivers.InProcessDevice.ConnectionPrefix))
+		{
+			try { return await local(name, args, caller, Context.ConnectionAborted); }
+			catch (Drivers.DeviceActionException e) { throw new HubException(Errors.Json(e.Type, e.Message, e.Traceback)); }
+		}
 		try
 		{
 			return await devices.Clients.Client(entry.ConnectionId).InvokeAsync<object?>("call", name, args, caller, Context.ConnectionAborted);

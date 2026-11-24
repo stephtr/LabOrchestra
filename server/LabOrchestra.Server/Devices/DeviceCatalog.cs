@@ -8,7 +8,7 @@ namespace LabOrchestra.Server.Devices;
 
 /// <summary>What the management UI works with: the device files of the workspace, what a file offers (its options and actions),
 /// and adding, changing and removing entries of devices.json.</summary>
-public sealed partial class DeviceCatalog(Workspace workspace, EnvironmentManager environments, WorkerSupervisor supervisor, ILogger<DeviceCatalog> log)
+public sealed partial class DeviceCatalog(Workspace workspace, EnvironmentManager environments, WorkerSupervisor supervisor, Drivers.DriverCatalog drivers, ILogger<DeviceCatalog> log)
 {
 	private readonly ConcurrentDictionary<(string File, long Stamp), object?> _described = new();
 
@@ -106,24 +106,30 @@ public sealed partial class DeviceCatalog(Workspace workspace, EnvironmentManage
 	private void Check(string id, DeviceConfig config)
 	{
 		if (!SnakeCase().IsMatch(id)) throw new ArgumentException($"The id '{id}' must be snake_case (lowercase letters, digits, underscores)");
-		config = config with { File = Normalize(config.File) };
-		Resolve(config.File); // must exist inside the workspace
+		if (config.Driver is not null)
+		{
+			if (drivers.Find(config.Driver) is null) throw new ArgumentException($"There is no driver '{config.Driver}' (drivers: {string.Join(", ", drivers.Names)})");
+			return;
+		}
+		Resolve(Normalize(config.File!)); // must exist inside the workspace
 	}
 
 	/// <summary>Builds a DeviceConfig from what a client sent: {file, python?, config?, description?}.</summary>
 	public static DeviceConfig Parse(object? input)
 	{
 		if (Plain.From(input) is not Dictionary<string, object?> map) throw new ArgumentException("The device needs to be an object with a 'file'");
-		var unknown = map.Keys.Except(["file", "python", "config", "description"]).ToList();
+		var unknown = map.Keys.Except(["file", "driver", "python", "config", "description"]).ToList();
 		if (unknown.Count > 0) throw new ArgumentException($"Unknown field(s): {string.Join(", ", unknown)}");
 		string? Text(string key) => map.TryGetValue(key, out var v) && v is not null ? v as string ?? throw new ArgumentException($"'{key}' must be text") : null;
-		var file = Text("file") ?? throw new ArgumentException("The device needs a 'file'");
+		var file = Text("file");
+		var driver = Text("driver");
+		if ((file is null) == (driver is null)) throw new ArgumentException("The device needs either a 'file' (Python) or a 'driver' (C#)");
 		Dictionary<string, JsonElement>? options = null;
 		if (map.TryGetValue("config", out var c) && c is not null)
 		{
 			if (c is not Dictionary<string, object?> given) throw new ArgumentException("'config' must be an object");
 			options = given.ToDictionary(kv => kv.Key, kv => JsonSerializer.SerializeToElement(kv.Value));
 		}
-		return new DeviceConfig(Normalize(file), string.IsNullOrWhiteSpace(Text("python")) ? null : Text("python"), options is { Count: > 0 } ? options : null, string.IsNullOrWhiteSpace(Text("description")) ? null : Text("description"));
+		return new DeviceConfig(file is null ? null : Normalize(file), string.IsNullOrWhiteSpace(Text("python")) ? null : Text("python"), options is { Count: > 0 } ? options : null, string.IsNullOrWhiteSpace(Text("description")) ? null : Text("description"), driver);
 	}
 }

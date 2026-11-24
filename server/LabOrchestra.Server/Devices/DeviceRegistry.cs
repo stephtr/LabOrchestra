@@ -14,6 +14,8 @@ public sealed class DeviceEntry
 	/// <summary>Counts every change of the state, so that clients notice a patch they missed.</summary>
 	public long Revision { get; set; }
 	public string? ConnectionId { get; set; }
+	/// <summary>For devices that run inside the server: how to call their actions (no hub in between).</summary>
+	public Func<string, object?[], string, CancellationToken, Task<object?>>? LocalCall { get; set; }
 	/// <summary>How often a worker registered; lets the supervisor tell whether a process ever came up.</summary>
 	public int Registrations { get; set; }
 }
@@ -67,6 +69,12 @@ public sealed class DeviceRegistry(IHubContext<ControlHub> control, EventBus bus
 			e.Status = "disconnected"; e.ConnectionId = null;
 			return true;
 		});
+
+	public void SetLocalCall(string id, string connectionId, Func<string, object?[], string, CancellationToken, Task<object?>> call)
+	{
+		lock (_lock)
+			if (_devices.TryGetValue(id, out var e) && e.ConnectionId == connectionId) e.LocalCall = call;
+	}
 
 	public void Remove(string id)
 	{
