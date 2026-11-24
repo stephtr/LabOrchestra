@@ -38,8 +38,8 @@ Spikes (throwaway code, 1-2 days each):
 | Spike | Passes if | Otherwise |
 |---|---|---|
 | ✅ Python SignalR client (passed on macOS with own client, see CLAUDE.md; repeat on Windows) | server calls a Python method and gets result or error back (client results), binary stays `bin`, reconnect works | extend own client; correlation IDs over plain messages |
-| Worker supervision | spawn via uv, stop cleanly, no orphan when the server is killed, on Windows too (Job Object) | heartbeat-based self-exit in the worker |
-| Runtime widget | esbuild-compiled `.tsx` loads through the import map, shares React and HeroUI with the host | SDK exports the UI components |
+| ✅ Worker supervision (passed on macOS except for GIL-holding orphans, see CLAUDE.md; Windows and Linux open) | spawn via uv, stop cleanly, no orphan when the server is killed, on Windows too (Job Object) | heartbeat-based self-exit in the worker |
+| Runtime widget | esbuild-compiled `.tsx` loads through the import map, shares React and the SDK components with the host, styled by the server-compiled Tailwind CSS | compile CSS in the browser (313 KB compiler) |
 | FFT library | one cross-platform library, permissive license, at 200 MB/s (legacy uses ffts on Windows only, Accord elsewhere) | keep ffts on Windows |
 
 **Exit:** all four answered; results written into CLAUDE.md.
