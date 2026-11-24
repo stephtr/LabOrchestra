@@ -1,0 +1,4 @@
+pffft-src/
+*.dll
+*.dylib
+*.so

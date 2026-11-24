@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<TargetFramework>net11.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<AssemblyName>fft</AssemblyName>
+	</PropertyGroup>
+	<ItemGroup>
+		<PackageReference Include="PetterPet.FFTSSharp" Version="0.0.1" />
+		<PackageReference Include="Accord.Math" Version="3.8.0" />
+		<PackageReference Include="MathNet.Numerics" Version="5.0.0" />
+		<PackageReference Include="NWaves" Version="0.9.6" />
+	</ItemGroup>
+	<ItemGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+		<None Include="../../server/ffts-dlls/*.dll" LinkBase="ffts-dlls" CopyToOutputDirectory="PreserveNewest" />
+	</ItemGroup>
+</Project>
