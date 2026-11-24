@@ -30,7 +30,9 @@ The project is being **rewritten and open-sourced**. This file records the curre
 ### Language and transport
 - **Web frontend stays.** Server stays **C#** (vendor SDKs such as Picoscope are easy to call, `AssemblyLoadContext` allows loading device plugins, more lab contributors know it). Rust was considered and rejected: no stable ABI for plugins, no hard real-time need.
 - **Keep SignalR with MessagePack.** The author has their own Python `MessagePackHubProtocol` that works, which removes the main objection to SignalR. Keep separate hubs/connections for control (low rate) and streaming, so large frames never delay control messages.
-- Before committing, verify the Python client supports **server-to-client invocations with completion messages** (the server must call actions on Python workers), and that **binary payloads stay `bin`** in MessagePack (`bytes`/`memoryview` in Python, `Uint8Array`/`ArrayBuffer` in the browser, straight to WebGL).
+- **Python: own asyncio SignalR client** in the `laborchestra` package (`websockets` + `msgpack`), not `signalrcore`: 1.1.0 ignores handler return values, so the server cannot get results from workers, and it runs handlers in the receive loop.
+- Spike 1 (macOS, Python 3.15, .NET 9, localhost, idle machine, 5000 calls each): a ~50-line prototype handles results, errors, unknown methods, 1 MB `bin` both ways, concurrent calls and reconnect after a server abort. Latency server->Python->server p50 0.10 / p99 0.14 / max 1.5 ms; Python->server->Python p50 0.10 / p99 0.13 ms. Untyped MessagePack results arrive as the smallest integer type (`42` -> `Byte`), so the server must convert using the schema. Not yet tested: Windows, TLS, auth, server restart.
+- Browser side still to verify: `bin` arrives as `Uint8Array`, straight to WebGL.
 
 ### Streaming pipeline (200 MB/s)
 - Raw data never goes to the browser or to scripts. Only **decimated data** is sent (min/max envelopes, averaged FFT spectra, ~30-60 fps, a few hundred KB/s per view). Python scripts also only need decimated data, FFTs and recordings on disk, so no raw-data side channel.
@@ -51,8 +53,8 @@ The project is being **rewritten and open-sourced**. This file records the curre
   elliptec = "laborchestra_elliptec:Elliptec"
   ```
   Config example (`devices.json`): `package`, `python` (version or interpreter path), `args`.
-- Cost accepted: ~0.1-1 ms (estimate, **unmeasured**) per cross-device call. Mitigate by subscribing to other devices' state (local cache, reads need no round trip), putting tight loops into one device, and using C# plugins for anything needing sub-ms latency.
-- **No benchmark needed for streaming:** the author already runs oscilloscopes streaming FFTs to browser clients over the current SignalR setup, and it works well. Only the Python worker round-trip latency is unmeasured; low risk given the mitigations above. Still verify the slow-client case (memory flat, skip counter) when implementing the latest-frame slots.
+- Cost accepted: ~0.1 ms per server<->worker call (measured in spike 1, idle localhost); a device-to-device call is two of these, so ~0.2 ms. Mitigate by subscribing to other devices' state (local cache, reads need no round trip), putting tight loops into one device, and using C# plugins for anything needing sub-ms latency.
+- **No benchmark needed for streaming:** the author already runs oscilloscopes streaming FFTs to browser clients over the current SignalR setup, and it works well. Still verify the slow-client case (memory flat, skip counter) when implementing the latest-frame slots.
 
 ### One Python package: `laborchestra`
 Replaces everything `PythonDevice` injects today. Three roles in one package:
@@ -237,6 +239,10 @@ Layered, so a Python-only device author gets a UI without touching JavaScript:
 - Client merges state shallowly, so `channels` arrays are always resent whole.
 - `PressureUploader` rejects `selectedChannel = 0` as missing.
 
+## License
+- Server and client **GPL-3.0** (AGPL considered: little benefit since the software runs next to the hardware, and many companies ban it; separately hosted parts may become AGPL), SDKs and templates **Apache-2.0**, CLA from the first external contribution (automated bot, short explanatory text). Plugin exception: code using the public SDKs may have any license, and proprietary vendor libraries may be linked. Trademark/name policy for forks.
+- **Vendor SDKs are not shipped**; the user installs them (e.g. PicoSDK). The plugin loads them at runtime (`NativeLibrary` resolver, searching the standard install folders) and reports a missing SDK as a clear device error with a download link. The C# API files in `server/Devices/Picoscope/` have a permissive license (Pico Technology) and stay, with their LICENSE.md.
+
 ## To do
 
 - [ ] Proper exception management and logging: server, client, device workers, procedures
@@ -254,7 +260,7 @@ Layered, so a Python-only device author gets a UI without touching JavaScript:
 
 - [ ] `server/.env` **is tracked in git** (history: 13ca498, cef83eb, 5d52adc). The author confirms it never held real keys. Replace it with `.env.example`.
 - [ ] Remove lab-specific values from code: `C:\Users\Cavity\...` Python path, `glaser.exp.univie.ac.at` CORS origins, `pressure.cavity.at`, device serials, COM ports, IPs. Move to config.
-- [ ] Check redistribution rights for `server/Devices/Picoscope/` (own LICENSE) and `server/ffts-dlls/` binaries; otherwise fetch at build time.
+- [ ] Check redistribution rights for `server/ffts-dlls/` binaries; otherwise fetch at build time.
 - [ ] Add a top-level LICENSE.
 - [ ] Fix the README: it says Blazor and .NET 8, actual stack is Next.js and .NET 9 (also Python >= 3.13 requirement will change with per-device interpreters).
 

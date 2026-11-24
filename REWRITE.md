@@ -26,17 +26,18 @@ templates/  docs/  examples/workspace/
 
 - [ ] Push branch `legacy` and tag `legacy-v0`; switch the lab PC's clone to `legacy` **before** the rewrite reaches `main`
 - [ ] Replace `server/.env` by `.env.example`; full secret scan (e.g. gitleaks)
-- [ ] License and CLA; Picoscope and ffts redistribution check
+- [ ] License files, plugin exception, CLA text + bot, name policy (after ownership is settled)
+- [ ] ffts redistribution check
 - [ ] Move to .NET 10 LTS (.NET 9 reached end of support in November 2026)
 - [ ] Capture reference data from legacy: a recording, a snapshot, FFT output for a known input, a screenshot of each UI part
-- [ ] Add the author's Python `MessagePackHubProtocol` (not in this repo today)
+- [x] Author's Python `MessagePackHubProtocol` (`server/SignalRMessagePackHubProtocol.py`, reference for the own client)
 - [ ] CI on Windows, macOS and Linux
 
 Spikes (throwaway code, 1-2 days each):
 
 | Spike | Passes if | Otherwise |
 |---|---|---|
-| Python SignalR client | server calls a Python method and gets result or error back (client results), binary stays `bin`, reconnect works | extend own client; correlation IDs over plain messages |
+| ✅ Python SignalR client (passed on macOS with own client, see CLAUDE.md; repeat on Windows) | server calls a Python method and gets result or error back (client results), binary stays `bin`, reconnect works | extend own client; correlation IDs over plain messages |
 | Worker supervision | spawn via uv, stop cleanly, no orphan when the server is killed, on Windows too (Job Object) | heartbeat-based self-exit in the worker |
 | Runtime widget | esbuild-compiled `.tsx` loads through the import map, shares React and HeroUI with the host | SDK exports the UI components |
 | FFT library | one cross-platform library, permissive license, at 200 MB/s (legacy uses ffts on Windows only, Accord elsewhere) | keep ffts on Windows |
@@ -133,5 +134,5 @@ Innolas driver, lab notebook, sensor website, Claude Desktop bridge, more templa
 
 | Decision | Needed by | Proposal |
 |---|---|---|
-| License | phase 0, before publishing | Requirement: others may not commercialize without permission, the author may, including contributions. Server/client: PolyForm Noncommercial + CLA (source-available, not OSI open source), or AGPL-3.0 + CLA. SDKs, templates: MIT/Apache-2.0. Clarify ownership with the university |
+| Ownership | phase 0, before publishing | clarify with the university (license, CLA, commercial use); then add license files |
 | Grid library | phase 4 | react-grid-layout; check React 19 support |
