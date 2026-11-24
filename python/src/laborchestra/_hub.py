@@ -226,7 +226,8 @@ class Hub:
             result = handler(*args)
             if inspect.isawaitable(result):
                 result = await result
-            reply = [3, {}, iid, 2] if result is None else [3, {}, iid, 3, result]
+            # always a result (possibly null): SignalR rejects a void completion for a call that expects a result
+            reply = [3, {}, iid, 3, result]
         except Exception as e:
             if iid is None:
                 log.exception("Error in handler '%s'", target)

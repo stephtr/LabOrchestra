@@ -10,7 +10,7 @@ requires-python = ">=3.11"
 dependencies = ["websockets>=14", "msgpack>=1.0"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "psutil"]
 
 [project.scripts]
 laborchestra-worker = "laborchestra.worker:main"
