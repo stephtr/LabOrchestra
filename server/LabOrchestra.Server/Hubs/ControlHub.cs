@@ -148,11 +148,21 @@ public sealed class ControlHub(
 		catch (Exception e) when (e is ArgumentException or InvalidOperationException or IOException) { throw DeviceFileError(e); }
 	}
 
+	/// <summary>All entries of devices.json: id -> {file, driver, python, config, description}.</summary>
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("list_device_entries")]
+	public Dictionary<string, Dictionary<string, object?>> ListDeviceEntries() =>
+		workspace.Devices.ToDictionary(kv => kv.Key, kv => new Dictionary<string, object?>
+		{
+			["file"] = kv.Value.File, ["driver"] = kv.Value.Driver, ["python"] = kv.Value.Python, ["description"] = kv.Value.Description,
+			["config"] = kv.Value.Config is null ? null : Plain.FromJson(System.Text.Json.JsonSerializer.SerializeToElement(kv.Value.Config)),
+		});
+
 	[Authorize(Roles = Roles.Client)]
 	[HubMethodName("get_device_config")]
 	public Dictionary<string, object?> GetDeviceConfig(string id) =>
 		workspace.Devices.TryGetValue(id, out var d)
-			? new() { ["file"] = d.File, ["python"] = d.Python, ["config"] = d.Config is null ? null : Plain.FromJson(System.Text.Json.JsonSerializer.SerializeToElement(d.Config)), ["description"] = d.Description }
+			? new() { ["file"] = d.File, ["driver"] = d.Driver, ["python"] = d.Python, ["config"] = d.Config is null ? null : Plain.FromJson(System.Text.Json.JsonSerializer.SerializeToElement(d.Config)), ["description"] = d.Description }
 			: throw new HubException(Errors.Json("LookupError", $"Device '{id}' is not in devices.json"));
 
 	[Authorize(Roles = Roles.Client)]

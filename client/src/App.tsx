@@ -3,6 +3,7 @@ import logoDark from '../../docs/assets/laborchestra-logo-dark.svg';
 import logoLight from '../../docs/assets/laborchestra-logo-light.svg';
 import { DeviceCard } from './DeviceCard';
 import { DevicesPage } from './DevicesPage';
+import { OscilloscopeWidget } from './OscilloscopeWidget';
 import { navigate, usePath } from './router';
 import { login, logout, useStore } from './store';
 
@@ -70,9 +71,13 @@ function Dashboard() {
 				</p>
 			)}
 			<div className="grid gap-4 md:grid-cols-2">
-				{ids.map((id) => (
-					<DeviceCard key={id} id={id} info={devices[id]!} />
-				))}
+				{ids.map((id) =>
+					devices[id]!.schema?.widget === 'oscilloscope' ? (
+						<OscilloscopeWidget key={id} id={id} info={devices[id]!} />
+					) : (
+						<DeviceCard key={id} id={id} info={devices[id]!} />
+					),
+				)}
 			</div>
 		</>
 	);

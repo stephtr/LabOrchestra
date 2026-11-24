@@ -24,6 +24,7 @@ class Device:
 
     state: dict = {}
     persist: list = []
+    widget: str | None = None  # name of a built-in widget of the client; without one the generated card is used
 
     # set by the worker -----------------------------------------------------------------------
     id: str

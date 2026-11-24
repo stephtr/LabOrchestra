@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, DeviceFile } from './api';
+import { api, DeviceFile, DriverInfo } from './api';
 import { Param, Schema } from './store';
 
 type OptionValue = { text: string; checked: boolean; touched: boolean; secret: string | null };
@@ -99,7 +99,10 @@ export function DeviceDialog({ deviceId, onClose }: { deviceId: string | null; o
 	const dialog = useRef<HTMLDialogElement>(null);
 	const saved = useRef<Record<string, unknown> | null>(null); // the options now in devices.json (when changing)
 	const [id, setId] = useState(deviceId ?? '');
+	const [kind, setKind] = useState<'file' | 'driver'>('file');
 	const [file, setFile] = useState('');
+	const [driver, setDriver] = useState('');
+	const [drivers, setDrivers] = useState<DriverInfo[]>([]);
 	const [python, setPython] = useState('');
 	const [description, setDescription] = useState('');
 	const [files, setFiles] = useState<DeviceFile[]>([]);
@@ -112,27 +115,31 @@ export function DeviceDialog({ deviceId, onClose }: { deviceId: string | null; o
 
 	useEffect(() => {
 		dialog.current?.showModal();
-		void Promise.all([api.listDeviceFiles(), api.listSecrets()]).then(([f, s]) => {
+		void Promise.all([api.listDeviceFiles(), api.listSecrets(), api.listDrivers()]).then(([f, s, d]) => {
 			setFiles(f);
 			setSecrets(s);
+			setDrivers(d);
 		}, (e: Error) => setError(e.message));
 		if (deviceId !== null) {
 			void api.getDeviceConfig(deviceId).then((entry) => {
 				saved.current = entry.config;
 				setPython(entry.python ?? '');
 				setDescription(entry.description ?? '');
-				setFile(entry.file);
+				setKind(entry.driver ? 'driver' : 'file');
+				setDriver(entry.driver ?? '');
+				setFile(entry.file ?? '');
 			}, (e: Error) => setError(e.message));
 		}
 	}, [deviceId]);
 
+	const chosen = kind === 'file' ? file : driver;
 	useEffect(() => {
-		if (!file) return;
+		if (!chosen) return;
 		let current = true;
 		setDescribing(true);
 		setSchema(null);
 		setError(null);
-		api.describeDeviceFile(file).then(
+		(kind === 'file' ? api.describeDeviceFile(chosen) : api.describeDriver(chosen)).then(
 			(described) => {
 				if (!current) return;
 				setSchema(described);
@@ -148,7 +155,7 @@ export function DeviceDialog({ deviceId, onClose }: { deviceId: string | null; o
 		return () => {
 			current = false;
 		};
-	}, [file, editing]);
+	}, [kind, chosen, editing]);
 
 	// options in devices.json that the file does not offer are kept as they are
 	const kept = Object.fromEntries(Object.entries(saved.current ?? {}).filter(([k]) => schema && !schema.config.some((p) => p.name === k)));
@@ -156,11 +163,15 @@ export function DeviceDialog({ deviceId, onClose }: { deviceId: string | null; o
 	async function save() {
 		setError(null);
 		if (!SNAKE.test(id)) return setError('The id must be snake_case: lowercase letters, digits and underscores');
-		if (!file || !schema) return setError('Choose a device file');
+		if (!chosen || !schema) return setError(kind === 'file' ? 'Choose a device file' : 'Choose a driver');
 		setSaving(true);
 		try {
 			const config = buildConfig(schema, values, kept);
-			const entry = { file, config: Object.keys(config).length ? config : null, python: python.trim() || null, description: description.trim() || null };
+			const entry = {
+				...(kind === 'file' ? { file, python: python.trim() || null } : { driver }),
+				config: Object.keys(config).length ? config : null,
+				description: description.trim() || null,
+			};
 			await (editing ? api.updateDevice(id, entry) : api.addDevice(id, entry));
 			dialog.current?.close();
 		} catch (e) {
@@ -189,18 +200,41 @@ export function DeviceDialog({ deviceId, onClose }: { deviceId: string | null; o
 					<label className="w-40 text-sm" htmlFor="device-id">Id</label>
 					<input id="device-id" data-testid="field-id" className={`${FIELD} w-56 font-mono`} value={id} disabled={editing} placeholder="e.g. vacuum_pressure" onChange={(e) => setId(e.target.value)} />
 				</div>
-				<div className="flex flex-wrap items-center gap-2">
-					<label className="w-40 text-sm" htmlFor="device-file">Device file</label>
-					<select id="device-file" data-testid="field-file" className={`${FIELD} w-72`} value={file} onChange={(e) => setFile(e.target.value)}>
-						<option value="">choose…</option>
-						{files.map((f) => (
-							<option key={f.file} value={f.file}>
-								{f.file}
-								{f.devices.length > 0 ? `  (used by ${f.devices.join(', ')})` : ''}
-							</option>
-						))}
-					</select>
+				<div className="flex flex-wrap items-center gap-3 text-sm" role="radiogroup" aria-label="Kind of device">
+					<span className="w-40">Kind</span>
+					<label className="flex items-center gap-1">
+						<input type="radio" name="kind" data-testid="kind-file" checked={kind === 'file'} disabled={editing} onChange={() => { setKind('file'); setSchema(null); }} /> Python file
+					</label>
+					<label className="flex items-center gap-1">
+						<input type="radio" name="kind" data-testid="kind-driver" checked={kind === 'driver'} disabled={editing} onChange={() => { setKind('driver'); setSchema(null); }} /> C# driver
+					</label>
 				</div>
+				{kind === 'file' ? (
+					<div className="flex flex-wrap items-center gap-2">
+						<label className="w-40 text-sm" htmlFor="device-file">Device file</label>
+						<select id="device-file" data-testid="field-file" className={`${FIELD} w-72`} value={file} disabled={editing} onChange={(e) => setFile(e.target.value)}>
+							<option value="">choose…</option>
+							{files.map((f) => (
+								<option key={f.file} value={f.file}>
+									{f.file}
+									{f.devices.length > 0 ? `  (used by ${f.devices.join(', ')})` : ''}
+								</option>
+							))}
+						</select>
+					</div>
+				) : (
+					<div className="flex flex-wrap items-center gap-2">
+						<label className="w-40 text-sm" htmlFor="device-driver">Driver</label>
+						<select id="device-driver" data-testid="field-driver" className={`${FIELD} w-72`} value={driver} disabled={editing} onChange={(e) => setDriver(e.target.value)}>
+							<option value="">choose…</option>
+							{drivers.map((d) => (
+								<option key={d.driver} value={d.driver} title={d.doc ?? undefined}>
+									{d.driver}
+								</option>
+							))}
+						</select>
+					</div>
+				)}
 				{describing && <p className="text-sm text-zinc-500" data-testid="describing">Loading what the file offers… (the first time it may need to set up an environment)</p>}
 				{schema && (
 					<>
@@ -224,10 +258,12 @@ export function DeviceDialog({ deviceId, onClose }: { deviceId: string | null; o
 						</div>
 					</>
 				)}
-				<div className="flex flex-wrap items-center gap-2">
-					<label className="w-40 text-sm" htmlFor="device-python">Python (optional)</label>
-					<input id="device-python" className={`${FIELD} w-56`} value={python} placeholder='a version such as "3.12", or a path' onChange={(e) => setPython(e.target.value)} />
-				</div>
+				{kind === 'file' && (
+					<div className="flex flex-wrap items-center gap-2">
+						<label className="w-40 text-sm" htmlFor="device-python">Python (optional)</label>
+						<input id="device-python" className={`${FIELD} w-56`} value={python} placeholder='a version such as "3.12", or a path' onChange={(e) => setPython(e.target.value)} />
+					</div>
+				)}
 				<div className="flex flex-wrap items-center gap-2">
 					<label className="w-40 text-sm" htmlFor="device-description">Description (optional)</label>
 					<input id="device-description" className={`${FIELD} w-72`} value={description} onChange={(e) => setDescription(e.target.value)} />

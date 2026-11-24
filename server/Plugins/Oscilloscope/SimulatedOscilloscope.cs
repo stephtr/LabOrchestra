@@ -5,7 +5,7 @@ namespace LabOrchestra.Plugins.Oscilloscope;
 
 /// <summary>An oscilloscope without hardware: channel n shows a tone at (n+1) times the test signal frequency plus noise, delivered in
 /// real time at the sample rate that the FFT frequency asks for. For trying out dashboards and for testing the pipeline.</summary>
-[Driver("simulated_oscilloscope", Description = "An oscilloscope without hardware: tones and noise in real time. State says simulated.")]
+[Driver("simulated_oscilloscope", Description = "An oscilloscope without hardware: tones and noise in real time.", Widget = "oscilloscope")]
 public sealed class SimulatedOscilloscope : OscilloscopeBase<SimulatedOscilloscope.Settings>
 {
 	public sealed class Settings : OscilloscopeOptions

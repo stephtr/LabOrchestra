@@ -9,6 +9,8 @@ public sealed class DriverAttribute(string name) : Attribute
 {
 	public string Name { get; } = name;
 	public string? Description { get; init; }
+	/// <summary>The built-in widget of the client that shows this device (e.g. "oscilloscope"); without one, the generated card is used.</summary>
+	public string? Widget { get; init; }
 }
 
 /// <summary>Makes a public method callable from the dashboard, scripts and other devices (as snake_case: SetFftLength -> set_fft_length).</summary>

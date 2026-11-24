@@ -90,6 +90,7 @@ def build_schema(device_id: str, cls: type[Device], actions: dict) -> dict:
         "class": cls.__name__,
         "doc": inspect.cleandoc(cls.__doc__) if cls.__doc__ else None,
         "laborchestra_version": __version__,
+        "widget": getattr(cls, "widget", None),  # the built-in widget of the client for this device, if any
         "config": config_options(cls, Device),
         "actions": [action_schema(n, f) for n, f in sorted(actions.items())],
         "persist": list(cls.persist),

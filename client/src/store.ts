@@ -12,6 +12,9 @@ export type Schema = {
 	config: Param[];
 	actions: ActionSchema[];
 	persist: string[];
+	streams?: string[];
+	/** A built-in widget of the client for this device (e.g. "oscilloscope"); without one the generated card is used. */
+	widget?: string | null;
 };
 export type DeviceInfo = {
 	status: string;
@@ -40,6 +43,7 @@ type Store = {
 };
 
 const TOKEN_KEY = 'laborchestra.token';
+export const getToken = () => localStorage.getItem(TOKEN_KEY) ?? '';
 let store: Store = { info: null, connection: 'connecting', devices: {}, logs: {}, loginError: null };
 const subscribedLogs = new Set<string>();
 const listeners = new Set<() => void>();

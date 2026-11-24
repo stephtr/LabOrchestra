@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, DeviceFile } from './api';
+import { api, DeviceEntry } from './api';
 import { DeviceDialog } from './DeviceDialog';
 import { SecretsPanel } from './SecretsPanel';
 import { STATUS_STYLE } from './DeviceCard';
@@ -9,15 +9,15 @@ import { useStore } from './store';
 /** Add, change, restart and remove the devices of the workspace (devices.json), and manage secrets. */
 export function DevicesPage() {
 	const { devices } = useStore();
-	const [files, setFiles] = useState<DeviceFile[]>([]);
+	const [entries, setEntries] = useState<Record<string, DeviceEntry>>({});
 	const [dialog, setDialog] = useState<{ id: string | null } | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const ids = Object.keys(devices).sort();
 
 	useEffect(() => {
-		void api.listDeviceFiles().then(setFiles, (e: Error) => setError(e.message));
+		void api.listDeviceEntries().then(setEntries, (e: Error) => setError(e.message));
 	}, [ids.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
-	const fileOf = (id: string) => files.find((f) => f.devices.includes(id))?.file ?? '';
+	const sourceOf = (id: string) => (entries[id]?.driver ? `driver: ${entries[id]!.driver}` : (entries[id]?.file ?? ''));
 
 	async function run(action: Promise<unknown>) {
 		try {
@@ -45,7 +45,7 @@ export function DevicesPage() {
 							<th className="p-2">Id</th>
 							<th className="p-2">Class</th>
 							<th className="p-2">Status</th>
-							<th className="p-2">File</th>
+							<th className="p-2">File or driver</th>
 							<th className="p-2" />
 						</tr>
 					</thead>
@@ -63,7 +63,7 @@ export function DevicesPage() {
 											{info.status}
 										</span>
 									</td>
-									<td className="p-2 font-mono text-xs text-zinc-500">{fileOf(id)}</td>
+									<td className="p-2 font-mono text-xs text-zinc-500">{sourceOf(id)}</td>
 									<td className="flex justify-end gap-3 p-2">
 										<button data-testid={`restart-${id}`} className="hover:underline" onClick={() => void run(api.restartDevice(id))}>Restart</button>
 										<button data-testid={`edit-${id}`} className="hover:underline" onClick={() => setDialog({ id })}>Change</button>

@@ -183,6 +183,71 @@ try {
 	await page.getByTestId('row-second_gauge').waitFor({ state: 'detached' });
 	assert.ok(!('second_gauge' in devicesFile()) && 'pressure' in devicesFile());
 	ok('device removed');
+
+	// the simulated oscilloscope: a C# driver, added through the dialog, shown with its own widget
+	await page.getByTestId('add-device').click();
+	await dialog.getByTestId('kind-driver').check();
+	await dialog.getByTestId('field-driver').selectOption('simulated_oscilloscope');
+	await dialog.getByTestId('field-id').fill('scope');
+	await dialog.getByTestId('option-noise').waitFor(); // the options of the driver
+	await dialog.getByTestId('save-device').click();
+	await dialog.waitFor({ state: 'detached' });
+	assert.deepEqual(devicesFile().scope, { driver: 'simulated_oscilloscope' });
+	await page.getByTestId('nav-dashboard').click();
+	const canvas = page.getByTestId('osc-canvas');
+	await canvas.waitFor();
+	const frameCount = async () => Number(await page.getByTestId('osc-frames').textContent());
+	await page.waitForFunction(() => Number(document.querySelector('[data-testid="osc-frames"]')?.textContent) >= 5);
+	assert.equal(await canvas.getAttribute('data-mode'), 'fft');
+	assert.equal(await canvas.getAttribute('data-channels'), '0,1');
+	const blue = () => canvas.evaluate((el) => {
+		const d = el.getContext('2d').getImageData(0, 0, el.width, el.height).data;
+		let n = 0;
+		for (let i = 0; i < d.length; i += 4) if (d[i + 2] > 150 && d[i] < 100) n++; // the colour of channel 1
+		return n;
+	});
+	assert.ok((await blue()) > 200, 'the trace of channel 1 is drawn');
+	const before = await frameCount();
+	await page.waitForTimeout(2500); // more than the frames that may be on their way unacknowledged: they keep coming
+	assert.ok((await frameCount()) - before >= 30, 'frames keep arriving');
+	ok('oscilloscope: added through the dialog, spectrum is drawn and keeps updating');
+
+	await page.getByTestId('osc-mode-time').click();
+	await page.waitForFunction(() => document.querySelector('[data-testid="osc-canvas"]')?.dataset.mode === 'time');
+	await page.getByTestId('osc-mode-fft').click();
+	await page.waitForFunction(() => document.querySelector('[data-testid="osc-canvas"]')?.dataset.mode === 'fft');
+	await page.getByTestId('osc-fft-length').selectOption('1024');
+	await page.waitForFunction(() => document.querySelector('[data-testid="osc-canvas"]')?.dataset.fftLength === '1024');
+	await page.getByTestId('osc-fft-length').selectOption('8192');
+	await page.getByTestId('osc-channel-2').click();
+	await page.waitForFunction(() => document.querySelector('[data-testid="osc-canvas"]')?.dataset.channels === '0,1,2');
+	await page.getByTestId('osc-channel-2').click();
+	await page.waitForFunction(() => document.querySelector('[data-testid="osc-canvas"]')?.dataset.channels === '0,1');
+	ok('oscilloscope controls: time trace / FFT, FFT length, channels');
+
+	await page.waitForFunction(() => document.querySelector('[data-testid="osc-canvas"]')?.dataset.fftLength === '8192');
+	const full = await page.getByTestId('osc-range').textContent();
+	await canvas.hover();
+	await page.mouse.wheel(0, -400);
+	await page.waitForFunction((r) => document.querySelector('[data-testid="osc-range"]')?.textContent !== r, full);
+	const zoomed = await page.getByTestId('osc-range').textContent();
+	const length = Number(await canvas.getAttribute('data-length'));
+	assert.ok(zoomed !== full && length > 0);
+	await canvas.dblclick();
+	await page.waitForFunction((r) => document.querySelector('[data-testid="osc-range"]')?.textContent === r, full);
+	ok(`zoom asks the server for the range (${zoomed}) and double click goes back (${full})`);
+
+	await page.getByTestId('osc-run').click();
+	await page.getByRole('button', { name: 'Start' }).waitFor();
+	await page.waitForTimeout(700);
+	const framesWhenStopped = await frameCount();
+	await page.waitForTimeout(1000);
+	assert.ok((await frameCount()) - framesWhenStopped <= 1, 'no frames while stopped');
+	await page.getByTestId('osc-run').click();
+	await page.getByRole('button', { name: 'Stop' }).waitFor();
+	await page.waitForFunction((n) => Number(document.querySelector('[data-testid="osc-frames"]')?.textContent) > n + 10, framesWhenStopped);
+	ok('stop and start');
+
 	await page.getByTestId('nav-dashboard').click();
 	await page.getByTestId('device-pressure').waitFor();
 
@@ -202,6 +267,9 @@ try {
 	await waitText('connection', 'connected');
 	await waitText('status-pressure', 'ready');
 	assert.equal(await text('state-pressure-channels.0.pressure'), '0.037'); // fresh state from the new server
+	const afterRestart = await frameCount();
+	await page.waitForFunction((n) => Number(document.querySelector('[data-testid="osc-frames"]')?.textContent) > n + 20, afterRestart);
+	ok('oscilloscope: the stream is subscribed again after the server restarted');
 	ok('server restart: the page reconnects and shows the new state');
 
 	failed = false;
