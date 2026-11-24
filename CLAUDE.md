@@ -94,7 +94,7 @@ Mapping of today's injected names:
   - State is snake_case (`target_position`, `dop`); units stay in the docstring until profiles exist. A list option (`channels`) is a `json` option; the form for it is a plain JSON field so far.
   - **A `stop` must reach a device while a move of the same client is running.** SignalR runs the invocations of one connection one after the other by default, so the first Smaract test hung for the whole move; the control hub now allows 64 parallel invocations per client. An interrupted move fails for its caller ("stopped"), and the state says `moving: false` and where the stage is.
   - **A device that streams** (Pfeiffer: the controller sends a line per second after `COM,1`): read the port with short timeouts and keep the partial line, so that stopping stays responsive; a silent controller is restarted and reported once; invalid readings are `None` with a status, never 0. Both are tested with a fake serial port, no hardware needed. The SmarAct CTL calls are ported from the old driver but **untested on hardware**.
-  - Not frozen yet: the contract is declared v1 after the RS SMA100B port (a generator with `set_on`, `DemoRFGen` parity) and a review of what the two ports above changed.
+  - **Declared v1** after the RS SMA100B port (`set_on` included, state read back from the instrument so front-panel changes show). Written down in `docs/device-contract.md`; additive changes only from here.
 
 ### Device management and config
 - Replace the `DeviceManager` constructor with a **declarative config** (`devices.json`): driver, args, optional demo fallback. The same registry enables runtime add/remove.

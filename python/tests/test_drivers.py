@@ -18,7 +18,7 @@ def drivers_server(tmp_path_factory):
     build_server()
     workspace, data = tmp_path_factory.mktemp("workspace"), tmp_path_factory.mktemp("data")
     (workspace / "devices").mkdir()
-    for name in ("elliptec.py", "thorlabs_polarimeter.py", "pfeiffer_pressure.py", "smaract.py"):
+    for name in ("elliptec.py", "thorlabs_polarimeter.py", "pfeiffer_pressure.py", "smaract.py", "rs_sma100b.py"):
         shutil.copy(ROOT / "drivers" / name, workspace / "devices" / name)
     for name in ("physics_polarimeter.py", "polarization_lock.py"):  # test devices: a lab-internal control loop and some physics
         shutil.copy(DEVICES / name, workspace / "devices" / name)
@@ -34,6 +34,7 @@ def drivers_server(tmp_path_factory):
         "pressure": {"file": "devices/pfeiffer_pressure.py", "config": {"simulate": True}},
         "pressure_faulty": {"file": "devices/pfeiffer_pressure.py", "config": {"simulate": True, "simulate_fault": True}},
         "stage": {"file": "devices/smaract.py", "config": {"simulate": True}},
+        "rf": {"file": "devices/rs_sma100b.py", "config": {"simulate": True, "poll_s": 0.2}},
         "no_hardware": {"file": "devices/elliptec.py"},  # neither a port nor simulate
     }
     (workspace / "devices.json").write_text(json.dumps({"devices": devices}))
@@ -48,7 +49,7 @@ def drivers_server(tmp_path_factory):
 @pytest.fixture()
 def lab(drivers_server):
     with laborchestra.connect(drivers_server[0], PASSPHRASE) as lab:
-        for name in ("elliptec", "elliptec_quiet", "elliptec_checked", "elliptec_flaky", "tweezer_polarization", "real_polarimeter", "polarization_lock", "pressure", "pressure_faulty", "stage"):
+        for name in ("elliptec", "elliptec_quiet", "elliptec_checked", "elliptec_flaky", "tweezer_polarization", "real_polarimeter", "polarization_lock", "pressure", "pressure_faulty", "stage", "rf"):
             lab[name].wait_ready(30)
         yield lab
 
@@ -333,3 +334,57 @@ def test_smaract_checks_its_arguments(lab):
     for call, text in ((lambda: lab.stage.set_position(7, 1), "no channel 7"), (lambda: lab.stage.set_mode(0, "fast"), "Invalid move mode")):
         with pytest.raises(RemoteError, match=text):
             call()
+
+
+# --- Rohde & Schwarz SMA100B ----------------------------------------------------------------------------------------------
+def test_the_generator_takes_frequency_power_and_output_and_says_what_the_instrument_says(lab):
+    assert lab.rf.state["simulated"] is True
+    lab.rf.set_frequency(0, 2.5e9)
+    lab.rf.set_power(0, -12.5)
+    assert lab.rf.state["channels"][0]["frequency"] == 2.5e9 and lab.rf.state["channels"][0]["power"] == -12.5
+    assert lab.rf.state["channels"][0]["is_on"] is False
+    lab.rf.set_on(0, True)  # the legacy driver lacked this
+    assert lab.rf.state["channels"][0]["is_on"] is True
+    for call, text in ((lambda: lab.rf.set_on(1, True), "no channel 1"), (lambda: lab.rf.set_frequency(0, -5), "positive")):
+        with pytest.raises(RemoteError, match=text):
+            call()
+    assert lab.rf.state["channels"][0]["frequency"] == 2.5e9
+
+
+def test_the_generator_follows_changes_made_at_the_instrument_and_reports_a_lost_connection_once():
+    spec = importlib.util.spec_from_file_location("rs_sma100b", ROOT / "drivers" / "rs_sma100b.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    instrument = module._Simulated()
+
+    class Generator(module.RohdeSchwarzSma100b):
+        def _open(self):
+            return instrument
+
+    device = Generator()
+    device._setup("rf", coerce_config(Generator, {"address": "10.0.0.1", "poll_s": 0.05}))
+    warnings = []
+    device.log = type("Log", (), {"warning": lambda self, *a: warnings.append(a[0] % a[1:])})()
+    device.connect()
+    thread = threading.Thread(target=device.run)
+    thread.start()
+    try:
+        instrument.write(frequency=123e6)  # somebody turns the knob
+        wait_for(lambda: device.state["channels"][0]["frequency"] == 123e6, 5, "the change at the instrument")
+        instrument.read = lambda: (_ for _ in ()).throw(OSError("link down"))
+        wait_for(lambda: device.state["status"] == "error", 5, "the error")
+        time.sleep(0.3)
+    finally:
+        device._stop.set()
+        thread.join(5)
+    assert warnings == ["Could not read the generator: link down"]
+
+
+def test_the_generator_without_an_address_says_what_to_set():
+    spec = importlib.util.spec_from_file_location("rs_sma100b", ROOT / "drivers" / "rs_sma100b.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    device = module.RohdeSchwarzSma100b()
+    device._setup("rf", coerce_config(module.RohdeSchwarzSma100b, {}))
+    with pytest.raises(ValueError, match="'address'"):
+        device.connect()

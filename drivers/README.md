@@ -8,6 +8,7 @@ device gets an environment with exactly that.
 |---|---|
 | `elliptec.py` | Thorlabs Elliptec rotation / linear / slider stages |
 | `thorlabs_polarimeter.py` | Thorlabs PAX polarimeter |
+| `rs_sma100b.py` | Rohde & Schwarz SMA100B RF generator (frequency, power, output) over HiSLIP. Not yet tried on hardware |
 | `smaract.py` | SmarAct MCS2 positioners (closed-loop, open-loop, scan); `stop` ends a move in progress. Not yet tried on hardware |
 | `pfeiffer_pressure.py` | Pfeiffer vacuum gauge controller (TPG 36x), continuous mode; invalid readings are `None` with a status |
 
