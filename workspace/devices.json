@@ -2,6 +2,9 @@
 	"devices": {
 		"pressure": {
 			"file": "devices/demo_pressure.py"
+		},
+		"acq": {
+			"driver": "simulated_oscilloscope"
 		}
 	}
 }

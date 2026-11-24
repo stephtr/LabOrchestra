@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net11.0</TargetFramework>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<AssemblyName>LabOrchestra.Plugins.Picoscope</AssemblyName>
+		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+		<OutputPath>$(MSBuildThisFileDirectory)../../LabOrchestra.Server/bin/$(Configuration)/net11.0/plugins/</OutputPath>
+		<GenerateDependencyFile>true</GenerateDependencyFile>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="../Oscilloscope/LabOrchestra.Plugins.Oscilloscope.csproj" />
+		<ProjectReference Include="../../LabOrchestra.Sdk/LabOrchestra.Sdk.csproj">
+			<Private>false</Private>
+		</ProjectReference>
+	</ItemGroup>
+
+</Project>

@@ -109,3 +109,7 @@ SignalR with MessagePack, snake_case names. Two hubs:
 State patches: `{"set": {"channels.1.pressure": 3e-7}, "del": ["name"]}`; paths are dot separated, numeric parts index lists, a list that changes length is replaced as a whole. Every change of a device's state increases its `revision`; a client that sees a gap fetches the device again with `get_device`.
 
 Errors cross the wire as JSON text `{type, message, traceback}`. SignalR needs every answer to a server-initiated call to carry a result (null is fine); a void completion is rejected.
+
+## Picoscope
+
+`picoscope_4000a` and `picoscope_5000a` (C# drivers in `server/Plugins/Picoscope`) need the PicoSDK or PicoScope 7 installed (https://www.picotech.com/downloads); LabOrchestra does not ship it. Add one in the Devices page (kind: C# driver) or `devices.json`: `{"driver": "picoscope_5000a", "config": {"auto_start": true}}`. Without the library or without a unit the device shows an error saying what is missing. The pipeline, widget and recording are the same as for `simulated_oscilloscope`.

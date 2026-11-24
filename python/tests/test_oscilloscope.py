@@ -199,3 +199,20 @@ def test_after_a_crash_the_npy_files_of_the_recording_are_repaired(tmp_path):
         second.terminate()
         second.wait(20)
         log2.close()
+
+
+def test_a_picoscope_without_the_sdk_says_what_to_install(tmp_path_factory):
+    """No hardware in CI: both drivers must load, and without the PicoSDK (or a unit) the device reports why instead of crashing."""
+    build_server()
+    workspace, data = tmp_path_factory.mktemp("workspace"), tmp_path_factory.mktemp("data")
+    (workspace / "devices.json").write_text(json.dumps({"devices": {"ps5": {"driver": "picoscope_5000a"}, "ps4": {"driver": "picoscope_4000a"}}}))
+    url = f"http://127.0.0.1:{free_port()}"
+    process, log = launch(workspace, data, url)
+    try:
+        with laborchestra.connect(url, PASSPHRASE) as lab:
+            assert {"picoscope_4000a", "picoscope_5000a"} <= {d["driver"] for d in lab.list_drivers()}
+            for device in (lab.ps5, lab.ps4):
+                wait_for(lambda: device.status == "error" and device.error, 30, "error of a missing unit")
+            assert "PicoSDK" in lab.ps5.error or "No Picoscope" in lab.ps5.error
+    finally:
+        print(stop_server(process, log, workspace, url))
