@@ -1,3 +1,4 @@
+# Runs: see ../README.md
 pffft-src/
 *.dll
 *.dylib
