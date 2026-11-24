@@ -17,15 +17,30 @@ public sealed class DeviceHub(DeviceRegistry registry, LogStore logs, SettingsSt
 	{
 		if (schema is not IDictionary<object, object> map || map.TryGetValue("id", out var id) is false || id as string != DeviceId)
 			throw new HubException(Errors.Json("ValueError", $"The schema must have the id '{DeviceId}'"));
-		registry.Registered(DeviceId, Context.ConnectionId, Plain.From(schema)!, Plain.From(state)!);
+		registry.Registered(DeviceId, Context.ConnectionId, Plain.From(schema)!, (Dictionary<string, object?>)Plain.From(state)!);
 		log.LogInformation("Device {Device} registered", DeviceId);
 	}
 
+	/// <summary>Replaces the whole state. Normally the device sends patches; this is the way back to a known state.</summary>
 	[HubMethodName("update_state")]
 	public void UpdateState(object state)
 	{
-		if (!registry.StateUpdated(DeviceId, Context.ConnectionId, Plain.From(state)!))
+		if (Plain.From(state) is not Dictionary<string, object?> map || !registry.StateReplaced(DeviceId, Context.ConnectionId, map))
 			throw new HubException(Errors.Json("RuntimeError", "The device is not registered on this connection"));
+	}
+
+	/// <summary>What changed in the state since the last patch or registration, e.g. {"set": {"channels.1.pressure": 3e-7}}.</summary>
+	[HubMethodName("patch_state")]
+	public void PatchState(object patch)
+	{
+		try
+		{
+			registry.StatePatched(DeviceId, Context.ConnectionId, (Dictionary<string, object?>)Plain.From(patch)!);
+		}
+		catch (Exception e) when (e is InvalidOperationException or InvalidCastException)
+		{
+			throw new HubException(Errors.Json("PatchError", e.Message));
+		}
 	}
 
 	/// <summary>The values of the device's "persist" keys after a change.</summary>

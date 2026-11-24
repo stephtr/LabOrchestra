@@ -1,6 +1,7 @@
 import { HubConnection, HubConnectionBuilder } from '@microsoft/signalr';
 import { MessagePackHubProtocol } from '@microsoft/signalr-protocol-msgpack';
 import { useSyncExternalStore } from 'react';
+import { applyPatch, Patch } from './patch';
 
 export type Param = { name: string; type: string; default: unknown; required: boolean };
 export type ActionSchema = { name: string; doc: string | null; params: Param[] };
@@ -17,6 +18,7 @@ export type DeviceInfo = {
 	error: string | null;
 	schema: Schema | null;
 	state: Record<string, unknown> | null;
+	revision: number;
 };
 export type ConnectionState = 'login' | 'connecting' | 'connected' | 'reconnecting';
 export type LogEntry = {
@@ -118,6 +120,18 @@ async function connect(token: string) {
 	connection.on('device', (id: string, info: DeviceInfo) =>
 		set({ devices: { ...store.devices, [id]: info } }),
 	);
+	connection.on('device_patch', (id: string, revision: number, patch: Patch) => {
+		const info = store.devices[id];
+		if (info?.state && info.revision + 1 === revision) {
+			try {
+				set({ devices: { ...store.devices, [id]: { ...info, state: applyPatch(info.state, patch), revision } } });
+				return;
+			} catch {
+				/* does not fit: fetch the whole device */
+			}
+		}
+		void resyncDevice(connection, id); // a patch was missed
+	});
 	connection.on('device_removed', (id: string) => {
 		const { [id]: _removed, ...rest } = store.devices;
 		set({ devices: rest });
@@ -146,6 +160,19 @@ async function sync(connection: HubConnection) {
 	const devices = await connection.invoke<Record<string, DeviceInfo>>('get_devices');
 	set({ connection: 'connected', devices });
 	await Promise.all([...subscribedLogs].map((source) => loadLogs(connection, source)));
+}
+
+const resyncing = new Set<string>();
+
+async function resyncDevice(connection: HubConnection, id: string) {
+	if (resyncing.has(id)) return;
+	resyncing.add(id);
+	try {
+		const info = await connection.invoke<DeviceInfo>('get_device', id);
+		set({ devices: { ...store.devices, [id]: info } });
+	} finally {
+		resyncing.delete(id);
+	}
 }
 
 function mergeLogs(a: LogEntry[], b: LogEntry[]): LogEntry[] {

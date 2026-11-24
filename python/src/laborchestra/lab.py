@@ -8,6 +8,7 @@ import threading
 from typing import Any
 
 from ._hub import Hub
+from ._patch import PatchError, apply_patch
 from .errors import LabOrchestraError
 
 DEFAULT_URL = "http://127.0.0.1:5095"
@@ -74,6 +75,8 @@ class AsyncLab:
         self._synced = asyncio.Event()
         self._hub = Hub(f"{self.url}/hub/control", self.token, on_connected=self._sync)
         self._hub.on("device")(self._on_device)
+        self._hub.on("device_patch")(self._on_patch)
+        self._resyncing: set[str] = set()
         self._hub.on("device_removed")(lambda device_id: self._devices.pop(device_id, None) and None)
 
     async def connect(self, timeout: float = 10) -> "AsyncLab":
@@ -104,6 +107,28 @@ class AsyncLab:
 
     def _on_device(self, device_id: str, info: dict) -> None:
         self._devices[device_id] = info
+
+    def _on_patch(self, device_id: str, revision: int, patch: dict) -> None:
+        info = self._devices.get(device_id)
+        if info and info.get("state") is not None and info.get("revision", -1) + 1 == revision:
+            try:
+                apply_patch(info["state"], patch)
+                info["revision"] = revision
+                return
+            except PatchError:
+                pass
+        # a patch was missed or does not fit: fetch the whole device again
+        if device_id not in self._resyncing:
+            self._resyncing.add(device_id)
+            asyncio.get_running_loop().create_task(self._resync(device_id))
+
+    async def _resync(self, device_id: str) -> None:
+        try:
+            self._devices[device_id] = await self._hub.invoke("get_device", device_id)
+        except Exception:
+            pass  # the next change or reconnect brings it back
+        finally:
+            self._resyncing.discard(device_id)
 
     async def _call(self, device_id: str, action: str, args: tuple) -> Any:
         return await self._hub.invoke("action", device_id, action, list(args), timeout=None)

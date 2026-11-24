@@ -27,6 +27,7 @@ PASSPHRASE = "test-passphrase"
 class Server:
     url: str
     data_dir: Path
+    workspace: Path
 
 
 def wait_for(condition, timeout=20, message="condition", interval=0.1):
@@ -87,7 +88,7 @@ def server(tmp_path_factory):
                 return True
 
         wait_for(up, 30, "server start")
-        yield Server(url, data_dir)
+        yield Server(url, data_dir, workspace)
     finally:
         process.terminate()
         try:
@@ -177,13 +178,34 @@ def test_persisted_state_survives_a_restart_of_the_worker(server, lab):
     wait_for(lambda: saved.exists() and json.loads(saved.read_text())["count"] == start + 2, message="saved file")
     assert json.loads(saved.read_text()) == {"count": start + 2, "channels": [21, 2]}  # not `scratch`
 
-    pid = lab.counter.state.get("process_id")
-    psutil_pid = next(p.pid for p in psutil.process_iter(["cmdline"]) if "counter.py" in " ".join(p.info["cmdline"] or []))
-    os.kill(psutil_pid, signal.SIGKILL if hasattr(signal, "SIGKILL") else signal.SIGTERM)
+    mine = str(server.workspace / "devices" / "counter.py")  # only the worker of this test server
+    worker = next(p.pid for p in psutil.process_iter(["cmdline"]) if mine in (p.info["cmdline"] or []))
+    os.kill(worker, signal.SIGKILL if hasattr(signal, "SIGKILL") else signal.SIGTERM)
     wait_for(lambda: lab.counter.status == "ready" and lab.counter.state["scratch"] == 0, 20, "restart")
     assert lab.counter.state["count"] == start + 2
     assert lab.counter.state["channels"] == [21, 2]
     assert lab.counter.state["scratch"] == 0  # not persisted: back to the default
+
+
+def test_patches_keep_every_client_in_sync(server, lab):
+    wait_for(lambda: lab.counter.status == "ready", message="counter ready")
+    with laborchestra.connect(server.url, PASSPHRASE) as other:  # starts from the full state, then follows patches
+        for seed in range(12):
+            lab.counter.scramble(seed, 25)
+            expected = None
+
+            def converged():
+                nonlocal expected
+                with laborchestra.connect(server.url, PASSPHRASE) as fresh:  # always the full state of the server
+                    expected = fresh.counter.state["tree"]
+                    revision = fresh.counter._device._info["revision"]
+                return (
+                    lab.counter.state["tree"] == expected
+                    and other.counter.state["tree"] == expected
+                    and lab.counter._device._info["revision"] == revision
+                )
+
+            wait_for(converged, 10, f"all clients equal after scramble {seed}")
 
 
 def test_wrong_or_missing_token_is_rejected(server):

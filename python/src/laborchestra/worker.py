@@ -33,6 +33,7 @@ from ._schema import (
     config_options,
     validate_state,
 )
+from ._patch import diff
 from ._state import plain
 from .device import Device
 from .errors import ConnectionLost, RemoteError, SchemaError
@@ -153,6 +154,7 @@ class Worker:
         self.config, self.watch_stdin = config, watch_stdin
         self.settings: dict = settings or {}
         self._saved_settings: dict = {}
+        self._sent: dict = {}  # the state the server has
         self.exit_code = EXIT_OK
         self._registered_gen = 0
         self._run_thread: threading.Thread | None = None
@@ -323,7 +325,9 @@ class Worker:
 
     async def _register(self) -> None:
         generation = self.hub.connects
-        await self.hub.invoke("register", self.schema, self._snapshot())
+        snapshot = self._snapshot()
+        await self.hub.invoke("register", self.schema, snapshot)
+        self._sent = snapshot
         self._registered_gen = generation
 
     async def _flush_loop(self) -> None:
@@ -337,7 +341,14 @@ class Worker:
             state = self._snapshot()
             try:
                 validate_state(state)
-                await self.hub.invoke("update_state", state)
+                patch = diff(self._sent, state)
+                if patch:
+                    try:
+                        await self.hub.invoke("patch_state", patch)
+                    except RemoteError as e:
+                        log.warning("The server rejected a state patch (%s), sending the whole state", e)
+                        await self.hub.invoke("update_state", state)
+                    self._sent = state
                 await self._save_settings(state)
             except SchemaError as e:
                 log.error("Rejected state update: %s", e)

@@ -20,6 +20,10 @@ public sealed class ControlHub(DeviceRegistry registry, LogStore logs, IHubConte
 	[HubMethodName("get_devices")]
 	public Dictionary<string, Dictionary<string, object?>> GetDevices() => registry.All();
 
+	[HubMethodName("get_device")]
+	public Dictionary<string, object?> GetDevice(string device) =>
+		registry.Snapshot(device) ?? throw new HubException(Errors.Json("LookupError", $"Device '{device}' does not exist"));
+
 	/// <param name="source">"server", "device:pressure" or null for all; since = 0 returns the latest entries.</param>
 	[HubMethodName("get_logs")]
 	public List<Dictionary<string, object?>> GetLogs(string? source, string? level, long since, int limit) =>

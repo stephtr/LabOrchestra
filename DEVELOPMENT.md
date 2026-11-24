@@ -41,11 +41,13 @@ Server settings, as command-line options or `LABORCHESTRA_*` environment variabl
 (cd client && pnpm e2e)                # browser test; needs `pnpm build`, a server build and Chrome/Chromium
 ```
 
-## Protocol v0
+## Protocol
 
 SignalR with MessagePack, snake_case names. Two hubs:
 
-- `/hub/devices` (workers, role `device`, token per started process): worker -> server `register(schema, state)`, `update_state(state)`; server -> worker `call(action, args)` (returns the result), `get_state()`.
-- `/hub/control` (browsers, scripts, devices talking to devices): `get_devices()`, `action(device, action, args)`; server -> client `device(id, info)` after every change, `device_removed(id)`.
+- `/hub/devices` (workers, role `device`, token per started process): worker -> server `register(schema, state)`, `patch_state(patch)`, `update_state(state)` (whole state, after a rejected patch), `save_settings(values)`, `log(records)`; server -> worker `call(action, args)` (returns the result), `get_state()`.
+- `/hub/control` (browsers, scripts, devices talking to devices): `get_devices()`, `get_device(id)`, `action(device, action, args)`, `get_logs(source, level, since, limit)`, `subscribe_logs(source)`, `unsubscribe_logs(source)`; server -> client `device(id, info)` (status, schema, state, revision), `device_patch(id, revision, patch)`, `device_removed(id)`, `log(entry)`.
+
+State patches: `{"set": {"channels.1.pressure": 3e-7}, "del": ["name"]}`; paths are dot separated, numeric parts index lists, a list that changes length is replaced as a whole. Every change of a device's state increases its `revision`; a client that sees a gap fetches the device again with `get_device`.
 
 Errors cross the wire as JSON text `{type, message, traceback}`. SignalR needs every answer to a server-initiated call to carry a result (null is fine); a void completion is rejected.
