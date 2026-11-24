@@ -2,6 +2,7 @@ using System.Text.Json;
 using LabOrchestra.Server.Auth;
 using LabOrchestra.Server.Devices;
 using LabOrchestra.Server.Logging;
+using LabOrchestra.Server.Supervision;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 
@@ -15,10 +16,38 @@ public static class Errors
 
 /// <summary>Connection of browsers, scripts and devices that talk to other devices.</summary>
 [Authorize(Roles = $"{Roles.Client},{Roles.Device}")]
-public sealed class ControlHub(DeviceRegistry registry, LogStore logs, IHubContext<DeviceHub> devices) : Hub
+public sealed class ControlHub(DeviceRegistry registry, LogStore logs, SecretStore secrets, WorkerSupervisor supervisor, IHubContext<DeviceHub> devices) : Hub
 {
 	[HubMethodName("get_devices")]
 	public Dictionary<string, Dictionary<string, object?>> GetDevices() => registry.All();
+
+	/// <summary>Stops the worker of a device and starts it again (also resets the waiting time after failures).</summary>
+	[HubMethodName("restart_device")]
+	public async Task RestartDevice(string device)
+	{
+		if (!await supervisor.RestartAsync(device))
+			throw new HubException(Errors.Json("LookupError", $"Device '{device}' does not exist"));
+	}
+
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("list_secrets")]
+	public List<string> ListSecrets() => secrets.Names();
+
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("set_secret")]
+	public async Task SetSecret(string name, string value)
+	{
+		secrets.Set(name, value);
+		await supervisor.SecretChangedAsync(name);
+	}
+
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("delete_secret")]
+	public async Task DeleteSecret(string name)
+	{
+		secrets.Delete(name);
+		await supervisor.SecretChangedAsync(name);
+	}
 
 	[HubMethodName("get_device")]
 	public Dictionary<string, object?> GetDevice(string device) =>

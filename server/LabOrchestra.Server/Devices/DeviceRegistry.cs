@@ -66,6 +66,12 @@ public sealed class DeviceRegistry(IHubContext<ControlHub> control, ILogger<Devi
 			return true;
 		});
 
+	public void Remove(string id)
+	{
+		lock (_lock)
+			if (_devices.Remove(id)) Send("device_removed", id);
+	}
+
 	public DeviceEntry? Get(string id)
 	{
 		lock (_lock) return _devices.TryGetValue(id, out var e) ? e : null;

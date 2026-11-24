@@ -36,11 +36,13 @@ var logStore = new LogStore(Path.Combine(dataDir, "logs"));
 builder.Logging.AddProvider(new LogStoreProvider(logStore));
 builder.Services.AddSingleton(logStore);
 builder.Services.AddSingleton(new SettingsStore(Path.Combine(dataDir, "settings")));
+builder.Services.AddSingleton(new SecretStore(Path.Combine(dataDir, "secrets.json")));
 builder.Services.AddSingleton(new TokenService(passphrase));
 builder.Services.AddSingleton(workspace);
 builder.Services.AddSingleton(new ServerInfo(workerUrl));
 builder.Services.AddSingleton<DeviceRegistry>();
-builder.Services.AddHostedService<WorkerSupervisor>();
+builder.Services.AddSingleton<WorkerSupervisor>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<WorkerSupervisor>());
 builder.Services.AddSignalR(o => o.MaximumReceiveMessageSize = 16 * 1024 * 1024).AddMessagePackProtocol();
 builder.Services.AddAuthentication(TokenAuthHandler.SchemeName)
 	.AddScheme<AuthenticationSchemeOptions, TokenAuthHandler>(TokenAuthHandler.SchemeName, null);
@@ -63,6 +65,7 @@ app.Use(async (context, next) =>
 	}
 	await next();
 });
+workspace.Watch(app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("LabOrchestra.Workspace"));
 var controlHub = app.Services.GetRequiredService<IHubContext<ControlHub>>();
 logStore.Added += entry => _ = controlHub.Clients.Group("logs:" + entry["source"]).SendAsync("log", entry);
 app.UseAuthentication();

@@ -23,6 +23,13 @@ DEMO = ROOT / "workspace" / "devices" / "demo_pressure.py"
 PASSPHRASE = "test-passphrase"
 
 
+BASE_DEVICES = {
+    "pressure": {"file": "devices/demo_pressure.py", "config": {"noise": 0.0}},
+    "counter": {"file": "devices/counter.py"},
+    "broken": {"file": "devices/demo_pressure.py", "config": {"speed": 1}},  # no such option
+}
+
+
 @dataclass
 class Server:
     url: str
@@ -54,18 +61,9 @@ def server(tmp_path_factory):
     workspace = tmp_path_factory.mktemp("workspace")
     (workspace / "devices").mkdir()
     shutil.copy(DEMO, workspace / "devices" / "demo_pressure.py")
-    shutil.copy(Path(__file__).parent / "devices" / "counter.py", workspace / "devices" / "counter.py")
-    (workspace / "devices.json").write_text(
-        json.dumps(
-            {
-                "devices": {
-                    "pressure": {"file": "devices/demo_pressure.py", "config": {"noise": 0.0}},
-                    "counter": {"file": "devices/counter.py"},
-                    "broken": {"file": "devices/demo_pressure.py", "config": {"speed": 1}},  # no such option
-                }
-            }
-        )
-    )
+    for name in ("counter.py", "secretive.py"):
+        shutil.copy(Path(__file__).parent / "devices" / name, workspace / "devices" / name)
+    (workspace / "devices.json").write_text(json.dumps({"devices": BASE_DEVICES}))
     data_dir = tmp_path_factory.mktemp("data")
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
@@ -97,6 +95,21 @@ def server(tmp_path_factory):
             process.kill()
         log.close()
         print((workspace / "server.log").read_text())
+
+
+def write_devices(server, devices):
+    target = server.workspace / "devices.json"
+    temporary = target.with_suffix(".tmp")
+    temporary.write_text(json.dumps({"devices": devices}))
+    os.replace(temporary, target)  # like an editor: write elsewhere, then rename
+
+
+@pytest.fixture()
+def reset_devices(server):
+    yield
+    write_devices(server, BASE_DEVICES)
+    with laborchestra.connect(server.url, PASSPHRASE) as lab:
+        wait_for(lambda: sorted(lab.devices) == sorted(BASE_DEVICES), message="devices back to normal")
 
 
 @pytest.fixture()
@@ -206,6 +219,50 @@ def test_patches_keep_every_client_in_sync(server, lab):
                 )
 
             wait_for(converged, 10, f"all clients equal after scramble {seed}")
+
+
+def test_devices_can_be_added_changed_and_removed(server, lab, reset_devices):
+    late = {"file": "devices/demo_pressure.py", "config": {"noise": 0.0}}
+    write_devices(server, {**BASE_DEVICES, "late": late})
+    wait_for(lambda: "late" in lab.devices and lab.late.status == "ready", message="new device")
+    late_pid, pressure_pid = lab.late.state["process_id"], lab.pressure.state["process_id"]
+
+    write_devices(server, {**BASE_DEVICES, "late": {**late, "config": {"noise": 0.1}}})
+    wait_for(lambda: lab.late.status == "ready" and lab.late.state["process_id"] != late_pid, message="restart after a change")
+    assert lab.pressure.state["process_id"] == pressure_pid  # the others keep running
+
+    (server.workspace / "devices.json").write_text("{ not json")
+    wait_for(lambda: any("devices.json was not loaded" in e["message"] for e in lab.logs("server")), message="error report")
+    assert lab.late.status == "ready" and lab.pressure.status == "ready"  # a broken file changes nothing
+
+    write_devices(server, BASE_DEVICES)
+    wait_for(lambda: "late" not in lab.devices, message="removal")
+    assert lab.pressure.status == "ready"
+
+
+def test_device_can_be_restarted(lab):
+    pid = lab.pressure.state["process_id"]
+    lab.pressure.restart()
+    wait_for(lambda: lab.pressure.status == "ready" and lab.pressure.state["process_id"] != pid, message="restart")
+    with pytest.raises(RemoteError) as e:
+        lab.restart_device("nope")
+    assert e.value.type == "LookupError"
+
+
+def test_secrets_reach_the_device_and_nothing_else(server, lab, reset_devices):
+    vault = {"file": "devices/secretive.py", "config": {"api_key": {"secret": "demo_key"}}}
+    write_devices(server, {**BASE_DEVICES, "vault": vault})
+    wait_for(lambda: "vault" in lab.devices and lab.vault.status == "error", message="missing secret")
+    assert "demo_key" in lab.vault.error and "not defined" in lab.vault.error
+
+    lab.set_secret("demo_key", "abcdef-secret")
+    wait_for(lambda: lab.vault.status == "ready" and lab.vault.state["key_length"] == 13, message="secret delivered")
+    assert "demo_key" in lab.list_secrets()
+    everything = json.dumps([lab.logs(limit=2000), lab.vault.state, lab.vault.schema, lab.vault.error])
+    assert "abcdef-secret" not in everything
+    assert "abcdef-secret" not in (server.workspace / "devices.json").read_text()
+    lab.delete_secret("demo_key")
+    assert "demo_key" not in lab.list_secrets()
 
 
 def test_wrong_or_missing_token_is_rejected(server):

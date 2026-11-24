@@ -8,11 +8,19 @@ public sealed record DeviceConfig(string File, string? Python = null, Dictionary
 
 public sealed record DevicesFile(Dictionary<string, DeviceConfig>? Devices);
 
-/// <summary>The folder with devices.json and the user's own devices, procedures and views.</summary>
-public sealed partial class Workspace
+/// <summary>The folder with devices.json and the user's own devices, procedures and views. devices.json is watched:
+/// when it changes and is valid, <see cref="Changed"/> fires; a broken file is reported and the old setup stays.</summary>
+public sealed partial class Workspace : IDisposable
 {
+	private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web) { ReadCommentHandling = JsonCommentHandling.Skip };
+
+	private FileSystemWatcher? _watcher;
+	private Timer? _debounce;
+	private ILogger? _log;
+
 	public string Path { get; }
-	public IReadOnlyDictionary<string, DeviceConfig> Devices { get; }
+	public IReadOnlyDictionary<string, DeviceConfig> Devices { get; private set; }
+	public event Action? Changed;
 
 	private Workspace(string path, Dictionary<string, DeviceConfig> devices)
 	{
@@ -23,30 +31,68 @@ public sealed partial class Workspace
 	[GeneratedRegex("^[a-z][a-z0-9]*(_[a-z0-9]+)*$")]
 	private static partial Regex SnakeCase();
 
-	public static Workspace Load(string path)
+	public static Workspace Load(string path) => new(path, Parse(path));
+
+	private static Dictionary<string, DeviceConfig> Parse(string path)
 	{
 		var file = System.IO.Path.Combine(path, "devices.json");
 		var devices = new Dictionary<string, DeviceConfig>();
-		if (File.Exists(file))
+		if (!File.Exists(file)) return devices;
+		DevicesFile? parsed;
+		try
 		{
-			DevicesFile? parsed;
-			try
-			{
-				parsed = JsonSerializer.Deserialize<DevicesFile>(File.ReadAllText(file), new JsonSerializerOptions(JsonSerializerDefaults.Web) { ReadCommentHandling = JsonCommentHandling.Skip });
-			}
-			catch (JsonException e)
-			{
-				throw new InvalidOperationException($"{file} is not valid: {e.Message}");
-			}
-			foreach (var (id, device) in parsed?.Devices ?? [])
-			{
-				if (!SnakeCase().IsMatch(id))
-					throw new InvalidOperationException($"{file}: device id '{id}' must be snake_case (lowercase letters, digits, underscores)");
-				if (string.IsNullOrWhiteSpace(device.File))
-					throw new InvalidOperationException($"{file}: device '{id}' needs a \"file\"");
-				devices[id] = device;
-			}
+			parsed = JsonSerializer.Deserialize<DevicesFile>(File.ReadAllText(file), JsonOptions);
 		}
-		return new Workspace(path, devices);
+		catch (JsonException e)
+		{
+			throw new InvalidOperationException($"{file} is not valid: {e.Message}");
+		}
+		foreach (var (id, device) in parsed?.Devices ?? [])
+		{
+			if (!SnakeCase().IsMatch(id))
+				throw new InvalidOperationException($"{file}: device id '{id}' must be snake_case (lowercase letters, digits, underscores)");
+			if (string.IsNullOrWhiteSpace(device.File))
+				throw new InvalidOperationException($"{file}: device '{id}' needs a \"file\"");
+			devices[id] = device;
+		}
+		return devices;
+	}
+
+	public void Watch(ILogger log)
+	{
+		_log = log;
+		Directory.CreateDirectory(Path);
+		_watcher = new FileSystemWatcher(Path, "devices.json")
+		{
+			NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.Size | NotifyFilters.CreationTime,
+			EnableRaisingEvents = true,
+		};
+		FileSystemEventHandler onChange = (_, _) => _debounce = new Timer(_ => Reload(), null, 300, Timeout.Infinite);
+		_watcher.Changed += onChange;
+		_watcher.Created += onChange;
+		_watcher.Deleted += onChange;
+		_watcher.Renamed += (s, e) => onChange(s, e); // editors save by writing a temporary file and renaming it
+	}
+
+	private void Reload()
+	{
+		try
+		{
+			var next = Parse(Path);
+			if (JsonSerializer.Serialize(next) == JsonSerializer.Serialize(Devices)) return;
+			Devices = next;
+			_log?.LogInformation("devices.json changed: {Count} device(s)", next.Count);
+			Changed?.Invoke();
+		}
+		catch (Exception e) when (e is InvalidOperationException or IOException)
+		{
+			_log?.LogError("devices.json was not loaded, the running devices stay as they are: {Message}", e.Message);
+		}
+	}
+
+	public void Dispose()
+	{
+		_watcher?.Dispose();
+		_debounce?.Dispose();
 	}
 }

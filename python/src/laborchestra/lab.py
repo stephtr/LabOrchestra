@@ -46,6 +46,10 @@ class AsyncDevice:
     async def call(self, action: str, *args: Any) -> Any:
         return await self._lab._call(self.id, action, args)
 
+    async def restart(self) -> None:
+        """Stop the worker of this device and start it again."""
+        await self._lab.restart_device(self.id)
+
     async def logs(self, level: str | None = None, since: int = 0, limit: int = 200) -> list[dict]:
         """Log entries of this device (see AsyncLab.logs)."""
         return await self._lab.logs(f"device:{self.id}", level, since, limit)
@@ -133,6 +137,20 @@ class AsyncLab:
     async def _call(self, device_id: str, action: str, args: tuple) -> Any:
         return await self._hub.invoke("action", device_id, action, list(args), timeout=None)
 
+    async def restart_device(self, device_id: str) -> None:
+        await self._hub.invoke("restart_device", device_id)
+
+    async def list_secrets(self) -> list[str]:
+        """Names of the stored secrets (their values are never sent back)."""
+        return await self._hub.invoke("list_secrets")
+
+    async def set_secret(self, name: str, value: str) -> None:
+        """Store a secret; devices whose config has {"secret": name} are restarted."""
+        await self._hub.invoke("set_secret", name, value)
+
+    async def delete_secret(self, name: str) -> None:
+        await self._hub.invoke("delete_secret", name)
+
     async def logs(self, source: str | None = None, level: str | None = None, since: int = 0, limit: int = 200) -> list[dict]:
         """Log entries as dicts (seq, time, level, source, logger, message, traceback).
 
@@ -170,6 +188,9 @@ class SyncDevice:
 
     def logs(self, level: str | None = None, since: int = 0, limit: int = 200) -> list[dict]:
         return self._lab._run(self._device.logs(level, since, limit))
+
+    def restart(self) -> None:
+        self._lab._run(self._device.restart())
 
     def __getattr__(self, name: str):
         if name.startswith("_"):
@@ -218,6 +239,18 @@ class Lab:
 
     def logs(self, source: str | None = None, level: str | None = None, since: int = 0, limit: int = 200) -> list[dict]:
         return self._run(self._async.logs(source, level, since, limit))
+
+    def restart_device(self, device_id: str) -> None:
+        self._run(self._async.restart_device(device_id))
+
+    def list_secrets(self) -> list[str]:
+        return self._run(self._async.list_secrets())
+
+    def set_secret(self, name: str, value: str) -> None:
+        self._run(self._async.set_secret(name, value))
+
+    def delete_secret(self, name: str) -> None:
+        self._run(self._async.delete_secret(name))
 
     @property
     def devices(self) -> list[str]:
