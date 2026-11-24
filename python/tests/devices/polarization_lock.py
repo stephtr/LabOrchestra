@@ -1,7 +1,9 @@
 # /// script
 # requires-python = ">=3.11"
 # ///
-"""Keeps the polarization at a polarimeter constant by turning two waveplates (a quarter- and a half-wave plate)."""
+"""Keeps the polarization at a polarimeter constant by turning two waveplates (a quarter- and a half-wave plate).
+
+A port of the lab's own lock, kept as the test of devices controlling each other (not a shipped driver)."""
 
 import math
 

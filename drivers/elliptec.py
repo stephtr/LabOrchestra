@@ -4,8 +4,10 @@
 # ///
 """Thorlabs Elliptec stages (rotation, linear, slider) on one serial bus.
 
-The bus times out when it is asked too often. That is why the actual positions are read only every `poll_seconds` (20 s)
-and not after every move: a lock that corrects every second would otherwise double the accesses."""
+The bus times out when it is asked too often, and it times out now and then even when it is not. That is why the actual
+positions are read only every `poll_seconds` (20 s) and not after every move (a lock that corrects every second would
+otherwise double the accesses), and why every access is tried `attempts` times before it counts as failed. Moves are
+absolute and reads change nothing, so trying again is safe."""
 
 import time
 
@@ -15,14 +17,24 @@ KINDS = ("rotation", "linear", "slider")
 
 
 class _Simulated:
-    """Stands in for an axis when `simulate` is on: moves a little later, always gets there."""
+    """Stands in for an axis when `simulate` is on: moves a little later and gets there. With `timeouts`, every access times
+    out that many times in a row first, like a bus that is having a bad day."""
 
-    position = 0.0
+    def __init__(self, timeouts):
+        self.position, self.timeouts, self._left = 0.0, timeouts, timeouts
+
+    def _access(self):
+        if self._left > 0:
+            self._left -= 1
+            raise TimeoutError("simulated timeout")
+        self._left = self.timeouts
 
     def read(self):
+        self._access()
         return self.position
 
     def move(self, target):
+        self._access()
         time.sleep(0.05)
         self.position = float(target)
 
@@ -44,15 +56,18 @@ class Elliptec(Device):
     simulate = False  # no hardware: the stages move instantly
     poll_seconds = 20.0  # how often the actual positions are read; the bus times out when it is asked too often
     read_after_move = False  # also read the position right after a move: one more access each time, see above
+    attempts = 3  # tries per access before it counts as failed
+    retry_delay_s = 0.2
+    simulate_timeouts = 0  # with `simulate`: every access times out this many times first (to see how the dashboard copes)
 
-    state = {"simulated": False, "channels": []}
+    state = {"simulated": False, "timeouts": 0, "channels": []}  # timeouts: failed attempts since the start, a sign of the bus' health
 
     def connect(self):
         bad = [c for c in self.channels if c.get("type") not in KINDS]
         if bad:
             raise ValueError(f"A channel needs a type of {', '.join(KINDS)}: {bad}")
         if self.simulate:
-            self._axes = [_Simulated() for _ in self.channels]
+            self._axes = [_Simulated(self.simulate_timeouts) for _ in self.channels]
         else:
             if not self.port:
                 raise ValueError("Set the option 'port' (e.g. COM3), or 'simulate' to run without hardware")
@@ -61,10 +76,21 @@ class Elliptec(Device):
             controller = elliptec.Controller(self.port, debug=False)
             self._axes = [_Axis(elliptec, controller, c["type"], c["address"]) for c in self.channels]
         self.state["simulated"] = self.simulate
-        positions = [axis.read() for axis in self._axes]
+        positions = [self._attempt(f"Channel {i}: reading the position", axis.read) for i, axis in enumerate(self._axes)]
         self.state["channels"] = [
             {"type": c["type"], "target_position": p, "actual_position": p, "status": "ok"} for c, p in zip(self.channels, positions)
         ]
+
+    def _attempt(self, what, access):
+        """Run one access to the bus, trying again when it fails (the bus times out now and then)."""
+        for attempt in range(1, self.attempts + 1):
+            try:
+                return access()
+            except Exception as e:
+                self.state["timeouts"] += 1
+                self.log.debug("%s failed (attempt %d of %d): %s", what, attempt, self.attempts, e)
+                if attempt == self.attempts or self.sleep(self.retry_delay_s):  # the sleep says True when we are stopping
+                    raise
 
     def _channel(self, channel: int) -> dict:
         if not 0 <= channel < len(self._axes):
@@ -78,9 +104,10 @@ class Elliptec(Device):
         state["target_position"] = position
         try:
             with self.lock:
-                self._axes[channel].move(position)
+                axis = self._axes[channel]
+                self._attempt(f"Channel {channel}: move", lambda: axis.move(position))
                 if self.read_after_move:
-                    state["actual_position"] = self._axes[channel].read()
+                    state["actual_position"] = self._attempt(f"Channel {channel}: reading the position", axis.read)
             state["status"] = "ok"
         except Exception:
             state["status"] = "error"
@@ -92,11 +119,11 @@ class Elliptec(Device):
         with self.lock:
             for i, (state, axis) in enumerate(zip(self.state["channels"], self._axes)):
                 try:
-                    state["actual_position"] = axis.read()
+                    state["actual_position"] = self._attempt(f"Channel {i}: reading the position", axis.read)
                     state["status"] = "ok"
-                except Exception as e:
+                except Exception as e:  # all attempts failed
                     if state["status"] != "error":  # say it once, not at every poll
-                        self.log.warning("Channel %d: could not read the position: %s", i, e)
+                        self.log.warning("Channel %d: could not read the position (%d attempts): %s", i, self.attempts, e)
                     state["status"] = "error"
 
     def run(self):

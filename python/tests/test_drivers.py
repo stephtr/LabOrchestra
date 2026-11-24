@@ -18,13 +18,16 @@ def drivers_server(tmp_path_factory):
     build_server()
     workspace, data = tmp_path_factory.mktemp("workspace"), tmp_path_factory.mktemp("data")
     (workspace / "devices").mkdir()
-    for name in ("elliptec.py", "thorlabs_polarimeter.py", "polarization_lock.py"):
+    for name in ("elliptec.py", "thorlabs_polarimeter.py"):
         shutil.copy(ROOT / "drivers" / name, workspace / "devices" / name)
-    shutil.copy(DEVICES / "physics_polarimeter.py", workspace / "devices" / "physics_polarimeter.py")
+    for name in ("physics_polarimeter.py", "polarization_lock.py"):  # test devices: a lab-internal control loop and some physics
+        shutil.copy(DEVICES / name, workspace / "devices" / name)
     devices = {
         "elliptec": {"file": "devices/elliptec.py", "config": {"simulate": True, "channels": CHANNELS, "poll_seconds": 1}},
         "elliptec_quiet": {"file": "devices/elliptec.py", "config": {"simulate": True, "channels": CHANNELS[:1], "poll_seconds": 3600}},
         "elliptec_checked": {"file": "devices/elliptec.py", "config": {"simulate": True, "channels": CHANNELS[:1], "poll_seconds": 3600, "read_after_move": True}},
+        "elliptec_flaky": {"file": "devices/elliptec.py", "config": {"simulate": True, "channels": CHANNELS[:1], "poll_seconds": 3600, "simulate_timeouts": 2, "attempts": 3, "retry_delay_s": 0.01}},
+        "elliptec_hopeless": {"file": "devices/elliptec.py", "config": {"simulate": True, "channels": CHANNELS[:1], "simulate_timeouts": 3, "attempts": 2, "retry_delay_s": 0.01}},
         "tweezer_polarization": {"file": "devices/physics_polarimeter.py"},
         "real_polarimeter": {"file": "devices/thorlabs_polarimeter.py", "config": {"simulate": True}},
         "polarization_lock": {"file": "devices/polarization_lock.py"},
@@ -42,7 +45,7 @@ def drivers_server(tmp_path_factory):
 @pytest.fixture()
 def lab(drivers_server):
     with laborchestra.connect(drivers_server[0], PASSPHRASE) as lab:
-        for name in ("elliptec", "elliptec_quiet", "elliptec_checked", "tweezer_polarization", "real_polarimeter", "polarization_lock"):
+        for name in ("elliptec", "elliptec_quiet", "elliptec_checked", "elliptec_flaky", "tweezer_polarization", "real_polarimeter", "polarization_lock"):
             lab[name].wait_ready(30)
         yield lab
 
@@ -76,6 +79,23 @@ def test_the_bus_is_not_asked_after_every_move_unless_requested(lab):
 
     lab.elliptec_checked.set_position(0, 7.0)  # read_after_move: the position is there at once
     assert lab.elliptec_checked.state["channels"][0]["actual_position"] == 7.0
+
+
+def test_timeouts_of_the_bus_are_ridden_out_and_counted(lab):
+    # every access to this simulated bus times out twice before it works; three attempts are enough
+    # at the start: reading the positions (2 timeouts) and the first poll (2 more)
+    wait_for(lambda: lab.elliptec_flaky.state["timeouts"] == 4, message="start finished")
+    start = 4
+    lab.elliptec_flaky.set_position(0, 9.0)  # works although the move timed out twice
+    assert lab.elliptec_flaky.state["channels"][0]["target_position"] == 9.0 and lab.elliptec_flaky.state["channels"][0]["status"] == "ok"
+    assert lab.elliptec_flaky.state["timeouts"] == start + 2
+    lab.elliptec_flaky.update_positions()
+    assert lab.elliptec_flaky.state["channels"][0]["actual_position"] == 9.0 and lab.elliptec_flaky.state["timeouts"] == start + 4
+    assert not lab.elliptec_flaky.logs(level="WARNING")  # nothing to complain about: the attempts did their job
+
+    # too many timeouts for the attempts: the device cannot start, and says why
+    wait_for(lambda: lab.elliptec_hopeless.status == "error", 20, "error status")
+    assert "simulated timeout" in lab.elliptec_hopeless.error
 
 
 def test_a_driver_that_cannot_work_says_what_to_set(lab):

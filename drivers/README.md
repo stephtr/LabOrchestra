@@ -8,7 +8,10 @@ device gets an environment with exactly that.
 |---|---|
 | `elliptec.py` | Thorlabs Elliptec rotation / linear / slider stages |
 | `thorlabs_polarimeter.py` | Thorlabs PAX polarimeter |
-| `polarization_lock.py` | keeps the polarization constant with two waveplates (uses the two above) |
+
+Lab-specific control loops (a polarization lock, a position lock) are not drivers and do not belong here: they live in the
+workspace of the lab that uses them. `python/tests/devices/polarization_lock.py` is one, kept as the test of how devices
+control each other.
 
 Every driver has the option `simulate`: without hardware it runs on made-up values (and says so in its state:
 `simulated`), so a new setup can be tried out and the dashboard built before an instrument is connected.
