@@ -19,7 +19,7 @@ public sealed partial class DeviceCatalog(Workspace workspace, EnvironmentManage
 	public List<Dictionary<string, object?>> ListFiles()
 	{
 		var root = Path.GetFullPath(workspace.Path);
-		var used = workspace.Devices.GroupBy(d => Normalize(d.Value.File)).ToDictionary(g => g.Key, g => g.Select(d => d.Key).Order().ToList());
+		var used = workspace.Devices.Where(d => d.Value.File is not null).GroupBy(d => Normalize(d.Value.File!)).ToDictionary(g => g.Key, g => g.Select(d => d.Key).Order().ToList());
 		return Directory.Exists(root)
 			? Directory.EnumerateFiles(root, "*.py", SearchOption.AllDirectories)
 				.Select(f => Path.GetRelativePath(root, f).Replace('\\', '/'))

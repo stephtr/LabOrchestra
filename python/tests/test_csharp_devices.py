@@ -135,3 +135,8 @@ def test_drivers_can_be_listed_and_used_through_the_management_api(lab, cs_serve
         lab.add_device("ghost_device", driver="ghost")
     lab.remove_device("added_cs")
     wait_for(lambda: "added_cs" not in lab.devices, message="removed")
+
+
+def test_files_can_be_listed_while_devices_without_a_file_exist(lab):
+    """Regression: list_device_files failed with a NullReferenceException as soon as a C# driver device (no file) was configured."""
+    assert isinstance(lab.list_device_files(), list)
