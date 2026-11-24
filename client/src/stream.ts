@@ -1,6 +1,6 @@
 import { HubConnection, HubConnectionBuilder } from '@microsoft/signalr';
 import { MessagePackHubProtocol } from '@microsoft/signalr-protocol-msgpack';
-import { getToken } from './store';
+import { getToken, PROTOCOL } from './store';
 
 export type StreamFrame = { sequence: number; meta: Record<string, any>; data: Float32Array };
 
@@ -22,7 +22,7 @@ function connect(): Promise<HubConnection> {
 	if (connection) return connection;
 	connection = (async () => {
 		const hub = new HubConnectionBuilder()
-			.withUrl('/hub/streaming?client=ui', { accessTokenFactory: getToken })
+			.withUrl(`/hub/streaming?client=ui&protocol=${PROTOCOL}`, { accessTokenFactory: getToken })
 			.withHubProtocol(new MessagePackHubProtocol())
 			.withAutomaticReconnect({ nextRetryDelayInMilliseconds: () => 1000 })
 			.build();

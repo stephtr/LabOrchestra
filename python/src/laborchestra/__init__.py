@@ -7,6 +7,7 @@ from .recording import Recording, load_recording
 from .stream import Frame
 
 __version__ = "0.0.1"
+from ._hub import PROTOCOL  # noqa: E402
 __all__ = [
     "Device",
     "action",

@@ -3,6 +3,9 @@ import { MessagePackHubProtocol } from '@microsoft/signalr-protocol-msgpack';
 import { useSyncExternalStore } from 'react';
 import { applyPatch, Patch } from './patch';
 
+/** The wire protocol this client speaks; the server refuses a version it does not understand. */
+export const PROTOCOL = 1;
+
 export type Param = { name: string; type: string; default: unknown; required: boolean };
 export type ActionSchema = { name: string; doc: string | null; params: Param[] };
 export type Schema = {
@@ -119,7 +122,7 @@ async function connect(token: string) {
 		await new Promise((resolve) => setTimeout(resolve, 1000));
 	}
 	const connection = new HubConnectionBuilder()
-		.withUrl('/hub/control?client=ui', { accessTokenFactory: () => token })
+		.withUrl(`/hub/control?client=ui&protocol=${PROTOCOL}`, { accessTokenFactory: () => token })
 		.withHubProtocol(new MessagePackHubProtocol())
 		.withAutomaticReconnect({ nextRetryDelayInMilliseconds: () => 1000 })
 		.build();

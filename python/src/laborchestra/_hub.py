@@ -78,6 +78,9 @@ def error_text(exc: BaseException) -> str:
     )
 
 
+PROTOCOL = 1  # the wire protocol this package speaks; the server says when it does not understand it
+
+
 class Hub:
     def __init__(
         self,
@@ -87,7 +90,7 @@ class Hub:
         on_connected: Callable[[], Awaitable[None]] | None = None,
         retry_delay: float = 0.5,
     ):
-        self.url = _ws_url(url)
+        self.url = _ws_url(url) + ("&" if "?" in url else "?") + f"protocol={PROTOCOL}"
         self.token = token
         self.connects = 0
         self.fatal: Exception | None = None
@@ -174,6 +177,14 @@ class Hub:
                         for task in background:
                             task.cancel()
             except InvalidStatus as e:
+                if e.response.status_code == 426:  # the server does not speak our protocol: no use in trying again
+                    try:
+                        said = json.loads(e.response.body or b"{}").get("error", "")
+                    except ValueError:
+                        said = ""
+                    self.fatal = ConnectionError(said or "The server does not understand this version of the laborchestra package")
+                    self._connected.set()
+                    return
                 if e.response.status_code in (401, 403):
                     self.fatal = AuthError(f"The server rejected the token (HTTP {e.response.status_code})")
                     self._connected.set()

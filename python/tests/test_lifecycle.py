@@ -88,3 +88,58 @@ def test_a_device_whose_actions_keep_failing_is_degraded_until_one_works(tmp_pat
         except subprocess.TimeoutExpired:
             server.kill()
         log.close()
+
+
+def test_a_client_of_another_protocol_version_is_refused_with_a_clear_message(tmp_path, monkeypatch):
+    import urllib.error
+    import urllib.request
+
+    build_server()
+    workspace, data = tmp_path / "workspace", tmp_path / "data"
+    workspace.mkdir()
+    (workspace / "devices.json").write_text(json.dumps({"devices": {}}))
+    url = f"http://127.0.0.1:{free_port()}"
+    server, log = launch(workspace, data, url)
+    try:
+        assert json.load(urllib.request.urlopen(f"{url}/api/protocol")) == {"protocol": 1, "supported": [1]}
+        with pytest.raises(urllib.error.HTTPError) as refused:
+            urllib.request.urlopen(f"{url}/hub/control?protocol=7")
+        assert refused.value.code == 426 and "protocol 1" in json.loads(refused.value.read())["error"]
+        import laborchestra._hub as hub
+
+        monkeypatch.setattr(hub, "PROTOCOL", 7)
+        with pytest.raises(ConnectionError, match="protocol 1"):
+            laborchestra.connect(url, PASSPHRASE)
+        monkeypatch.undo()
+        with laborchestra.connect(url, PASSPHRASE):
+            pass  # the right version works
+    finally:
+        server.terminate()
+        try:
+            server.wait(15)
+        except subprocess.TimeoutExpired:
+            server.kill()
+        log.close()
+
+
+def test_errors_of_the_browser_reach_the_servers_log(tmp_path):
+    build_server()
+    workspace, data = tmp_path / "workspace", tmp_path / "data"
+    workspace.mkdir()
+    (workspace / "devices.json").write_text(json.dumps({"devices": {}}))
+    url = f"http://127.0.0.1:{free_port()}"
+    server, log = launch(workspace, data, url)
+    try:
+        with laborchestra.connect(url, PASSPHRASE, name="ui") as lab:
+            lab._run(lab._async._hub.invoke("report_client_error", "TypeError: x is undefined", "at Foo (app.js:1:1)", "react"))
+            entries = [e for e in lab.logs("client")]
+            assert len(entries) == 1
+            assert entries[0]["message"] == "TypeError: x is undefined" and entries[0]["level"] == "ERROR"
+            assert entries[0]["traceback"] == "at Foo (app.js:1:1)" and entries[0]["logger"] == "ui:react"
+    finally:
+        server.terminate()
+        try:
+            server.wait(15)
+        except subprocess.TimeoutExpired:
+            server.kill()
+        log.close()

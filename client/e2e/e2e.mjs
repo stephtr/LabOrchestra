@@ -127,6 +127,19 @@ try {
 	assert.equal(await page.getByAltText('LabOrchestra').count(), 2); // the light and the dark logo; CSS shows one
 	ok('logo and favicon');
 
+	// an error in the page reaches the server's log
+	const readLogs = () => {
+		const folder = path.join(dir, 'data', 'logs');
+		return fs.existsSync(folder) ? fs.readdirSync(folder, { recursive: true }).map((f) => { try { return fs.readFileSync(path.join(folder, String(f)), 'utf8'); } catch { return ''; } }).join('\n') : '';
+	};
+	const waitUntil = async (condition, what, seconds = 15) => {
+		for (let i = 0; i < seconds * 10; i++) { if (condition()) return; await page.waitForTimeout(100); }
+		throw new Error(`Timed out waiting for ${what}`);
+	};
+	await page.evaluate(() => setTimeout(() => { throw new Error('boom from the e2e test'); }, 0));
+	await waitUntil(() => readLogs().includes('boom from the e2e test'), 'the page error in the server log');
+	ok('errors of the page are reported to the server');
+
 	// device management
 	const devicesFile = () => JSON.parse(fs.readFileSync(path.join(dir, 'workspace/devices.json'), 'utf8')).devices;
 	await page.getByTestId('nav-devices').click();

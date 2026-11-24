@@ -82,9 +82,10 @@ Open:
 - [ ] SQLite event log (persistent, outside recordings), history store of slow numeric values, stable IDs
 - [ ] Authentication: tokens for MCP and for remote workers (created and revoked in the UI), TLS
 - [x] C# SDK and plugin loading: `LabOrchestra.Sdk`, `[Driver]`/`[Action]`, in-process host with schema, patches, actions, logs, restart; plugins in `plugins/` loaded in their own context; management API (`list_drivers`, `describe_driver`, `add_device(driver=...)`)
-- [ ] Protocol version negotiation, config migrations, immutable environments with rollback
+- [x] Protocol version: clients send `?protocol=N`, the server answers 426 with a clear message when it does not speak it (current and previous major are supported), `GET /api/protocol`
+- [ ] Config migrations, immutable environments with rollback
 - [ ] Data streams of devices into recordings (`.npy`, comes with the oscilloscope in phase 3); recording controls in the client (phase 4)
-- [ ] Client errors reported to the server (React error boundary, `window.onerror`)
+- [x] Client errors reported to the server (React error boundary, `window.onerror`, unhandled rejections; source `client` in the log, rate-limited, deduplicated)
 
 Lessons (kept so they are not learned twice): hosted services stop in reverse order and the web server stops first, so something that the web server waits for (workers connected over WebSockets) must be told to stop when the shutdown begins (`ApplicationStopping`), not in `StopAsync`; SignalR rejects a void completion for a call that expects a result; a worker must not send anything before its first registration (a patch that overtakes `register` is rejected), found only on a slow CI machine and reproduced locally with CPU load; tests that wait for "some" warning or "some" status change are racy, wait for the specific effect.
 

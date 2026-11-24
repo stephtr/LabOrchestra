@@ -201,6 +201,18 @@ public sealed class ControlHub(
 		registry.Snapshot(device) ?? throw new HubException(Errors.Json("LookupError", $"Device '{device}' does not exist"));
 
 	/// <param name="source">"server", "device:pressure" or null for all; since = 0 returns the latest entries.</param>
+	/// <summary>An error in a browser (React error boundary, window.onerror), so that it shows up in the server's log, where AI and people look.</summary>
+	[HubMethodName("report_client_error")]
+	public void ReportClientError(string message, string? stack, string? where)
+	{
+		var count = (int)(Context.Items["reported"] ?? 0) + 1; // a page stuck in a loop must not flood the log
+		Context.Items["reported"] = count;
+		if (count > 50) return;
+		var client = Context.Items["client"] as string ?? "client";
+		logs.Add("client", "ERROR", $"{client}:{(where ?? "page")[..Math.Min(40, (where ?? "page").Length)]}", message.Length > 2000 ? message[..2000] + "..." : message,
+			stack is { Length: > 20000 } ? stack[..20000] : stack);
+	}
+
 	[HubMethodName("get_logs")]
 	public List<Dictionary<string, object?>> GetLogs(string? source, string? level, long since, int limit) =>
 		logs.Get(source, level, since, Math.Clamp(limit, 1, 2000));

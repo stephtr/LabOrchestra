@@ -69,6 +69,13 @@ var app = builder.Build();
 var allowedOrigins = (config["allowed_origins"] ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 app.Use(async (context, next) =>
 {
+	if (context.Request.Path.StartsWithSegments("/hub") && context.Request.Query.TryGetValue("protocol", out var asked)
+		&& !(int.TryParse(asked, out var version) && Protocol.IsSupported(version)))
+	{
+		context.Response.StatusCode = StatusCodes.Status426UpgradeRequired;
+		await context.Response.WriteAsJsonAsync(new { error = $"This server speaks protocol {string.Join(" and ", Protocol.Supported.Where(p => p >= 1))}, the client asked for '{asked}'. Update LabOrchestra or the laborchestra package so that they match.", protocol = Protocol.Current });
+		return;
+	}
 	if (context.Request.Path.StartsWithSegments("/hub") && context.Request.Headers.TryGetValue("Origin", out var origin))
 	{
 		var sameOrigin = Uri.TryCreate(origin.ToString(), UriKind.Absolute, out var uri) && uri.Authority == context.Request.Host.Value;
@@ -84,6 +91,7 @@ app.Services.GetRequiredService<RecordingService>().RepairInterrupted();
 workspace.Watch(app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("LabOrchestra.Workspace"));
 var controlHub = app.Services.GetRequiredService<IHubContext<ControlHub>>();
 logStore.Added += entry => _ = controlHub.Clients.Group("logs:" + entry["source"]).SendAsync("log", entry);
+app.MapGet("/api/protocol", () => new { protocol = Protocol.Current, supported = Protocol.Supported.Where(p => p >= 1) });
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapHub<DeviceHub>("/hub/devices");
