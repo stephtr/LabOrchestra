@@ -46,7 +46,7 @@ public sealed class InProcessDevice(string id, DeviceConfig config, Type driver,
 		schema["streams"] = _device.Streams.Names().Cast<object?>().ToList();
 		_sent = Snapshot();
 		registry.Registered(id, _connection, schema, _sent);
-		registry.SetLocalCall(id, _connection, Invoke, _device.Streams);
+		registry.SetLocalCall(id, _connection, Invoke, _device.Streams, _device);
 		_device.StateChanged += OnChanged;
 		using var publishing = CancellationTokenSource.CreateLinkedTokenSource(stop);
 		var publisher = Task.Run(() => PublishLoopAsync(publishing.Token), CancellationToken.None);

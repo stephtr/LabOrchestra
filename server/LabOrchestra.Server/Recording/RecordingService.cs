@@ -41,9 +41,23 @@ public sealed partial class RecordingService(string directory, DeviceRegistry re
 		public Dictionary<string, Dictionary<string, object?>> Initial { get; set; } = new();
 		public Channel<DeviceEvent> Queue { get; } = Channel.CreateUnbounded<DeviceEvent>(new UnboundedChannelOptions { SingleReader = true });
 		public Action<DeviceEvent> Listener { get; set; } = _ => { };
+		public Session Files { get; set; } = null!;
+		public List<LabOrchestra.Sdk.Device> Devices { get; } = [];
 		public StreamWriter Events { get; set; } = null!;
 		public Task Writer { get; set; } = Task.CompletedTask;
 		public long Count;
+	}
+
+	/// <summary>The folder of a recording, for devices that write data of their own (an oscilloscope's channels).</summary>
+	public sealed class Session(string name, string folder) : LabOrchestra.Sdk.IRecordingSession
+	{
+		public string Name => name;
+
+		public Stream CreateFile(string fileName)
+		{
+			if (fileName != Path.GetFileName(fileName) || fileName.StartsWith('.')) throw new ArgumentException($"'{fileName}' is not a file name");
+			return new FileStream(Path.Combine(folder, fileName), FileMode.CreateNew, FileAccess.ReadWrite, FileShare.Read);
+		}
 	}
 
 	private readonly object _gate = new();
@@ -77,6 +91,16 @@ public sealed partial class RecordingService(string directory, DeviceRegistry re
 			active.Initial = registry.SnapshotAndSubscribe(active.Listener); // states and events join up without a gap
 			WriteHeader(active, null);
 			active.Writer = Task.Run(() => WriteEvents(active));
+			active.Files = new Session(name, basePath);
+			foreach (var (deviceId, device) in registry.LocalDevices())
+			{
+				try
+				{
+					device.OnRecordingStartAsync(active.Files).GetAwaiter().GetResult();
+					active.Devices.Add(device);
+				}
+				catch (Exception e) { log.LogError(e, "The device {Device} could not join the recording '{Name}'", deviceId, name); }
+			}
 			_active = active;
 			log.LogInformation("Recording '{Name}' started", name);
 		}
@@ -95,6 +119,11 @@ public sealed partial class RecordingService(string directory, DeviceRegistry re
 		{
 			active = _active ?? throw new InvalidOperationException("Nothing is being recorded");
 			_active = null;
+		}
+		foreach (var device in active.Devices)
+		{
+			try { device.OnRecordingStopAsync(active.Files).GetAwaiter().GetResult(); }
+			catch (Exception e) { log.LogError(e, "The device {Device} could not finish its data of the recording '{Name}'", device.Id, active.Name); }
 		}
 		registry.Unsubscribe(active.Listener);
 		active.Queue.Writer.Complete();
@@ -186,6 +215,8 @@ public sealed partial class RecordingService(string directory, DeviceRegistry re
 				var match = Regex.Matches(content, "\"t\":([0-9.eE+-]+)").LastOrDefault();
 				if (match is not null) last = double.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
 			}
+			foreach (var npy in Directory.Exists(Path.ChangeExtension(file, null)) ? Directory.GetFiles(Path.ChangeExtension(file, null), "*.npy") : [])
+				LabOrchestra.Sdk.NpyFile.RepairAny(npy); // the length in the header is only written when a writer finishes
 			File.AppendAllText(file, (text.EndsWith('\n') ? "" : "\n") + "interrupted: true\n" + (last is { } t ? $"duration_s: {t.ToString("R", CultureInfo.InvariantCulture)}\n" : ""));
 			log.LogWarning("The recording '{Name}' was interrupted (the server stopped); repaired", Path.GetFileNameWithoutExtension(file));
 		}

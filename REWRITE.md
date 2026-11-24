@@ -80,7 +80,7 @@ Open:
 - [ ] Management UI, still open: catalog of installable device packages, "New device" scaffolding, choosing the Python version from a list of interpreters, editing `views`, environment clean-up; watching the device source files (shows "changed" with a restart button)
 - [ ] SQLite event log (persistent, outside recordings), history store of slow numeric values, stable IDs
 - [ ] Authentication: tokens for MCP and for remote workers (created and revoked in the UI), TLS
-- [ ] C# SDK and plugin loading
+- [x] C# SDK and plugin loading: `LabOrchestra.Sdk`, `[Driver]`/`[Action]`, in-process host with schema, patches, actions, logs, restart; plugins in `plugins/` loaded in their own context; management API (`list_drivers`, `describe_driver`, `add_device(driver=...)`)
 - [ ] Protocol version negotiation, config migrations, immutable environments with rollback
 - [ ] Data streams of devices into recordings (`.npy`, comes with the oscilloscope in phase 3); recording controls in the client (phase 4)
 - [ ] Client errors reported to the server (React error boundary, `window.onerror`)
@@ -98,10 +98,13 @@ Track A, Python devices:
 - [ ] Profiles extracted from at least two devices each where possible (real + simulator), conformance tests
 
 Track B, oscilloscope:
-- [ ] Split `OscilloscopeWithStreaming` (605 lines) into acquisition, FFT, recording writer, display reduction
-- [ ] Port Picoscope plugins; replace NumSharp and Accord; configurable buffers (today 600 M floats, about 2.4 GB, per oscilloscope)
-- [ ] `StreamingHub`: subscriptions, latest-frame slot, acks; display work must not hold the FFT lock
-- [ ] FFT results match the legacy reference data
+- [x] `OscilloscopeWithStreaming` split: `OscilloscopeBase` (rings, FFT, averaging, display, recording) + a driver that only acquires; simulated oscilloscope; 8 tests (tones where they belong, zoom, decimation, time trace, controls, FFT against a DFT, stop/start, continuous `.npy` channels, crash repair)
+- [x] NumSharp and Accord replaced (`NpyWriter`, `ManagedRealFft`); buffers configurable (`ring_samples`, `recording_ring_samples`)
+- [ ] pffft through P/Invoke behind `IRealFft` (the managed FFT does about 44 MS/s on one thread; the target is 200 MB/s)
+- [ ] Port the Picoscope 4000a/5000a plugins to `AcquireAsync` (`PicoSDK` installed by the user, loaded at runtime; not testable here)
+- [x] `StreamHub`: per-client subscriptions, newest frame at send time, `received` and `ack` as two signals, window that follows the round trip time (a client 300 ms away keeps 30 fps; tested with delayed confirmations); display rendering holds no lock of the FFT (only a short copy of the spectrum)
+- [ ] FFT results match the legacy reference data (needs a recording and a snapshot from the lab PC)
+- [ ] The oscilloscope widget in the client (spectrum and trace from the `display` stream)
 
 **Exit:** real hardware works; 200 MB/s recording for 10 minutes without gaps while a throttled client is connected and memory stays flat.
 

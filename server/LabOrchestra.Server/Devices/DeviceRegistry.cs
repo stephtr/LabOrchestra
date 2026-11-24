@@ -18,6 +18,8 @@ public sealed class DeviceEntry
 	public Func<string, object?[], string, CancellationToken, Task<object?>>? LocalCall { get; set; }
 	/// <summary>The streams of a device that runs inside the server.</summary>
 	public LabOrchestra.Sdk.StreamRegistry? Streams { get; set; }
+	/// <summary>The device itself, if it runs inside the server (recordings ask it for its own data).</summary>
+	public LabOrchestra.Sdk.Device? LocalDevice { get; set; }
 	/// <summary>How often a worker registered; lets the supervisor tell whether a process ever came up.</summary>
 	public int Registrations { get; set; }
 }
@@ -72,10 +74,16 @@ public sealed class DeviceRegistry(IHubContext<ControlHub> control, EventBus bus
 			return true;
 		});
 
-	public void SetLocalCall(string id, string connectionId, Func<string, object?[], string, CancellationToken, Task<object?>> call, LabOrchestra.Sdk.StreamRegistry streams)
+	public void SetLocalCall(string id, string connectionId, Func<string, object?[], string, CancellationToken, Task<object?>> call, LabOrchestra.Sdk.StreamRegistry streams, LabOrchestra.Sdk.Device device)
 	{
 		lock (_lock)
-			if (_devices.TryGetValue(id, out var e) && e.ConnectionId == connectionId) (e.LocalCall, e.Streams) = (call, streams);
+			if (_devices.TryGetValue(id, out var e) && e.ConnectionId == connectionId) (e.LocalCall, e.Streams, e.LocalDevice) = (call, streams, device);
+	}
+
+	/// <summary>The devices that run inside the server and are ready.</summary>
+	public List<(string Id, LabOrchestra.Sdk.Device Device)> LocalDevices()
+	{
+		lock (_lock) return _devices.Values.Where(e => e is { Status: "ready", LocalDevice: not null }).Select(e => (e.Id, e.LocalDevice!)).ToList();
 	}
 
 	public void Remove(string id)

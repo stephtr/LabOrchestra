@@ -59,6 +59,22 @@ See `drivers/` for real ones and `workspace/devices/demo_pressure.py` for the sm
 - `self.lab["other"].state`, `self.lab["other"].some_action(...)` (blocks until done), `.wait_ready()`, `.wait_for(lambda state: ...)` talk to other devices; the same works in scripts.
 - Offer `simulate = False` so that the device can run without its instrument; say so in the state (`simulated`).
 
+## C# devices, streams and the oscilloscope
+
+A device that cannot afford a process boundary is written in C# against `server/LabOrchestra.Sdk` (see `server/Plugins/Demo/DemoCounter.cs`): options and state are classes with public properties, actions are methods marked `[Action]`, and the class is marked `[Driver("name")]`. Build it into the `plugins/` folder (the two plugins of this repository are built there by the server build) and use it with `{"driver": "name", "config": {...}}` in `devices.json`, or on the Devices page's API (`lab.add_device("osc", driver="simulated_oscilloscope")`). `lab.list_drivers()` and `lab.describe_driver(name)` say what is installed.
+
+Streams (traces, spectra) come over their own connection and are never faster than the receiver:
+
+```python
+with lab.stream("osc", "display", {"x_min": 90e3, "x_max": 110e3}) as frames:
+    for frame in frames:
+        frame.meta["channels"], frame.array       # float32, one row per channel
+```
+
+A client tells the server `received` when a frame arrives (this sizes how many frames may be on their way: a client far away keeps its frame rate) and `ack` when it is done with it (at most two frames wait at a busy client). `lab.stream` does both.
+
+`simulated_oscilloscope` needs no hardware: channel n shows a tone at (n+1) x `test_signal_frequency`, in real time. Recording it (`with lab.recording(...)`) writes `osc_C1.npy`, ... into the recording.
+
 ## Recordings
 
 ```python

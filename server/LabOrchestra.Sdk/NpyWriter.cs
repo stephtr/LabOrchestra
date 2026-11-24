@@ -57,6 +57,23 @@ public static class NpyFile
 		return header;
 	}
 
+	/// <summary>Like <see cref="Repair{T}"/>, for a file of any of the supported number types (read from its header).</summary>
+	public static void RepairAny(string path)
+	{
+		string text;
+		using (var stream = File.OpenRead(path))
+		{
+			var head = new byte[HeaderLength];
+			if (stream.Read(head) < HeaderLength) return;
+			text = Encoding.ASCII.GetString(head, 10, HeaderLength - 10);
+		}
+		if (text.Contains("'<f4'")) Repair<float>(path);
+		else if (text.Contains("'<f8'")) Repair<double>(path);
+		else if (text.Contains("'<i4'")) Repair<int>(path);
+		else if (text.Contains("'<i8'")) Repair<long>(path);
+		else if (text.Contains("'<i2'")) Repair<short>(path);
+	}
+
 	/// <summary>Fixes the length in the header of a file whose writer never got to finish it (from the size of the file).</summary>
 	public static void Repair<T>(string path) where T : unmanaged
 	{
