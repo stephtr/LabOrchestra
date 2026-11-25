@@ -1,0 +1,24 @@
+{
+	"version": 1,
+	"title": "Dashboard",
+	"root": {
+		"id": "nmwvt8lpj2oo8",
+		"kind": "main",
+		"widget": {
+			"id": "wmwvt8lpj12n1",
+			"type": "oscilloscope",
+			"device": "acq"
+		}
+	},
+	"strip": [
+		{
+			"id": "wmwvt8lpj3nfg",
+			"type": "summary",
+			"device": "pressure"
+		},
+		{
+			"id": "wmwvt8xdf44oc",
+			"type": "recording"
+		}
+	]
+}

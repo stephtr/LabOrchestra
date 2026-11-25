@@ -207,7 +207,7 @@ public sealed class WorkerSupervisor(
 				registry.SetStatus(id, "preparing");
 				var file = Path.GetFullPath(device.File!, workspace.Path);
 				lock (_loaded) _loaded[id] = File.Exists(file) ? File.GetLastWriteTimeUtc(file) : DateTime.MinValue;
-				var python = await environments.GetPythonAsync(id, Path.GetFullPath(device.File, workspace.Path), device.Python, stop);
+				var python = await environments.GetPythonAsync(id, Path.GetFullPath(device.File!, workspace.Path), device.Python, stop);
 				registry.SetStatus(id, "starting");
 				process = Start(id, device, python, tokens.IssueDeviceToken(id), tail);
 				log.LogInformation("Started the worker of {Device} (pid {Pid})", id, process.Id);
@@ -274,7 +274,7 @@ public sealed class WorkerSupervisor(
 			RedirectStandardError = true,
 			UseShellExecute = false,
 		};
-		foreach (var arg in new[] { "-u", "-m", "laborchestra.worker", Path.GetFullPath(device.File, workspace.Path) })
+		foreach (var arg in new[] { "-u", "-m", "laborchestra.worker", Path.GetFullPath(device.File!, workspace.Path) })
 			startInfo.ArgumentList.Add(arg);
 		startInfo.Environment["LABORCHESTRA_URL"] = info.WorkerUrl;
 		startInfo.Environment["LABORCHESTRA_TOKEN"] = token;
