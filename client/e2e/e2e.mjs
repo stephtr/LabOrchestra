@@ -429,7 +429,7 @@ try {
 	const handles = page.locator('[data-testid^="handle-"]');
 	const target = page.locator('[data-testid^="pane-"]').first();
 	const targetBox = await target.boundingBox();
-	await handles.nth(1).dragTo(target, { targetPosition: { x: targetBox.width - 20, y: targetBox.height / 2 } });
+	await handles.nth(1).dragTo(target, { targetPosition: { x: targetBox.width - 90, y: targetBox.height / 2 } });
 	view = await waitView((v) => v.root?.kind === 'split' && v.root.dir === 'row', 'panes side by side');
 	assert.equal(view.root.children.length, 2);
 	ok('dropping on the right edge of a pane puts the dragged one next to it');
