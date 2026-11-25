@@ -3,6 +3,7 @@
 import json
 import shutil
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -122,6 +123,31 @@ def test_a_dependency_that_cannot_be_installed_is_reported_and_leaves_nothing_be
     lab.wrong.restart()
     until(lab, "wrong", lambda: lab.wrong.status == "ready", 60, "ready after the fix")
     assert lab.wrong.state["python"] == lab.six_a.state["python"]
+
+
+def test_environments_are_listed_and_unused_old_ones_are_cleaned_up(uv_server, lab):
+    data = uv_server[1]
+    for device in ("plain", "six_a", "six_b", "six_idna"):
+        until(lab, device, lambda: lab[device].status == "ready", 120, f"{device} ready")
+    environments = lab.list_environments()
+    shared = [e for e in environments if {"six_a", "six_b"} <= set(e["used_by"])]
+    assert len(shared) == 1 and "six" in shared[0]["dependencies"] and shared[0]["size_mb"] > 0 and shared[0]["last_used"] > 0
+    in_use = {e["key"] for e in environments if e["used_by"]}
+
+    old = data / "envs" / "0123456789abcdef"  # what an older version of a device file left behind
+    (old / "bin").mkdir(parents=True)
+    (old / ".ready").write_text(json.dumps({"wanted": None, "dependencies": ["six==1.0"]}))
+    (old / ".used").write_text(str(int(time.time()) - 40 * 86400))
+    assert "0123456789abcdef" in [e["key"] for e in lab.list_environments()]
+    assert lab.cleanup_environments(60) == []  # not unused for that long: going back to the older file still works
+    assert [e["key"] for e in lab.cleanup_environments(30)] == ["0123456789abcdef"] and not old.exists()
+    assert lab.cleanup_environments(0) == []  # what a device runs in is never removed
+    assert in_use <= {e["key"] for e in lab.list_environments()}
+
+
+def test_the_pythons_that_can_be_chosen_are_listed(lab):
+    pythons = lab.list_pythons()
+    assert pythons and all(p["version"] and p["path"] for p in pythons)
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="relies on a PATH without any Python that has laborchestra")

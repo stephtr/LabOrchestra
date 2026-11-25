@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, DeviceEntry } from './api';
 import { DeviceDialog } from './DeviceDialog';
+import { EnvironmentsPanel } from './EnvironmentsPanel';
 import { SecretsPanel } from './SecretsPanel';
 import { STATUS_STYLE } from './DeviceCard';
 import { navigate } from './router';
@@ -89,6 +90,7 @@ export function DevicesPage() {
 					</tbody>
 				</table>
 			</div>
+			<EnvironmentsPanel />
 			<SecretsPanel />
 			{dialog && <DeviceDialog key={dialog.id ?? '+'} deviceId={dialog.id} onClose={() => setDialog(null)} />}
 		</div>

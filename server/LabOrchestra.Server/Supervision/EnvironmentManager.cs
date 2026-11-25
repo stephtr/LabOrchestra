@@ -19,6 +19,7 @@ public sealed partial class EnvironmentManager(IConfiguration config, string dat
 	private readonly ConcurrentDictionary<string, SemaphoreSlim> _locks = new();
 	private readonly Lazy<string?> _uv = new(() => FindUv(config["uv"]));
 	private bool _warnedNoUv;
+	private readonly ConcurrentDictionary<string, string> _inUse = new(); // device -> the environment it runs in
 
 	// \r?: files saved on Windows have CRLF line endings
 	[GeneratedRegex(@"(?m)^# /// script\r?$\s(?<content>(?:^#(?:| .*?)\r?$\s)+)^# ///\r?$")]
@@ -86,7 +87,7 @@ public sealed partial class EnvironmentManager(IConfiguration config, string dat
 		await gate.WaitAsync(cancel);
 		try
 		{
-			if (File.Exists(marker)) return python;
+			if (File.Exists(marker)) { Touch(deviceId, key, directory); return python; }
 			if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true); // an earlier attempt that did not finish
 			var source = $"device:{deviceId}";
 			logs.Add(source, "INFO", "environment", $"Preparing the Python environment {key} ({(dependencies.Count == 0 ? "no extra dependencies" : string.Join(", ", dependencies))})");
@@ -100,6 +101,7 @@ public sealed partial class EnvironmentManager(IConfiguration config, string dat
 			await RunAsync(uv, install, source, cancel);
 			File.WriteAllText(marker, JsonSerializer.Serialize(new { wanted, package = identity, dependencies }));
 			logs.Add(source, "INFO", "environment", $"The environment {key} is ready");
+			Touch(deviceId, key, directory);
 			return python;
 		}
 		catch
@@ -108,6 +110,78 @@ public sealed partial class EnvironmentManager(IConfiguration config, string dat
 			throw;
 		}
 		finally { gate.Release(); }
+	}
+
+	private void Touch(string deviceId, string key, string directory)
+	{
+		_inUse[deviceId] = key;
+		try { File.WriteAllText(Path.Combine(directory, ".used"), DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString()); } catch (IOException) { }
+	}
+
+	private static DateTimeOffset LastUsed(string directory)
+	{
+		var file = Path.Combine(directory, ".used");
+		return File.Exists(file) && long.TryParse(File.ReadAllText(file), out var t) ? DateTimeOffset.FromUnixTimeSeconds(t) : new DirectoryInfo(directory).LastWriteTimeUtc;
+	}
+
+	/// <summary>The environments on disk: what is in them, how big, when they were last used and by which devices right now.</summary>
+	public List<Dictionary<string, object?>> List()
+	{
+		var root = Path.Combine(dataDir, "envs");
+		if (!Directory.Exists(root)) return [];
+		return Directory.GetDirectories(root).Where(d => File.Exists(Path.Combine(d, ".ready"))).Order().Select(directory =>
+		{
+			var key = Path.GetFileName(directory);
+			var info = JsonSerializer.Deserialize<JsonElement>(File.ReadAllText(Path.Combine(directory, ".ready")));
+			return new Dictionary<string, object?>
+			{
+				["key"] = key,
+				["python"] = info.TryGetProperty("wanted", out var w) && w.ValueKind == JsonValueKind.String ? w.GetString() : null,
+				["dependencies"] = info.TryGetProperty("dependencies", out var d) ? d.EnumerateArray().Select(x => x.GetString()).ToList() : [],
+				["size_mb"] = Math.Round(new DirectoryInfo(directory).EnumerateFiles("*", SearchOption.AllDirectories).Sum(f => f.Length) / 1048576.0, 1),
+				["last_used"] = LastUsed(directory).ToUnixTimeSeconds(),
+				["used_by"] = _inUse.Where(kv => kv.Value == key).Select(kv => kv.Key).Order().ToList(),
+			};
+		}).ToList();
+	}
+
+	/// <summary>Deletes environments that no device runs in now and that were not used for <paramref name="olderThanDays"/> days. An environment
+	/// of an older version of a device file stays for that time, which is what makes going back to the older file (git) work.</summary>
+	public async Task<List<Dictionary<string, object?>>> CleanUpAsync(int olderThanDays)
+	{
+		var removed = new List<Dictionary<string, object?>>();
+		foreach (var env in List())
+		{
+			var key = (string)env["key"]!;
+			if (((List<string>)env["used_by"]!).Count > 0 || DateTimeOffset.UtcNow - DateTimeOffset.FromUnixTimeSeconds((long)env["last_used"]!) < TimeSpan.FromDays(olderThanDays)) continue;
+			var gate = _locks.GetOrAdd(key, _ => new SemaphoreSlim(1, 1));
+			if (!await gate.WaitAsync(0)) continue; // being built or started just now
+			try
+			{
+				Directory.Delete(Path.Combine(dataDir, "envs", key), recursive: true);
+				log.LogInformation("Removed the unused environment {Key}", key);
+				removed.Add(env);
+			}
+			catch (IOException e) { log.LogWarning("Could not remove the environment {Key}: {Message}", key, e.Message); }
+			finally { gate.Release(); }
+		}
+		return removed;
+	}
+
+	/// <summary>The Pythons that uv knows on this computer (installed ones, also those it found on the system): version and path.</summary>
+	public async Task<List<Dictionary<string, object?>>> ListPythonsAsync()
+	{
+		var uv = _uv.Value;
+		if (uv is null) return [];
+		var info = new ProcessStartInfo(uv, "python list --only-installed --output-format json") { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
+		using var process = Process.Start(info)!;
+		var output = await process.StandardOutput.ReadToEndAsync();
+		await process.WaitForExitAsync();
+		if (process.ExitCode != 0) return [];
+		return JsonSerializer.Deserialize<JsonElement>(output).EnumerateArray()
+			.Where(p => p.TryGetProperty("path", out var path) && path.ValueKind == JsonValueKind.String)
+			.Select(p => new Dictionary<string, object?> { ["version"] = p.GetProperty("version").GetString(), ["path"] = p.GetProperty("path").GetString(), ["implementation"] = p.TryGetProperty("implementation", out var i) ? i.GetString() : null })
+			.ToList();
 	}
 
 	private async Task RunAsync(string uv, List<string> arguments, string source, CancellationToken cancel)

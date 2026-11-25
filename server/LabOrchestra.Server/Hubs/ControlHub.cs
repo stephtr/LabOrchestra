@@ -52,6 +52,7 @@ public sealed class ControlHub(
 	EventBus bus,
 	EventLog eventLog,
 	TokenStore tokenStore,
+	Supervision.EnvironmentManager environments,
 	IHubContext<DeviceHub> devices) : Hub
 {
 	public override Task OnConnectedAsync()
@@ -214,6 +215,21 @@ public sealed class ControlHub(
 		registry.Snapshot(device) ?? throw new HubException(Errors.Json("LookupError", $"Device '{device}' does not exist"));
 
 	/// <param name="source">"server", "device:pressure" or null for all; since = 0 returns the latest entries.</param>
+	/// <summary>The Python environments on disk (one per set of dependencies, shared by devices that need the same).</summary>
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("list_environments")]
+	public List<Dictionary<string, object?>> ListEnvironments() => environments.List();
+
+	/// <summary>Removes environments that no device uses and that were not used for the given number of days; returns what was removed.</summary>
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("cleanup_environments")]
+	public Task<List<Dictionary<string, object?>>> CleanUpEnvironments(int olderThanDays) => environments.CleanUpAsync(Math.Max(0, olderThanDays));
+
+	/// <summary>The Pythons that can be named in a device's "python" option.</summary>
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("list_pythons")]
+	public Task<List<Dictionary<string, object?>>> ListPythons() => environments.ListPythonsAsync();
+
 	/// <summary>Creates a token for a worker on another machine. It may register the one device (which must be configured with "remote": true)
 	/// and nothing else. The token is returned here once; only its hash is kept.</summary>
 	[Authorize(Roles = Roles.Client)]

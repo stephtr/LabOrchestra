@@ -262,6 +262,18 @@ class AsyncLab:
         (then ``create_token`` gives that worker its token). ``config`` holds its options; a value ``{"secret": "name"}`` refers to a secret."""
         await self._hub.invoke("add_device", device_id, self._device_entry(file, config, python, description, driver, remote))
 
+    async def list_environments(self) -> list[dict]:
+        """The Python environments of the devices: key, python, dependencies, size_mb, last_used (unix time), used_by (device ids)."""
+        return await self._hub.invoke("list_environments")
+
+    async def cleanup_environments(self, older_than_days: int = 30) -> list[dict]:
+        """Delete environments that no device runs in and that were not used for ``older_than_days`` days; returns those removed."""
+        return await self._hub.invoke("cleanup_environments", older_than_days)
+
+    async def list_pythons(self) -> list[dict]:
+        """Pythons on this computer that a device may use (``python=`` of ``add_device``): version, path, implementation."""
+        return await self._hub.invoke("list_pythons")
+
     async def create_token(self, device_id: str, label: str | None = None) -> dict:
         """A token for a worker on another machine that runs the remote device ``device_id``. Returns ``{"token", "id", ...}``; the token is
         shown only now. Start the worker with ``laborchestra-worker device.py --id <device_id> --url <server> --token <token>``."""
@@ -489,6 +501,15 @@ class Lab:
 
     def add_device(self, device_id: str, file: str | None = None, config: dict | None = None, python: str | None = None, description: str | None = None, driver: str | None = None, remote: bool = False) -> None:
         self._run(self._async.add_device(device_id, file, config, python, description, driver, remote))
+
+    def list_environments(self) -> list[dict]:
+        return self._run(self._async.list_environments())
+
+    def cleanup_environments(self, older_than_days: int = 30) -> list[dict]:
+        return self._run(self._async.cleanup_environments(older_than_days))
+
+    def list_pythons(self) -> list[dict]:
+        return self._run(self._async.list_pythons())
 
     def create_token(self, device_id: str, label: str | None = None) -> dict:
         return self._run(self._async.create_token(device_id, label))

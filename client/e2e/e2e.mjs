@@ -197,6 +197,10 @@ try {
 	assert.ok(!('second_gauge' in devicesFile()) && 'pressure' in devicesFile());
 	ok('device removed');
 
+	await page.getByTestId('environments').waitFor();
+	assert.ok(await page.getByTestId('env-cleanup').isVisible());
+	ok('environments are listed with their clean-up');
+
 	// the simulated oscilloscope: a C# driver, added through the dialog, shown with its own widget
 	await page.getByTestId('add-device').click();
 	await dialog.getByTestId('kind-driver').check();

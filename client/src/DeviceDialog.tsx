@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, DeviceFile, DriverInfo } from './api';
+import { api, DeviceFile, DriverInfo, PythonInfo } from './api';
 import { Param, Schema } from './store';
 
 type OptionValue = { text: string; checked: boolean; touched: boolean; secret: string | null };
@@ -104,6 +104,8 @@ export function DeviceDialog({ deviceId, onClose }: { deviceId: string | null; o
 	const [driver, setDriver] = useState('');
 	const [drivers, setDrivers] = useState<DriverInfo[]>([]);
 	const [python, setPython] = useState('');
+	const [pythons, setPythons] = useState<PythonInfo[]>([]);
+	useEffect(() => void api.listPythons().then(setPythons, () => setPythons([])), []);
 	const [description, setDescription] = useState('');
 	const [files, setFiles] = useState<DeviceFile[]>([]);
 	const [secrets, setSecrets] = useState<string[]>([]);
@@ -261,7 +263,12 @@ export function DeviceDialog({ deviceId, onClose }: { deviceId: string | null; o
 				{kind === 'file' && (
 					<div className="flex flex-wrap items-center gap-2">
 						<label className="w-40 text-sm" htmlFor="device-python">Python (optional)</label>
-						<input id="device-python" className={`${FIELD} w-56`} value={python} placeholder='a version such as "3.12", or a path' onChange={(e) => setPython(e.target.value)} />
+						<input id="device-python" list="pythons" className={`${FIELD} w-56`} value={python} placeholder='a version such as "3.12", or a path' onChange={(e) => setPython(e.target.value)} />
+						<datalist id="pythons">
+							{pythons.map((p) => (
+								<option key={p.path} value={p.path}>{`${p.implementation ?? 'Python'} ${p.version}`}</option>
+							))}
+						</datalist>
 					</div>
 				)}
 				<div className="flex flex-wrap items-center gap-2">

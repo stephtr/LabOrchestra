@@ -11,7 +11,20 @@ export type DeviceEntry = {
 	description: string | null;
 };
 
+export type EnvironmentInfo = {
+	key: string;
+	python: string | null;
+	dependencies: string[];
+	size_mb: number;
+	last_used: number;
+	used_by: string[];
+};
+export type PythonInfo = { version: string; path: string; implementation: string | null };
+
 export const api = {
+	listEnvironments: () => invokeHub<EnvironmentInfo[]>('list_environments'),
+	cleanupEnvironments: (days: number) => invokeHub<EnvironmentInfo[]>('cleanup_environments', days),
+	listPythons: () => invokeHub<PythonInfo[]>('list_pythons'),
 	listDeviceFiles: () => invokeHub<DeviceFile[]>('list_device_files'),
 	describeDeviceFile: (file: string) => invokeHub<Schema>('describe_device_file', file),
 	listDrivers: () => invokeHub<DriverInfo[]>('list_drivers'),
