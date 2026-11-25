@@ -774,6 +774,13 @@ export default function BigPressure({ device, props }: { device: string; props: 
 		await new Promise((r) => setTimeout(r, 100));
 	}
 	await page.waitForFunction(() => [...document.querySelectorAll('[data-testid^="view-tab-"]')].map((e) => e.dataset.testid).join() === 'view-tab-dashboard_copy,view-tab-dashboard');
+	// the content slides when the view changes, from the side of the target (the browser's view transitions, so only where they exist)
+	await page.evaluate(() => { window.__slides = []; new MutationObserver(() => window.__slides.push(document.documentElement.dataset.slide)).observe(document.documentElement, { attributes: true, attributeFilter: ['data-slide'] }); });
+	await page.getByTestId('view-tab-dashboard').click();
+	await page.waitForFunction(() => !document.startViewTransition || window.__slides.includes('forward'));
+	await page.getByTestId('view-tab-dashboard_copy').click();
+	await page.waitForFunction(() => !document.startViewTransition || window.__slides.includes('back'));
+	await page.waitForFunction(() => !document.documentElement.dataset.slide); // and it is over again
 	page.once('dialog', (d) => d.accept());
 	await page.getByTestId('view-delete').click();
 	await page.getByTestId('view-tab-dashboard_copy').waitFor({ state: 'detached' });

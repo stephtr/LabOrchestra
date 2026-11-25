@@ -26,7 +26,7 @@ import { Header } from './Header';
 import { Button, Dialog, DialogBody, DialogFooter, FormRow, Icon, IconButton, Input, Select } from './ui';
 import { NewWidgetDialog } from './NewWidgetDialog';
 import { WidgetSettingsDialog } from './WidgetSettingsDialog';
-import { navigate, usePath } from './router';
+import { navigate, navigateSliding, usePath } from './router';
 import { DeviceInfo, deleteView, isService, saveView, useStore } from './store';
 import { DeviceCard } from './DeviceCard';
 import { OscilloscopeWidget } from './OscilloscopeWidget';
@@ -773,7 +773,9 @@ export function Dashboard() {
 							className={`inline-flex h-8 items-center border-b-2 px-2.5 text-sm ${v.id === id ? 'border-accent text-ink' : 'border-transparent text-muted hover:text-ink'}`}
 							onClick={(e) => {
 								e.preventDefault();
-								navigate(`/views/${v.id}`);
+								const to = parsed.list.findIndex((x) => x.id === v.id);
+								const from = parsed.list.findIndex((x) => x.id === id);
+								navigateSliding(`/views/${v.id}`, to >= from ? 'forward' : 'back');
 							}}
 						>
 							{v.view.title}
@@ -808,7 +810,7 @@ export function Dashboard() {
 				)}
 				{creatingWidget && <NewWidgetDialog onClose={() => setCreatingWidget(false)} />}
 				<div className="flex min-h-0 flex-1">
-					<div className="flex min-w-0 flex-1 flex-col">
+					<div className="flex min-w-0 flex-1 flex-col" style={{ viewTransitionName: 'dashboard-content' }}>
 				<div
 							{...(editing && dragging && !view.root && !noViews
 								? {
