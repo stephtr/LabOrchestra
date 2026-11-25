@@ -150,6 +150,35 @@ def test_the_pythons_that_can_be_chosen_are_listed(lab):
     assert pythons and all(p["version"] and p["path"] for p in pythons)
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="a shell script stands in for uv, and symlinks need rights on Windows")
+def test_an_interpreter_that_uv_lists_under_several_names_is_listed_once(tmp_path):
+    build_server()
+    real = tmp_path / "framework" / "bin" / "python3.15"
+    real.parent.mkdir(parents=True)
+    real.write_text("")
+    other = tmp_path / "other" / "python3.14"
+    other.parent.mkdir()
+    other.write_text("")
+    links = tmp_path / "usr" / "bin"
+    links.mkdir(parents=True)
+    (links / "python3").symlink_to(real)
+    (links / "python3.15").symlink_to("../../framework/bin/python3.15")  # a relative link, as installers make them
+    listing = [{"version": "3.15.0", "path": str(p), "implementation": "cpython"} for p in (links / "python3", real, links / "python3.15", other)]
+    fake_uv = tmp_path / "uv"
+    fake_uv.write_text("#!/bin/sh\ncat <<'EOF'\n" + json.dumps(listing) + "\nEOF\n")
+    fake_uv.chmod(0o755)
+    workspace, data = tmp_path / "workspace", tmp_path / "data"
+    workspace.mkdir()
+    (workspace / "devices.json").write_text(json.dumps({"devices": {}}))
+    url = f"http://127.0.0.1:{free_port()}"
+    process, log = launch(workspace, data, url, env={"LABORCHESTRA_UV": str(fake_uv)})
+    try:
+        with laborchestra.connect(url, PASSPHRASE) as lab:
+            assert sorted(p["path"] for p in lab.list_pythons()) == sorted([str(real), str(other)])  # the real file, not its links
+    finally:
+        stop_server(process, log, workspace, url)
+
+
 @pytest.mark.skipif(sys.platform == "win32", reason="relies on a PATH without any Python that has laborchestra")
 def test_without_uv_and_without_the_package_the_error_says_what_to_do(tmp_path):
     build_server()

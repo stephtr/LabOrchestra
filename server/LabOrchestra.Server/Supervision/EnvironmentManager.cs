@@ -178,10 +178,23 @@ public sealed partial class EnvironmentManager(IConfiguration config, string dat
 		var output = await process.StandardOutput.ReadToEndAsync();
 		await process.WaitForExitAsync();
 		if (process.ExitCode != 0) return [];
-		return JsonSerializer.Deserialize<JsonElement>(output).EnumerateArray()
+		var found = JsonSerializer.Deserialize<JsonElement>(output).EnumerateArray()
 			.Where(p => p.TryGetProperty("path", out var path) && path.ValueKind == JsonValueKind.String)
-			.Select(p => new Dictionary<string, object?> { ["version"] = p.GetProperty("version").GetString(), ["path"] = p.GetProperty("path").GetString(), ["implementation"] = p.TryGetProperty("implementation", out var i) ? i.GetString() : null })
+			.Select(p => (Version: p.GetProperty("version").GetString(), Path: p.GetProperty("path").GetString()!, Implementation: p.TryGetProperty("implementation", out var i) ? i.GetString() : null));
+		// One interpreter is often listed several times: python3, python3.15 and /usr/local/bin/python3.15 are links to the same file.
+		// Keep one entry per real file, preferably the one that is the file itself.
+		return found
+			.GroupBy(p => RealPath(p.Path))
+			.Select(g => g.FirstOrDefault(p => p.Path == g.Key, g.OrderBy(p => p.Path.Length).First()))
+			.Select(p => new Dictionary<string, object?> { ["version"] = p.Version, ["path"] = p.Path, ["implementation"] = p.Implementation })
 			.ToList();
+	}
+
+	/// <summary>The file a path finally leads to (links followed), or the path itself when that cannot be told.</summary>
+	private static string RealPath(string path)
+	{
+		try { return new FileInfo(path).ResolveLinkTarget(returnFinalTarget: true)?.FullName ?? Path.GetFullPath(path); }
+		catch (IOException) { return path; }
 	}
 
 	private async Task RunAsync(string uv, List<string> arguments, string source, CancellationToken cancel)
