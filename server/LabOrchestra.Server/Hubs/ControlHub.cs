@@ -283,6 +283,19 @@ public sealed class ControlHub(
 	public List<Dictionary<string, object?>> ListTemplates() => scaffolder.List();
 
 	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("list_service_templates")]
+	public List<Dictionary<string, object?>> ListServiceTemplates() => scaffolder.List("service");
+
+	/// <summary>Makes services/&lt;id&gt;.py (a background task) from a template, registers it and starts it. Never overwrites.</summary>
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("scaffold_service")]
+	public async Task<Dictionary<string, object?>> ScaffoldService(string template, string id, string? python)
+	{
+		try { return await scaffolder.CreateAsync(template, id, "none", python, "service"); }
+		catch (ArgumentException e) { throw new HubException(Errors.Json("ValueError", e.Message)); }
+	}
+
+	[Authorize(Roles = Roles.Client)]
 	[HubMethodName("list_widget_templates")]
 	public List<Dictionary<string, object?>> ListWidgetTemplates() => scaffolder.List("widget");
 

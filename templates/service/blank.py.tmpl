@@ -1,0 +1,22 @@
+# template {"title": "Background task", "description": "Runs all the time: a loop that looks at other devices or does something regularly. A starting point for anything."}
+"""{{title}}: a background task. It runs as long as LabOrchestra does, and is started again by itself if it fails or its file changes."""
+
+from laborchestra import Service
+
+
+class {{class_name}}(Service):
+    """{{title}}."""
+
+    interval_s: float = 5.0  # an option: how often the loop looks. Options are class attributes; you can change them on the Devices page.
+
+    state = {"checks": 0}  # everything in here is shown live, and recorded when it changes
+
+    def run(self):
+        """The loop: runs until the service is stopped. An error ends it and is shown; the service then starts again after a pause."""
+        while self.running:
+            # TODO: look at other devices and do something. For example:
+            #   pressure = self.lab["pressure"].state["channels"][1]["pressure"]     # read the state of a device
+            #   self.lab["turbo"].start(0)                                           # call an action of a device
+            #   self.log.info("something happened")                                  # shows up in the log of this service
+            self.state["checks"] += 1
+            self.sleep(self.interval_s)  # waits, but wakes up at once when the service is stopped

@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any
 
 from ._hub import Hub
+from ._load import load_file
 from ._schema import (
     action_methods,
     action_schema,
@@ -108,14 +109,7 @@ def load_class(target: str) -> type[Device]:
     if sep and tail.isidentifier() and len(head) > 1:
         path, name = head, tail
     if path.endswith(".py") or os.path.isfile(path):
-        file = Path(path).resolve()
-        sys.path.insert(0, str(file.parent))
-        spec = importlib.util.spec_from_file_location(f"lab_device_{file.stem}", file)
-        if spec is None or spec.loader is None:
-            raise SchemaError(f"Cannot load {path}")
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[spec.name] = module
-        spec.loader.exec_module(module)
+        module = load_file(path, f"lab_device_{Path(path).stem}")
     else:
         module = importlib.import_module(path)
     found = {
@@ -158,6 +152,7 @@ def build_schema(device_id: str, cls: type[Device], actions: dict) -> dict:
         "doc": inspect.cleandoc(cls.__doc__) if cls.__doc__ else None,
         "laborchestra_version": __version__,
         "widget": getattr(cls, "widget", None),  # the built-in widget of the client for this device, if any
+        "kind": getattr(cls, "kind", "device"),  # "service": a background task (laborchestra.Service)
         "config": config_options(cls, Device),
         "actions": [action_schema(n, f) for n, f in sorted(actions.items())],
         "persist": list(cls.persist),

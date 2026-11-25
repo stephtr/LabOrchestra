@@ -27,7 +27,7 @@ import { Button, Dialog, DialogBody, DialogFooter, FormRow, Icon, IconButton, In
 import { NewWidgetDialog } from './NewWidgetDialog';
 import { WidgetSettingsDialog } from './WidgetSettingsDialog';
 import { navigate, usePath } from './router';
-import { DeviceInfo, deleteView, saveView, useStore } from './store';
+import { DeviceInfo, deleteView, isService, saveView, useStore } from './store';
 import { DeviceCard } from './DeviceCard';
 import { OscilloscopeWidget } from './OscilloscopeWidget';
 import { COMPACT_HEIGHT, runtimeWidgetsReady, useWidgetDefs, widgetDef, WidgetDef } from './widgets';
@@ -402,7 +402,8 @@ function Picker({ chosen, setChosen, onPick, onClose, onNewWidget }: { /** A wid
 	const { devices } = useContext(DashboardContext);
 	const defs = useWidgetDefs();
 	const [search, setSearch] = useState('');
-	const ids = Object.keys(devices).sort();
+	const ids = Object.keys(devices).sort().filter((id) => !isService(devices[id])); // instruments first: the services are in the selector of the "any device" widgets
+	const everything = [...ids, ...Object.keys(devices).sort().filter((id) => isService(devices[id]))];
 	const matches = (...texts: (string | undefined)[]) => texts.some((t) => t?.toLowerCase().includes(search.trim().toLowerCase()));
 	const specific = (id: string) =>
 		defs
@@ -436,7 +437,7 @@ function Picker({ chosen, setChosen, onPick, onClose, onNewWidget }: { /** A wid
 				{chosen.place && <p className="text-sm text-accent">It will be placed where you dropped it.</p>}
 				<FormRow label="Device" htmlFor="pick-device">
 					<Select id="pick-device" data-testid="pick-device" value={chosen.device} onChange={(e) => setChosen({ ...chosen, device: e.target.value })}>
-						{ids.map((id) => <option key={id}>{id}</option>)}
+						{everything.map((id) => <option key={id} value={id}>{isService(devices[id]) ? `${id} (service)` : id}</option>)}
 					</Select>
 				</FormRow>
 				{info && def.configure ? (
@@ -485,7 +486,7 @@ function Picker({ chosen, setChosen, onPick, onClose, onNewWidget }: { /** A wid
 					{ids.length > 0 && generic.length > 0 && (
 						<section className="flex flex-col">
 							<h3 className="mb-1 text-sm font-medium">For any device</h3>
-							{generic.map((d) => <PickerRow key={d.type} def={d} testId={`add-${d.type}`} make={() => widget(d.type)} onClick={() => setChosen({ type: d.type, device: ids[0]! })} />)}
+							{generic.map((d) => <PickerRow key={d.type} def={d} testId={`add-${d.type}`} make={() => widget(d.type)} onClick={() => setChosen({ type: d.type, device: ids[0] ?? Object.keys(devices).sort()[0]! })} />)}
 						</section>
 					)}
 				</div>
@@ -544,7 +545,7 @@ function slug(title: string): string {
 function AutoGrid({ devices }: { devices: Record<string, DeviceInfo> }) {
 	return (
 		<div className="mx-auto grid max-w-6xl items-start gap-3 p-3 md:grid-cols-2" data-testid="auto-grid">
-			{Object.keys(devices).sort().map((id) =>
+			{Object.keys(devices).sort().filter((id) => !isService(devices[id])).map((id) =>
 				devices[id]!.schema?.widget === 'oscilloscope' ? <div key={id} className="h-96 md:col-span-2"><OscilloscopeWidget id={id} info={devices[id]!} /></div> : <DeviceCard key={id} id={id} info={devices[id]!} />,
 			)}
 		</div>
@@ -661,7 +662,7 @@ export function Dashboard() {
 		setDragging(null);
 		setDrop(null);
 		if (!w) return;
-		if (!w.device && widgetDef(w.type)?.generic) return setChosen({ type: w.type, device: Object.keys(devices).sort()[0] ?? '', place }); // ask for the device first
+		if (!w.device && widgetDef(w.type)?.generic) return setChosen({ type: w.type, device: Object.keys(devices).sort().find((d) => !isService(devices[d])) ?? Object.keys(devices).sort()[0] ?? '', place }); // ask for the device first
 		apply((v) => place(v, w));
 		setChosen(null);
 	}

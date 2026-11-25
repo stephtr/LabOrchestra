@@ -89,6 +89,7 @@ public static class DriverSchema
 			["class"] = driver.Name,
 			["doc"] = driver.GetCustomAttribute<DriverAttribute>()?.Description,
 			["widget"] = driver.GetCustomAttribute<DriverAttribute>()?.Widget,
+			["kind"] = "device",
 			["laborchestra_version"] = typeof(Device).Assembly.GetName().Version?.ToString(3),
 			["config"] = config,
 			["actions"] = actions,

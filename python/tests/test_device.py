@@ -161,3 +161,19 @@ def test_stop_flag():
     assert device.running
     device._stop.set()
     assert not device.running and device.sleep(5) is True
+
+
+def test_a_file_saved_twice_within_a_second_with_the_same_length_runs_as_it_is_now(tmp_path):
+    """Python's bytecode cache is valid for the same size and modification second: device files are loaded without it."""
+    import os
+
+    from laborchestra._load import load_file
+
+    file = tmp_path / "quick.py"
+    file.write_text("VALUE = 1\n")
+    assert load_file(file, "lab_test_quick").VALUE == 1
+    assert (tmp_path / "__pycache__").exists() is False  # nothing is cached
+    stamp = file.stat().st_mtime_ns
+    file.write_text("VALUE = 2\n")  # the same length
+    os.utime(file, ns=(stamp, stamp))  # and the very same modification time
+    assert load_file(file, "lab_test_quick").VALUE == 2

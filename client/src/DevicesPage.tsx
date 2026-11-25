@@ -9,14 +9,14 @@ import { SecretsPanel } from './SecretsPanel';
 import { Header } from './Header';
 import { Section, TABLE } from './Section';
 import { Button, ErrorText, IconButton, StatusBadge } from './ui';
-import { useStore } from './store';
+import { isService, useStore } from './store';
 
 /** Add, change, restart and remove the devices of the workspace (devices.json), and manage secrets. */
 export function DevicesPage() {
 	const { devices, epoch } = useStore();
 	const [entries, setEntries] = useState<Record<string, DeviceEntry>>({});
 	const [dialog, setDialog] = useState<{ id: string | null } | null>(null);
-	const [creating, setCreating] = useState(false);
+	const [creating, setCreating] = useState<'device' | 'service' | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const ids = Object.keys(devices).sort();
 
@@ -34,24 +34,15 @@ export function DevicesPage() {
 		}
 	}
 
-	return (
+	const deviceIds = ids.filter((id) => !isService(devices[id]));
+	const serviceIds = ids.filter((id) => isService(devices[id]));
+
+	// a function that is called, not a component: a component made inside another is a new one at every render and would be mounted again each time
+	const renderTable = (ids: string[], empty: string) => (
 		<>
-			<Header />
-			<main className="min-h-0 flex-1 overflow-y-auto">
-				<div className="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-6">
-					{error && <ErrorText>{error}</ErrorText>}
-					<Section
-						title="Devices"
-						actions={
-							<span className="flex gap-2">
-								<Button data-testid="add-device" onClick={() => setDialog({ id: null })}>Add existing…</Button>
-								<Button data-testid="new-device" variant="primary" icon="plus" onClick={() => setCreating(true)}>New device…</Button>
-							</span>
-						}
-					>
-						<table className={TABLE}>
+			<table className={TABLE}>
 							<thead>
-								<tr><th>Device</th><th>Status</th><th>Source</th><th /></tr>
+								<tr><th>Name</th><th>Status</th><th>Source</th><th /></tr>
 							</thead>
 							<tbody>
 								{ids.map((id) => {
@@ -89,14 +80,42 @@ export function DevicesPage() {
 								})}
 							</tbody>
 						</table>
-						{ids.length === 0 && <p className="border-t border-line px-4 py-8 text-center text-sm text-muted">No devices yet. Start with “New device…”.</p>}
+						{ids.length === 0 && <p className="border-t border-line px-4 py-8 text-center text-sm text-muted">{empty}</p>}
+		</>
+	);
+
+	return (
+		<>
+			<Header />
+			<main className="min-h-0 flex-1 overflow-y-auto">
+				<div className="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-6">
+					{error && <ErrorText>{error}</ErrorText>}
+					<Section
+						title="Devices"
+						description="Instruments and the like: what the dashboards show."
+						actions={
+							<span className="flex gap-2">
+								<Button data-testid="add-device" onClick={() => setDialog({ id: null })}>Add existing…</Button>
+								<Button data-testid="new-device" variant="primary" icon="plus" onClick={() => setCreating('device')}>New device…</Button>
+							</span>
+						}
+					>
+						{renderTable(deviceIds, "No devices yet. Start with “New device…”.")}
+					</Section>
+					<Section
+						title="Background services"
+						testId="services"
+						description="Tasks that run all the time and watch or do things, such as an uploader or a notifier. They are devices without hardware: kept off the dashboards, and restarted by themselves when their file changes."
+						actions={<Button data-testid="new-service" variant="primary" icon="plus" onClick={() => setCreating('service')}>New service…</Button>}
+					>
+						{renderTable(serviceIds, "No services yet. “New service…” makes one from a template.")}
 					</Section>
 					<RemoteWorkersPanel entries={entries} />
 					<EnvironmentsPanel />
 					<SecretsPanel />
 				</div>
 			</main>
-			{creating && <NewDeviceDialog onClose={() => setCreating(false)} />}
+			{creating && <NewDeviceDialog key={creating} kind={creating} onClose={() => setCreating(null)} />}
 			{dialog && <DeviceDialog key={dialog.id ?? '+'} deviceId={dialog.id} onClose={() => setDialog(null)} />}
 		</>
 	);

@@ -920,6 +920,45 @@ async def measure(lab, steps: int = 3, pause_s: float = 0.4, levels: list[float]
 	ok('procedures: a device is reserved while a run goes; an abort runs the cleanup; history');
 	await page.getByTestId('nav-dashboard').click();
 
+	// background services: their own section, kept off the dashboards, a warning in the header when one fails
+	await page.getByTestId('nav-devices').click();
+	await page.getByTestId('new-service').click();
+	await page.getByTestId('template-uploader').check();
+	await page.getByTestId('new-device-name').fill('gauge_upload');
+	assert.equal(await page.getByTestId('new-device-connection').count(), 0); // no connection: it is not an instrument
+	await page.getByTestId('create-device').click();
+	await page.getByTestId('new-device-done').waitFor();
+	assert.match(await text('new-device-path'), /services[\\/]gauge_upload\.py$/);
+	await page.getByTestId('new-device-dialog').getByRole('button', { name: 'Done' }).click();
+	await waitText('row-status-gauge_upload', 'ready');
+	assert.equal(await page.getByTestId('services').getByTestId('row-gauge_upload').count(), 1); // in the services section ...
+	assert.equal(await page.getByTestId('row-gauge_upload').count(), 1); // ... and nowhere else
+	assert.equal(devicesFile().gauge_upload.file, 'services/gauge_upload.py');
+	await page.getByTestId('nav-dashboard').click();
+	await page.getByTestId('edit-toggle').click();
+	await openPicker();
+	assert.equal(await page.getByTestId('picker').getByText('gauge_upload').count(), 0); // not offered with the instruments
+	await page.getByTestId('add-summary').click();
+	assert.equal(await page.getByTestId('pick-device').locator('option[value="gauge_upload"]').textContent(), 'gauge_upload (service)'); // but it can be chosen for a widget
+	await page.getByLabel('Close panel').click();
+	await page.getByTestId('edit-toggle').click();
+
+	fs.mkdirSync(path.join(dir, 'workspace/services'), { recursive: true });
+	fs.writeFileSync(path.join(dir, 'workspace/services/crashing.py'), 'from laborchestra import Service\n\n\nclass Crashing(Service):\n    def connect(self):\n        raise RuntimeError("cannot start")\n');
+	script("lab.add_device('crashing', file='services/crashing.py')");
+	await page.getByTestId('service-warning').waitFor();
+	assert.match(await text('service-warning'), /crashing is not working/);
+	await page.getByTestId('service-warning').click(); // takes you to where it can be dealt with
+	await page.getByTestId('services').getByTestId('row-crashing').waitFor();
+	page.once('dialog', (d) => d.accept());
+	await page.getByTestId('remove-crashing').click();
+	await page.getByTestId('service-warning').waitFor({ state: 'detached' });
+	page.once('dialog', (d) => d.accept());
+	await page.getByTestId('remove-gauge_upload').click();
+	await page.getByTestId('row-gauge_upload').waitFor({ state: 'detached' });
+	ok('background services: own section, off the dashboards, a warning in the header when one fails');
+	await page.getByTestId('nav-dashboard').click();
+
 	// a trace widget: the history of a state field, from the server's own history
 	await page.getByTestId('edit-toggle').click();
 	await openPicker();

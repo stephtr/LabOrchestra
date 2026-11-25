@@ -70,7 +70,9 @@ public sealed class WorkerSupervisor(
 					var now = File.Exists(path) ? File.GetLastWriteTimeUtc(path) : loaded;
 					var isChanged = now != loaded;
 					registry.SetChanged(id, isChanged);
-					if (isChanged && runner.Config.AutoRestart == true) changed.Add((id, true));
+					// a service restarts by itself unless told otherwise: it has no hardware that a restart could touch
+					var isService = (registry.Get(id)?.Schema as Dictionary<string, object?>)?.GetValueOrDefault("kind") as string == "service";
+					if (isChanged && (runner.Config.AutoRestart ?? isService)) changed.Add((id, true));
 				}
 			}
 			finally { _gate.Release(); }
@@ -195,7 +197,8 @@ public sealed class WorkerSupervisor(
 	private async Task SuperviseAsync(string id, DeviceConfig device, CancellationToken stop)
 	{
 		var delay = TimeSpan.FromMilliseconds(250);
-		registry.Declare(id);
+		var kindHint = device.File is { } f && (f.StartsWith("services/") || f.StartsWith("services\\")) ? "service" : null;
+		registry.Declare(id, kindHint);
 		while (!stop.IsCancellationRequested)
 		{
 			var tail = new Queue<string>();
@@ -248,7 +251,7 @@ public sealed class WorkerSupervisor(
 			if (DateTime.UtcNow - started > TimeSpan.FromSeconds(30)) delay = TimeSpan.FromMilliseconds(250);
 			try { await Task.Delay(delay, stop); } catch (OperationCanceledException) { break; }
 			delay = TimeSpan.FromMilliseconds(Math.Min(delay.TotalMilliseconds * 2, MaxDelay.TotalMilliseconds));
-			registry.Declare(id);
+			registry.Declare(id, kindHint);
 		}
 		registry.SetStatus(id, "stopped");
 	}

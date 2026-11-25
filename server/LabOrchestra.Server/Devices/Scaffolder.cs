@@ -58,15 +58,19 @@ public sealed partial class Scaffolder(Workspace workspace, DeviceCatalog catalo
 		.ToList();
 
 	/// <summary>Creates <c>devices/&lt;id&gt;.py</c> and the entry in devices.json; the device starts at once. Returns what was made.</summary>
-	public async Task<Dictionary<string, object?>> CreateAsync(string templateId, string id, string connection, string? python)
+	/// <summary><paramref name="kind"/> "service" makes a background task (templates/service, file in services/): no connection, and it runs for real from the start.</summary>
+	public async Task<Dictionary<string, object?>> CreateAsync(string templateId, string id, string connection, string? python, string kind = "device")
 	{
+		var service = kind == "service";
 		if (!SnakeCase().IsMatch(id)) throw new ArgumentException($"The name '{id}' must be snake_case: lowercase letters, digits and underscores, starting with a letter (e.g. vacuum_pump)");
+		if (service) connection = "none";
 		if (!ConnectionOptions.TryGetValue(connection, out var options)) throw new ArgumentException($"Unknown connection '{connection}' (one of {string.Join(", ", Connections)})");
-		var template = Templates().FirstOrDefault(t => t.Id == templateId) ?? throw new ArgumentException($"There is no template '{templateId}' (templates: {string.Join(", ", Templates().Select(t => t.Id))})");
+		var template = Templates(kind).FirstOrDefault(t => t.Id == templateId) ?? throw new ArgumentException($"There is no {(service ? "service " : "")}template '{templateId}' (templates: {string.Join(", ", Templates(kind).Select(t => t.Id))})");
 		if (workspace.Devices.ContainsKey(id)) throw new ArgumentException($"There is already a device '{id}'");
 
-		var relative = $"devices/{id}.py";
-		var full = Path.Combine(workspace.Path, "devices", id + ".py");
+		var folder = service ? "services" : "devices";
+		var relative = $"{folder}/{id}.py";
+		var full = Path.Combine(workspace.Path, folder, id + ".py");
 		if (File.Exists(full)) throw new ArgumentException($"{relative} exists already; it is never overwritten. Choose another name, or add it as a device on the Devices page");
 
 		var title = char.ToUpper(id[0]) + id[1..].Replace('_', ' ');
@@ -80,15 +84,15 @@ public sealed partial class Scaffolder(Workspace workspace, DeviceCatalog catalo
 			await stream.WriteAsync(new UTF8Encoding(false).GetBytes(text.Replace("\r\n", "\n")));
 		try
 		{
-			await catalog.AddAsync(id, new DeviceConfig(File: relative, Python: string.IsNullOrWhiteSpace(python) ? null : python, Description: $"New {template.Title.ToLowerInvariant()}, running on simulated values until its code is written"));
+			await catalog.AddAsync(id, new DeviceConfig(File: relative, Python: string.IsNullOrWhiteSpace(python) ? null : python, Description: service ? $"New background task ({template.Title.ToLowerInvariant()})" : $"New {template.Title.ToLowerInvariant()}, running on simulated values until its code is written"));
 		}
 		catch
 		{
 			File.Delete(full); // nothing half-made is left behind
 			throw;
 		}
-		log.LogInformation("Device {Device} created from the template {Template} ({File})", id, templateId, relative);
-		return new() { ["device"] = id, ["file"] = relative, ["path"] = full, ["template"] = templateId };
+		log.LogInformation("{Kind} {Device} created from the template {Template} ({File})", service ? "Service" : "Device", id, templateId, relative);
+		return new() { ["device"] = id, ["file"] = relative, ["path"] = full, ["template"] = templateId, ["kind"] = kind };
 	}
 
 	/// <summary>Creates <c>widgets/&lt;name&gt;.tsx</c> from a template (never overwrites), and puts the type file for the SDK next to it so that

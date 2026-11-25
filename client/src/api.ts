@@ -42,6 +42,8 @@ export type PackageContents = {
 };
 
 export const api = {
+	listServiceTemplates: () => invokeHub<TemplateInfo[]>('list_service_templates'),
+	scaffoldService: (template: string, id: string, python: string | null) => invokeHub<Scaffolded>('scaffold_service', template, id, python),
 	listProcedures: () => invokeHub<ProcedureListing[]>('list_procedures'),
 	startProcedure: (name: string, params: Record<string, unknown>) => invokeHub<RunInfo>('start_procedure', name, params),
 	abortRun: (id: string, force = false) => invokeHub('abort_run', id, force),

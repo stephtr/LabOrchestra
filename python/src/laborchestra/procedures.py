@@ -31,6 +31,7 @@ import typing
 from pathlib import Path
 from typing import Any, Callable, Iterable
 
+from ._load import load_file
 from ._schema import _json_default, coerce
 from .errors import LabOrchestraError, SchemaError
 from .lab import AsyncDevice, AsyncLab
@@ -175,14 +176,7 @@ def load(target: str) -> tuple[list[Callable], str | None]:
     path, _, name = target.rpartition(":")
     if not path or len(path) < 2 or not name.isidentifier():
         path, name = target, None
-    file = Path(path).resolve()
-    sys.path.insert(0, str(file.parent))
-    spec = importlib.util.spec_from_file_location(f"lab_procedure_{file.stem}", file)
-    if spec is None or spec.loader is None:
-        raise SchemaError(f"Cannot load {path}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
+    module = load_file(path, f"lab_procedure_{Path(path).stem}")
     found = [f for f in vars(module).values() if inspect.isfunction(f) and hasattr(f, "__lab_procedure__") and f.__module__ == module.__name__]
     if name and name not in [f.__name__ for f in found]:
         raise SchemaError(f"{path} has no procedure '{name}' (found: {', '.join(f.__name__ for f in found) or 'none'})")

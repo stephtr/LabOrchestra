@@ -2,7 +2,7 @@ import { ReactNode, useEffect, useState } from 'react';
 import logoDark from '../../docs/assets/laborchestra-logo-dark.svg';
 import logoLight from '../../docs/assets/laborchestra-logo-light.svg';
 import { navigate, usePath } from './router';
-import { logout, runIsActive, useStore } from './store';
+import { isService, logout, runIsActive, useStore } from './store';
 import { Icon, IconButton } from './ui';
 
 function NavLink({ to, children }: { to: string; children: string }) {
@@ -42,7 +42,8 @@ export function useRecordingTime(): string | null {
 
 /** The one bar of every page: logo, pages, what the page puts there (the views), and what is always worth knowing (recording, connection). */
 export function Header({ children, actions }: { children?: ReactNode; actions?: ReactNode }) {
-	const { connection, recording, runs } = useStore();
+	const { connection, recording, runs, devices } = useStore();
+	const failing = Object.entries(devices).filter(([, d]) => isService(d) && (d.status === 'error' || d.status === 'degraded'));
 	const running = Object.values(runs).filter(runIsActive);
 	const time = useRecordingTime();
 	return (
@@ -55,6 +56,21 @@ export function Header({ children, actions }: { children?: ReactNode; actions?: 
 				<span data-testid="recording-indicator" className="inline-flex items-center gap-1.5 rounded-md bg-bad/10 px-2 py-1 text-sm tabular-nums text-bad" title={`Recording “${recording.name}”`}>
 					<Icon name="record" size={12} className="animate-pulse" /> {time}
 				</span>
+			)}
+			{failing.length > 0 && (
+				<a
+					href="/devices"
+					data-testid="service-warning"
+					className="inline-flex items-center gap-1.5 rounded-md bg-bad/10 px-2 py-1 text-sm text-bad hover:bg-bad/20"
+					title={failing.map(([id, d]) => `${id}: ${d.status}`).join('\n')}
+					onClick={(e) => {
+						e.preventDefault();
+						navigate('/devices');
+					}}
+				>
+					<Icon name="warning" size={13} />
+					{failing.length === 1 ? `${failing[0]![0]} is not working` : `${failing.length} services are not working`}
+				</a>
 			)}
 			{running.length > 0 && (
 				<a

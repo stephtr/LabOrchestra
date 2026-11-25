@@ -190,10 +190,11 @@ export function parseView(raw: unknown): View | string {
 	return { version: VIEW_VERSION, title: typeof v.title === 'string' ? v.title : 'View', ...(typeof v.order === 'number' ? { order: v.order } : {}), root: root ? fix(root) : null, strip: v.strip ?? [] };
 }
 
-/** What a client shows while the server has no view yet: oscilloscopes as panes, everything else as compact summaries. */
-export function defaultView(devices: Record<string, { schema?: { widget?: string | null } | null }>): View {
+/** What a client shows while the server has no view yet: oscilloscopes as panes, every other device as a compact summary (background services are left out). */
+export function defaultView(devices: Record<string, { schema?: { widget?: string | null; kind?: string } | null }>): View {
 	let view = emptyView('Dashboard');
 	for (const id of Object.keys(devices).sort()) {
+		if (devices[id]?.schema?.kind === 'service') continue; // a background task is not an instrument: no tile unless asked for
 		if (devices[id]?.schema?.widget === 'oscilloscope') view = addMain(view, widget('oscilloscope', id));
 		else view = addToStrip(view, widget('summary', id));
 	}

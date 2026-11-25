@@ -22,11 +22,15 @@ export type Schema = {
 	streams?: string[];
 	/** A built-in widget of the client for this device (e.g. "oscilloscope"); without one the generated card is used. */
 	widget?: string | null;
+	/** "service": a background task (shown in its own section, kept off the dashboards); an instrument is a "device". */
+	kind?: 'device' | 'service';
 };
 export type DeviceInfo = {
 	status: string;
 	error: string | null;
 	schema: Schema | null;
+	/** "service" for a background service; known even when it never registered (it failed to start). */
+	kind?: string | null;
 	state: Record<string, unknown> | null;
 	revision: number;
 	/** The device file changed after the device started. */
@@ -34,6 +38,8 @@ export type DeviceInfo = {
 	/** Counts every change on the server; a snapshot that is older than what we have is ignored. */
 	version?: number;
 };
+/** A background task rather than an instrument. */
+export const isService = (info: { kind?: string | null; schema?: { kind?: string } | null } | undefined) => (info?.schema?.kind ?? info?.kind) === 'service';
 export type ConnectionState = 'login' | 'connecting' | 'connected' | 'reconnecting';
 export type LogEntry = {
 	seq: number;

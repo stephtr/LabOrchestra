@@ -205,6 +205,10 @@ Layered, so a Python-only device author gets a UI without touching JavaScript:
 - Example: `workspace/procedures/detuning_scan.py` (port of the legacy scan: offsets from the generator's starting frequency, one recording each, the frequency restored in `finally`; the lab-specific phase-noise socket and the 8-10 GHz check are not part of it).
 
 
+### Background services *(implemented)*
+- A **service** is a device with `kind = "service"` (`class Service(Device)` in Python): the same implementation, lifecycle, logs and restart as any device, but no hardware. The schema field `kind` (`device` by default) lets the UI sort: the Devices page has its own section "Background services" (with "New service…", templates in `templates/service/`: `blank`, `uploader`; files go to `services/<id>.py`; hub `list_service_templates`, `scaffold_service`), dashboards, the picker and the default view leave services out (a widget may still choose one), and the header shows a warning chip while a service is in error. A service restarts by itself when its file changes (`auto_restart` default on for services, off for devices). A service that fails before it registers has no schema, so the server also reports a `kind` hint from the folder (`services/`) in the registry snapshot.
+- Device files are compiled at every load, not imported (`_load.load_file`): a `.pyc` is valid for the same size and the same whole-second mtime, so a quick rewrite of equal length would otherwise run the old code.
+
 ### MCP server
 - Goal: Claude can read state, perform actions, and write and run measurement scripts.
 - *(proposed)* Hosted in the C# server at `/mcp` (Streamable HTTP, official C# SDK), same schemas and code path as the UI.

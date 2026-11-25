@@ -1,0 +1,72 @@
+# template {"title": "Uploader", "description": "Sends the average of a value of a device to a web address once in a while (a sensor website, a dashboard). Set the options after creating it."}
+"""{{title}}: every `interval_s` seconds the average of a state field of a device is sent to `url` as {"sensors": [{"id", "value", "unit"}]}
+with `Authorization: Bearer <api_key>`. Set the options on the Devices page; the key can be a secret there."""
+
+import json
+import re
+import time
+import urllib.error
+import urllib.request
+
+from laborchestra import Service
+
+
+class {{class_name}}(Service):
+    """{{title}}."""
+
+    device: str = ""  # the device to read, e.g. "pressure"
+    path: str = ""  # the state field, e.g. "channels.1.pressure" (the Device card shows the names)
+    url: str = ""  # where to send it
+    api_key: str = ""  # sent as a bearer token (use a secret for it)
+    sensor_id: str = ""  # how the value is called there; empty: "<device>-<path>"
+    unit: str = ""  # empty: the unit that the device declares for the field
+    interval_s: float = 60.0
+
+    state = {"status": "starting", "last_value": None, "last_upload": None, "uploads": 0}
+
+    def _value(self):
+        node = self.lab[self.device].state
+        for key in self.path.split("."):
+            node = node[int(key)] if isinstance(node, list) else node[key]
+        return node
+
+    def _unit(self) -> str:
+        if self.unit:
+            return self.unit
+        units = self.lab[self.device].schema.get("units") or {}
+        return units.get(self.path) or units.get(re.sub(r"(^|\.)\d+(?=\.|$)", r"\1*", self.path), "")
+
+    def _send(self, value: float) -> None:
+        body = {"sensors": [{"id": self.sensor_id or f"{self.device}-{self.path}", "value": value, "unit": self._unit()}]}
+        request = urllib.request.Request(self.url, data=json.dumps(body).encode(), headers={"Content-Type": "application/json", **({"Authorization": f"Bearer {self.api_key}"} if self.api_key else {})})
+        with urllib.request.urlopen(request, timeout=10) as response:
+            if response.status >= 300:
+                raise OSError(f"The server answered {response.status}")
+
+    def run(self):
+        if not (self.device and self.path and self.url):
+            self.state["status"] = "not configured: set device, path and url in the options"
+            self.log.warning(self.state["status"])
+            while self.running:
+                self.sleep(5)
+            return
+        readings, start, complained = [], time.monotonic(), None
+        while self.running:
+            try:
+                value = self._value()
+                if isinstance(value, (int, float)) and not isinstance(value, bool):  # None: no valid reading, never counted as 0
+                    readings.append(float(value))
+                if time.monotonic() - start >= self.interval_s and readings:
+                    average = sum(readings) / len(readings)
+                    readings, start = [], time.monotonic()
+                    self._send(average)
+                    self.state.update(last_value=average, last_upload=time.strftime("%Y-%m-%d %H:%M:%S"), uploads=self.state["uploads"] + 1, status="ok")
+                    complained = None
+                elif not readings and self.state["status"] == "starting":
+                    self.state["status"] = "waiting for a value"
+            except (OSError, urllib.error.URLError, KeyError, IndexError, ValueError) as e:  # not the device's fault; say it once, try again
+                self.state["status"] = f"error: {e}"
+                if str(e) != complained:
+                    complained = str(e)
+                    self.log.warning("%s", e)
+            self.sleep(1)

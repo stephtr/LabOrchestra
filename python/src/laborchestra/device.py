@@ -27,6 +27,7 @@ class Device:
     widget: str | None = None  # name of a built-in widget of the client; without one the generated card is used
     profiles: list = []  # the profiles this device conforms to, e.g. [PressureSensor] (laborchestra.profiles)
     units: dict = {}  # units of fields that no profile names: {"channels.*.temperature": "K"}
+    kind: str = "device"  # "service" for a Service: the same thing, shown as a background task (see below)
 
     # set by the worker -----------------------------------------------------------------------
     id: str
@@ -86,3 +87,24 @@ class Device:
 
     def close(self) -> None:
         """Release hardware after run() ended."""
+
+
+class Service(Device):
+    """A background task: it runs all the time, watches or does things, and is no instrument.
+
+    A service **is** a device (the same lifecycle, restart with backoff, logs, state, settings, options with secrets, and it can read and call
+    other devices), and the interface treats it as what it is for the people who use it: it has its own section on the Devices page, is kept
+    off the dashboards, and restarts by itself when its file changes (there is no hardware to touch)::
+
+        class PressureUploader(Service):
+            device: str = "pressure"           # options, as in any device
+            api_key: str                       # (a secret is given by reference in devices.json)
+
+            def run(self):
+                while self.running:
+                    ...                          # self.lab["pressure"].state, self.lab["turbo"].start(0)
+                    self.sleep(60)
+    """
+
+    kind = "service"
+
