@@ -78,18 +78,20 @@ Open:
 - [x] Lifecycle states: `reconnecting` (the worker process lives, its connection dropped), `degraded` (three actions in a row failed for a reason on the device's side, or a state update was rejected; the device stays usable, one success ends it; wrong arguments and a move stopped on purpose do not count)
 - [x] Workers do not outlive the server: Job Object (Windows), `PR_SET_PDEATHSIG` from one long-lived spawning thread (Linux), and on every platform the next start kills leftovers by recorded PID + start time before devices open their hardware (`WorkerGuard`; tested with a worker stuck in a GIL-holding call)
 - [x] Management UI: Devices page with add / change / restart / remove, the option form generated from the device file (`--describe`), secrets panel; the same operations for scripts (`lab.add_device`, ...); logo (light/dark) and favicon
-- [ ] Management UI, still open: catalog of installable device packages, "New device" scaffolding, editing `views`, environment clean-up; (watching the device source files is done: "changed" with a restart button, `auto_restart` opt-in)
+- [x] Device files are watched: "changed" with a restart button, `auto_restart` per device (opt-in)
+- [ ] *Moved to phase 4 / scaffolding:* catalog of installable device packages, "New device" scaffolding, editing `views`, buttons for tokens in the UI
 - [x] SQLite event log (`events.db` in the data folder: actions with caller, status changes), history of numeric fields (one value per field per 10 s, 30 days), notes, unique ids for recordings and notes; `lab.events()`, `lab.history()`, `lab.add_note()`, `lab.notes()`
 - [x] Authentication: tokens for remote workers (`create_token`/`list_tokens`/`revoke_token`, stored hashed, bound to one `"remote": true` device), TLS (standard Kestrel certificate settings; `LABORCHESTRA_CA_FILE` for a lab certificate; tested with a self-signed one). Still open: the MCP token and its off/read-only/control mode (with the MCP server), buttons for tokens in the UI
 - [x] C# SDK and plugin loading: `LabOrchestra.Sdk`, `[Driver]`/`[Action]`, in-process host with schema, patches, actions, logs, restart; plugins in `plugins/` loaded in their own context; management API (`list_drivers`, `describe_driver`, `add_device(driver=...)`)
 - [x] Protocol version: clients send `?protocol=N`, the server answers 426 with a clear message when it does not speak it (current and previous major are supported), `GET /api/protocol`
-- [ ] Config migrations, immutable environments with rollback
-- [ ] Data streams of devices into recordings (`.npy`, comes with the oscilloscope in phase 3); recording controls in the client (phase 4)
+- [x] `devices.json` carries a `version` (a file without one is 1); a newer one is refused with a clear message and left untouched. Migrations (with a backup) are added when the first format change comes
+- [x] Environments are immutable and old ones stay (see above), which is the rollback
+- [x] Data streams of devices into recordings (`.npy`, with the oscilloscope); *recording controls in the client: phase 4*
 - [x] Client errors reported to the server (React error boundary, `window.onerror`, unhandled rejections; source `client` in the log, rate-limited, deduplicated)
 
 Lessons (kept so they are not learned twice): a client that fetches a snapshot while events arrive can be given a snapshot older than an event it already applied (the "device ready" flake of the first integration test, on every OS): snapshots carry a `version` that counts every change of the device and the client keeps the newer;  hosted services stop in reverse order and the web server stops first, so something that the web server waits for (workers connected over WebSockets) must be told to stop when the shutdown begins (`ApplicationStopping`), not in `StopAsync`; SignalR rejects a void completion for a call that expects a result; a worker must not send anything before its first registration (a patch that overtakes `register` is rejected), found only on a slow CI machine and reproduced locally with CPU load; tests that wait for "some" warning or "some" status change are racy, wait for the specific effect.
 
-**Exit:** devices can be added, changed and removed at runtime; an interrupted recording (server killed) stays readable.
+**Exit (met):** devices can be added, changed and removed at runtime; an interrupted recording (server killed) stays readable. Left for later on purpose: the MCP token (comes with the MCP server), bundled `laborchestra` wheel (packaging, phase 7).
 
 ## Phase 3: devices and streaming (two independent tracks)
 
@@ -106,7 +108,7 @@ Track B, oscilloscope:
 - [x] Picoscope 4000a/5000a plugins (`server/Plugins/Picoscope`, `AcquireAsync`; PicoSDK installed by the user, loaded at runtime). Compiles and reports a missing SDK in CI; **not yet tried on hardware** (needs a unit in the lab: open, ranges, streaming at the FFT frequency, restart after a channel change, 5000a test signal)
 - [x] `StreamHub`: per-client subscriptions, newest frame at send time, `received` and `ack` as two signals, window that follows the round trip time (a client 300 ms away keeps 30 fps; tested with delayed confirmations); display rendering holds no lock of the FFT (only a short copy of the spectrum)
 - [ ] FFT results match the legacy reference data (needs a recording and a snapshot from the lab PC)
-- [ ] The oscilloscope widget in the client (spectrum and trace from the `display` stream)
+- [x] The oscilloscope widget in the client (spectrum and trace from the `display` stream, zoom asks the server for the range)
 
 **Exit:** real hardware works; 200 MB/s recording for 10 minutes without gaps while a throttled client is connected and memory stays flat.
 

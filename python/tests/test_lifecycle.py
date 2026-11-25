@@ -275,3 +275,32 @@ def test_workers_and_scripts_talk_to_a_server_over_tls(tmp_path):
         except subprocess.TimeoutExpired:
             server.kill()
         log.close()
+
+
+def test_devices_json_is_versioned_and_a_newer_format_is_refused(tmp_path):
+    build_server()
+    workspace, data = tmp_path / "workspace", tmp_path / "data"
+    (workspace / "devices").mkdir(parents=True)
+    shutil.copy(DEVICES / "counter.py", workspace / "devices" / "counter.py")
+    (workspace / "devices.json").write_text(json.dumps({"devices": {}}))  # no version: version 1
+    url = f"http://127.0.0.1:{free_port()}"
+    server, log = launch(workspace, data, url)
+    try:
+        with laborchestra.connect(url, PASSPHRASE) as lab:
+            lab.add_device("counter", "devices/counter.py")
+            written = json.loads((workspace / "devices.json").read_text())
+            assert written["version"] == 1 and list(written["devices"]) == ["counter"]
+            lab.counter.wait_ready(30)
+            newer = {"version": 2, "devices": {}}  # written by a newer LabOrchestra: not understood, so not applied and not rewritten
+            (workspace / "devices.json").write_text(json.dumps(newer))
+            time.sleep(1.5)
+            assert lab.counter.status == "ready"  # nothing changed
+            assert json.loads((workspace / "devices.json").read_text()) == newer
+            assert any("format version 2" in e["message"] for e in lab.logs("server", limit=100))
+    finally:
+        server.terminate()
+        try:
+            server.wait(15)
+        except subprocess.TimeoutExpired:
+            server.kill()
+        log.close()

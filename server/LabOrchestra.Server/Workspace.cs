@@ -8,7 +8,12 @@ namespace LabOrchestra.Server;
 public sealed record DeviceConfig(string? File = null, string? Python = null, Dictionary<string, JsonElement>? Config = null, string? Description = null, string? Driver = null,
 	[property: System.Text.Json.Serialization.JsonPropertyName("auto_restart")] bool? AutoRestart = null, bool? Remote = null);
 
-public sealed record DevicesFile(Dictionary<string, DeviceConfig>? Devices);
+/// <summary>devices.json. <c>Version</c> is the format: a file without one is version 1; a file of a newer version than this server knows is
+/// refused (an older server must not rewrite what it does not understand). When the format changes, files are migrated here, with a backup.</summary>
+public sealed record DevicesFile(int? Version, Dictionary<string, DeviceConfig>? Devices)
+{
+	public const int Current = 1;
+}
 
 /// <summary>The folder with devices.json and the user's own devices, procedures and views. devices.json is watched:
 /// when it changes and is valid, <see cref="Changed"/> fires; a broken file is reported and the old setup stays.</summary>
@@ -59,6 +64,8 @@ public sealed partial class Workspace : IDisposable
 		{
 			throw new InvalidOperationException($"{file} is not valid: {e.Message}");
 		}
+		if (parsed?.Version > DevicesFile.Current)
+			throw new InvalidOperationException($"{file} has the format version {parsed.Version}, but this LabOrchestra understands up to {DevicesFile.Current}: update LabOrchestra (the file is left untouched)");
 		foreach (var (id, device) in parsed?.Devices ?? [])
 		{
 			if (!SnakeCase().IsMatch(id))
@@ -81,7 +88,7 @@ public sealed partial class Workspace : IDisposable
 			var file = System.IO.Path.Combine(Path, "devices.json");
 			Directory.CreateDirectory(Path);
 			var temporary = file + ".tmp";
-			File.WriteAllText(temporary, JsonSerializer.Serialize(new DevicesFile(next), WriteOptions) + "\n");
+			File.WriteAllText(temporary, JsonSerializer.Serialize(new DevicesFile(DevicesFile.Current, next), WriteOptions) + "\n");
 			File.Move(temporary, file, overwrite: true); // like an editor: write elsewhere, then rename
 			Devices = next;
 		}
