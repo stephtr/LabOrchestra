@@ -232,11 +232,11 @@ type Extent = { height: number; minHeight: number; minWidth: number; maxWidth: n
 const AREA_PAD = 12; // p-1.5 on both sides
 const AREA_GAP = 6; // gap-1.5
 
-/** How a widget with a width sits in an area: laid out from its smallest width (0.85 of it), grown to fill its row, and never wider than two of
- *  them side by side. So a row is always full: an area wider than one widget can take always has room for a second one. */
+/** How a widget with a width sits in an area: laid out from its smallest width (0.85 of it) and grown to fill its row, so rows are always full
+ *  (a lone widget in the last row takes the whole row rather than leaving a gap). */
 function stretch(width: number) {
 	const least = Math.ceil(width * 0.85);
-	return { flex: `1 1 ${least}px`, minWidth: least, maxWidth: 2 * least + AREA_GAP };
+	return { flex: `1 1 ${least}px`, minWidth: least };
 }
 
 function SplitView({ node }: { node: Extract<Node, { kind: 'split' }> }) {
