@@ -11,7 +11,7 @@ public static class Plain
 		JsonValueKind.Object => e.EnumerateObject().ToDictionary(p => p.Name, p => FromJson(p.Value)),
 		JsonValueKind.Array => e.EnumerateArray().Select(FromJson).ToList(),
 		JsonValueKind.String => e.GetString(),
-		JsonValueKind.Number => e.TryGetInt64(out var l) ? l : e.GetDouble(),
+		JsonValueKind.Number => e.TryGetInt64(out var l) ? (object)l : e.GetDouble(), // the cast: without it the conditional makes every integer a double
 		JsonValueKind.True => true,
 		JsonValueKind.False => false,
 		_ => null,

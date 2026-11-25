@@ -13,6 +13,22 @@ public sealed class DriverAttribute(string name) : Attribute
 	public string? Widget { get; init; }
 }
 
+/// <summary>Says that a driver fits a profile (see the Python package, laborchestra.profiles: the profiles are written once, in Python; the
+/// schema of the device names them and the tests check the device against them).</summary>
+[AttributeUsage(AttributeTargets.Class, AllowMultiple = true, Inherited = true)]
+public sealed class ProfileAttribute(string name, int version = 1) : Attribute
+{
+	public string Name { get; } = name;
+	public int Version { get; } = version;
+}
+
+/// <summary>The unit of a numeric state property, fixed by the profile (the driver converts): "Hz", "mV", "mbar".</summary>
+[AttributeUsage(AttributeTargets.Property)]
+public sealed class UnitAttribute(string symbol) : Attribute
+{
+	public string Symbol { get; } = symbol;
+}
+
 /// <summary>Makes a public method callable from the dashboard, scripts and other devices (as snake_case: SetFftLength -> set_fft_length).</summary>
 [AttributeUsage(AttributeTargets.Method)]
 public sealed class ActionAttribute : Attribute;

@@ -38,7 +38,7 @@ def test_the_standard_profiles_export_json_derived_from_the_code():
     assert positioner["actions"][0]["params"] == [{"name": "channel", "type": "int", "required": True}, {"name": "position", "type": "float", "required": True}]
     assert describe(FrequencyGenerator)["units"] == {"channels.*.frequency": "Hz", "channels.*.power": "dBm"}
     assert units(Polarimeter) == {"theta": "rad", "eta": "rad", "dop": "1", "power": "W"}
-    assert {p.name for p in STANDARD} == {"pressure_sensor", "polarimeter", "positioner", "frequency_generator"}
+    assert {p.name for p in STANDARD} == {"pressure_sensor", "polarimeter", "positioner", "frequency_generator", "oscilloscope"}
 
 
 def test_state_is_checked_against_a_profile_and_the_problems_are_named():

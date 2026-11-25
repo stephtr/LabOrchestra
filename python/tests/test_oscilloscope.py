@@ -217,3 +217,15 @@ def test_a_picoscope_without_the_sdk_says_what_to_install(tmp_path_factory):
             assert "PicoSDK" in lab.ps5.error or "No Picoscope" in lab.ps5.error
     finally:
         print(stop_server(process, log, workspace, url))
+
+
+def test_the_oscilloscope_fits_its_profile_and_names_the_units_of_its_fields(lab):
+    from laborchestra.profiles import Oscilloscope, check_schema
+
+    schema = lab.osc.schema
+    assert schema["profiles"] == [{"name": "oscilloscope", "version": 1}]
+    assert schema["units"] == {"fft_frequency": "Hz", "test_signal_frequency": "Hz", "sample_rate": "Hz", "channels.*.range_in_millivolts": "mV"}
+    problems = check_schema(Oscilloscope, schema, lab.osc.state)
+    assert not problems, "\n".join(problems)  # every action of the profile, with its parameters, and the typed state
+    broken = {**schema, "actions": [a for a in schema["actions"] if a["name"] != "set_coupling"]}
+    assert check_schema(Oscilloscope, broken) == ["the action set_coupling is missing"]

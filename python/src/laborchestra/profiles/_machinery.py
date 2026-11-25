@@ -218,10 +218,18 @@ def check_state(profile: type[Profile], state: dict) -> list[str]:
     return problems if problems else profile.validate(state)
 
 
-def check_actions(profile: type[Profile], device_class: type) -> list[str]:
-    """Problems of a driver's actions against the profile: every required action there, with the profile's parameters first (same names
-    and types); parameters the driver adds must have defaults."""
-    have = action_methods(device_class)
+def _signatures_of_class(device_class: type) -> dict[str, list[tuple[str, str, bool]]]:
+    return {
+        name: [(p.name, base_type(p.annotation, p.default), p.default is p.empty) for p in _parameters(fn)]
+        for name, fn in action_methods(device_class).items()
+    }
+
+
+def _signatures_of_schema(schema: dict) -> dict[str, list[tuple[str, str, bool]]]:
+    return {a["name"]: [(p["name"], p["type"], bool(p["required"])) for p in a["params"]] for a in schema.get("actions", [])}
+
+
+def _check_signatures(profile: type[Profile], have: dict[str, list[tuple[str, str, bool]]]) -> list[str]:
     problems = []
     for name, wanted in profile_actions(profile).items():
         is_optional = bool(getattr(wanted, "__lab_optional__", False))
@@ -229,17 +237,27 @@ def check_actions(profile: type[Profile], device_class: type) -> list[str]:
             if not is_optional:
                 problems.append(f"the action {name} is missing")
             continue
-        mine, theirs = _parameters(have[name]), _parameters(wanted)
-        for i, expected in enumerate(theirs):
-            if i >= len(mine) or mine[i].name != expected.name:
-                problems.append(f"{name}: parameter {i + 1} must be called '{expected.name}'")
+        mine = have[name]
+        theirs = [(p.name, base_type(p.annotation, p.default)) for p in _parameters(wanted)]
+        for i, (expected_name, expected_type) in enumerate(theirs):
+            if i >= len(mine) or mine[i][0] != expected_name:
+                problems.append(f"{name}: parameter {i + 1} must be called '{expected_name}'")
                 break
-            if base_type(mine[i].annotation, mine[i].default) not in (base_type(expected.annotation, expected.default), "json"):
-                problems.append(f"{name}: '{expected.name}' must be {base_type(expected.annotation, expected.default)}")
-            if expected.default is expected.empty and mine[i].default is not mine[i].empty:
-                pass  # a default where the profile has none is fine
-        problems += [f"{name}: the extra parameter '{p.name}' needs a default" for p in mine[len(theirs):] if p.default is p.empty]
+            if mine[i][1] not in (expected_type, "json"):
+                problems.append(f"{name}: '{expected_name}' must be {expected_type}")
+        problems += [f"{name}: the extra parameter '{p[0]}' needs a default" for p in mine[len(theirs):] if p[2]]
     return problems
+
+
+def check_actions(profile: type[Profile], device_class: type) -> list[str]:
+    """Problems of a driver's actions against the profile: every required action there, with the profile's parameters first (same names
+    and types); parameters the driver adds must have defaults."""
+    return _check_signatures(profile, _signatures_of_class(device_class))
+
+
+def check_schema(profile: type[Profile], schema: dict, state: dict | None = None) -> list[str]:
+    """The same for a device that is not a Python class here (a C# driver): its schema as the server has it, and optionally its state."""
+    return _check_signatures(profile, _signatures_of_schema(schema)) + (check_state(profile, state) if state is not None else [])
 
 
 def check_driver(profile: type[Profile], device_class: type) -> list[str]:

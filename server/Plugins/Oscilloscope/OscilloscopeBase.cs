@@ -18,6 +18,7 @@ public class OscilloscopeOptions
 public sealed class ChannelState
 {
 	public bool ChannelActive { get; set; }
+	[Unit("mV")]
 	public int RangeInMillivolts { get; set; } = 1000;
 	public string Coupling { get; set; } = "AC";
 }
@@ -27,6 +28,7 @@ public sealed class OscilloscopeState
 	public bool Running { get; set; }
 	public string DisplayMode { get; set; } = "fft";
 	/// <summary>The top of the spectrum in Hz (half the sample rate).</summary>
+	[Unit("Hz")]
 	public double FftFrequency { get; set; } = 1e6;
 	public int FftLength { get; set; } = 8192;
 	/// <summary>"pffft" (native) or "managed" (slower fallback).</summary>
@@ -34,7 +36,9 @@ public sealed class OscilloscopeState
 	public string FftAveragingMode { get; set; } = "prefer-data";
 	public int FftAveragingDurationMs { get; set; } = 200;
 	public string FftWindowFunction { get; set; } = "blackman";
+	[Unit("Hz")]
 	public double TestSignalFrequency { get; set; } = 100_000;
+	[Unit("Hz")]
 	public double SampleRate { get; set; }
 	public bool Recording { get; set; }
 	public double FftsPerSecond { get; set; }
@@ -63,6 +67,7 @@ public sealed class AcquisitionSink
 /// averaged power spectra, the display stream renders spectra or time traces for each client's range, and a recording writes the
 /// raw channels to .npy files. A driver only delivers samples (<see cref="AcquireAsync"/>) and programs the hardware.
 /// </summary>
+[Profile("oscilloscope", 1)]
 public abstract class OscilloscopeBase<TOptions> : Device<TOptions, OscilloscopeState> where TOptions : OscilloscopeOptions, new()
 {
 	private const int TraceCapacity = 1 << 20;

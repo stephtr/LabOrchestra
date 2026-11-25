@@ -56,4 +56,4 @@ actions (`@optional` marks a capability a driver may leave out). A driver says `
   `drivers/` and on the running simulated devices.
 - New profiles are plain classes with a `name` and a `version`; changes to a published profile need a new version.
 
-Not yet: C# profiles (an `Oscilloscope` interface in the SDK), `requires_confirmation`, per-field recording rates.
+C# drivers (which cannot subclass a Python class) name the profile with `[Profile("oscilloscope", 1)]` and the units with `[Unit("Hz")]` on state properties; the profile `Oscilloscope` is the definition they are checked against (`check_schema`). Not yet: `requires_confirmation`, per-field recording rates.

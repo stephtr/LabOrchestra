@@ -84,3 +84,42 @@ class FrequencyGenerator(Profile):
 
     def set_on(self, channel: int, is_on: bool):
         """Switches the output on or off."""
+
+
+class OscilloscopeChannel(TypedDict):
+    channel_active: bool
+    range_in_millivolts: Annotated[int, Unit("mV")]  # the full range of the input
+    coupling: Literal["AC", "DC"]
+
+
+class Oscilloscope(Profile):
+    """An oscilloscope that streams samples to a pipeline on the server (spectrum and trace as the ``display`` stream, raw channels into
+    recordings). Its drivers are written in C# (the data rate does not allow a process in between), so the profile is declared there with
+    ``[Profile("oscilloscope", 1)]``; this class is the definition they are checked against."""
+
+    name = "oscilloscope"
+    version = 1
+    running: bool
+    recording: bool
+    sample_rate: Annotated[float, Unit("Hz")]
+    fft_frequency: Annotated[float, Unit("Hz")]  # the top of the spectrum, half the sample rate
+    fft_length: int
+    channels: list[OscilloscopeChannel]
+
+    def start(self):
+        """Starts the acquisition."""
+
+    def stop(self):
+        """Stops it."""
+
+    def set_range(self, channel: int, range_in_millivolts: int):
+        """The full range of an input, in millivolts."""
+
+    def set_channel_active(self, channel: int, active: bool):
+        """Switches an input on or off."""
+
+    def set_coupling(self, channel: int, coupling: str):
+        """AC or DC."""
+
+    def set_fft_frequency(self, frequency: float):
+        """The top of the spectrum in Hz; the sample rate is twice that."""

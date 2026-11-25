@@ -272,7 +272,7 @@ Layered, so a Python-only device author gets a UI without touching JavaScript:
 
 - [ ] Proper exception management and logging: server, client, device workers, procedures
 - [x] Naming rule (snake_case checked at registration, C# converted) and unit metadata (Python profiles; units for C# devices with the C# profiles)
-- [x] Profiles with schema export from code (Python; C# `Oscilloscope` profile still to do)
+- [x] Profiles with schema export from code (Python classes; C# drivers name them with `[Profile]`, units with `[Unit]`)
 - [ ] Procedures, recording service, event triggers; port the detuning scan
 - [ ] MCP server
 - [ ] Updates, rollback, compatibility policy

@@ -34,6 +34,28 @@ public static class DriverSchema
 			.Where(m => m.GetCustomAttribute<ActionAttribute>() is not null)
 			.ToDictionary(m => Wire.Name(m.Name), m => new ActionInfo(Wire.Name(m.Name), m, m.GetParameters().Where(p => p.ParameterType != typeof(CancellationToken)).ToArray()));
 
+	/// <summary>The units of the state fields by path ("channels.*.range_in_millivolts": "mV"); a list stands for any index with a star.</summary>
+	public static Dictionary<string, object?> Units(Type state)
+	{
+		var found = new Dictionary<string, object?>();
+		void Walk(Type type, string prefix, int depth)
+		{
+			if (depth > 4) return;
+			foreach (var p in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+			{
+				var path = prefix + Wire.Name(p.Name);
+				if (p.GetCustomAttribute<UnitAttribute>() is { } unit) found[path] = unit.Symbol;
+				var t = p.PropertyType;
+				if (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(List<>) && t.GetGenericArguments()[0].IsClass && t.GetGenericArguments()[0] != typeof(string))
+					Walk(t.GetGenericArguments()[0], path + ".*.", depth + 1);
+				else if (t.IsClass && t != typeof(string) && !t.IsGenericType)
+					Walk(t, path + ".", depth + 1);
+			}
+		}
+		Walk(state, "", 0);
+		return found;
+	}
+
 	public static Dictionary<string, object?> Build(string id, Type driver)
 	{
 		var (optionsType, _) = TypesOf(driver);
@@ -71,6 +93,8 @@ public static class DriverSchema
 			["config"] = config,
 			["actions"] = actions,
 			["persist"] = new List<object?>(),
+			["profiles"] = driver.GetCustomAttributes<ProfileAttribute>(inherit: true).Select(p => (object?)new Dictionary<string, object?> { ["name"] = p.Name, ["version"] = p.Version }).ToList(),
+			["units"] = Units(TypesOf(driver).State),
 			["streams"] = new List<object?>(),
 		};
 	}
