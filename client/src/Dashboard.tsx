@@ -6,12 +6,11 @@ import {
 	defaultView,
 	emptyView,
 	equal,
-	findWidget,
 	mains,
-	moveToMain,
-	moveToStrip,
 	Node,
 	parseView,
+	placeInMain,
+	placeInStrip,
 	removeWidget,
 	setProps,
 	Side,
@@ -36,14 +35,19 @@ const AUTO_ID = 'dashboard';
 const NO_DEVICE: DeviceInfo = { status: 'ready', error: null, schema: null, state: null, revision: 0 };
 
 type DropTarget = { pane: string; side: Side | 'swap' } | { strip: number } | null;
+type Chosen = { type: string; device: string; /** Where it was dropped (without: at the end). */ place?: Place };
+type Place = (view: View, w: WidgetInstance) => View;
 type Ctx = {
 	editing: boolean;
 	devices: Record<string, DeviceInfo>;
-	dragging: string | null;
-	setDragging: (id: string | null) => void;
+	/** The widget being dragged: one of the view, or a new one from the picker (without a device: it is asked for after the drop). */
+	dragging: WidgetInstance | null;
+	setDragging: (w: WidgetInstance | null) => void;
 	drop: DropTarget;
 	setDrop: (drop: DropTarget) => void;
 	apply: (change: (view: View) => View) => void;
+	/** Puts the dragged widget into the view; `place` says where. */
+	dropped: (place: Place) => void;
 	view: View;
 	/** Opens the settings dialog of a widget instance. */
 	configure: (instance: WidgetInstance) => void;
@@ -72,14 +76,17 @@ function WidgetView({ instance }: { instance: WidgetInstance }) {
 	return <Component id={instance.id} device={instance.device} info={info} props={instance.props ?? {}} />;
 }
 
-function dragProps(id: string, ctx: Ctx) {
+function dragProps(w: () => WidgetInstance, ctx: Ctx, image?: (from: HTMLElement) => Element | null) {
 	return ctx.editing
 		? {
 				draggable: true,
-				onDragStart: (e: React.DragEvent) => {
-					e.dataTransfer.setData('application/x-laborchestra-widget', id);
+				onDragStart: (e: React.DragEvent<HTMLElement>) => {
+					const dragged = w();
+					e.dataTransfer.setData('application/x-laborchestra-widget', dragged.id);
 					e.dataTransfer.effectAllowed = 'move';
-					ctx.setDragging(id);
+					const picture = image?.(e.currentTarget);
+					if (picture) e.dataTransfer.setDragImage(picture, 20, 20);
+					ctx.setDragging(dragged);
 				},
 				onDragEnd: () => {
 					ctx.setDragging(null);
@@ -89,13 +96,13 @@ function dragProps(id: string, ctx: Ctx) {
 		: {};
 }
 
-function sideAt(e: React.DragEvent, element: HTMLElement): Side | 'swap' {
+function sideAt(e: React.DragEvent, element: HTMLElement, canSwap: boolean): Side | 'swap' {
 	const box = element.getBoundingClientRect();
 	const x = (e.clientX - box.left) / box.width;
 	const y = (e.clientY - box.top) / box.height;
 	const edge = 0.25;
 	const toEdge = Math.min(x, 1 - x, y, 1 - y);
-	if (toEdge > edge) return 'swap';
+	if (canSwap && toEdge > edge) return 'swap';
 	if (toEdge === x) return 'left';
 	if (toEdge === 1 - x) return 'right';
 	return toEdge === y ? 'top' : 'bottom';
@@ -111,12 +118,13 @@ const HIGHLIGHT: Record<Side | 'swap', string> = {
 
 function Pane({ instance }: { instance: WidgetInstance }) {
 	const ctx = useContext(DashboardContext);
+	const isMain = mains(ctx.view.root).some((m) => m.widget.id === ctx.dragging?.id); // two panes can be swapped
 	const over = ctx.drop && 'pane' in ctx.drop && ctx.drop.pane === instance.id ? ctx.drop.side : null;
 	return (
 		<div data-testid={`pane-${instance.id}`} className="relative flex h-full flex-col">
 			{ctx.editing && (
 				<div className="z-10 flex flex-none items-center gap-1 border-b border-line bg-panel px-1 py-0.5 text-xs text-muted">
-					<span {...dragProps(instance.id, ctx)} className="flex flex-1 cursor-grab select-none items-center gap-1 active:cursor-grabbing" title="Drag to move" data-testid={`handle-${instance.id}`}>
+					<span {...dragProps(() => instance, ctx)} className="flex flex-1 cursor-grab select-none items-center gap-1 active:cursor-grabbing" title="Drag to move" data-testid={`handle-${instance.id}`}>
 						<Icon name="grip" /> {widgetDef(instance.type)?.title ?? instance.type}{instance.device ? ` · ${instance.device}` : ''}
 					</span>
 					<IconButton small icon="settings" label="Widget settings" data-testid={`settings-${instance.id}`} onClick={() => ctx.configure(instance)} />
@@ -126,22 +134,19 @@ function Pane({ instance }: { instance: WidgetInstance }) {
 			<div className="min-h-0 flex-1 overflow-auto">
 				<WidgetView instance={instance} />
 			</div>
-			{ctx.editing && ctx.dragging && ctx.dragging !== instance.id && (
+			{ctx.editing && ctx.dragging && ctx.dragging.id !== instance.id && (
 				<div
 					className="absolute inset-0 z-20"
 					data-testid={`drop-${instance.id}`}
 					onDragOver={(e) => {
 						e.preventDefault();
-						const side = sideAt(e, e.currentTarget);
+						const side = sideAt(e, e.currentTarget, isMain);
 						if (!(ctx.drop && 'pane' in ctx.drop && ctx.drop.pane === instance.id && ctx.drop.side === side)) ctx.setDrop({ pane: instance.id, side });
 					}}
 					onDrop={(e) => {
 						e.preventDefault();
-						const id = ctx.dragging!;
-						const side = sideAt(e, e.currentTarget);
-						ctx.apply((v) => (side === 'swap' ? (mains(v.root).some((m) => m.widget.id === id) ? swapMains(v, id, instance.id) : moveToMain(v, id, { id: instance.id, side: 'bottom' })) : moveToMain(v, id, { id: instance.id, side })));
-						ctx.setDragging(null);
-						ctx.setDrop(null);
+						const side = sideAt(e, e.currentTarget, isMain);
+						ctx.dropped((v, w) => (side === 'swap' ? swapMains(v, w.id, instance.id) : placeInMain(v, w, { id: instance.id, side })));
 					}}
 				>
 					{over && <div className={`pointer-events-none absolute rounded-lg bg-accent/20 ring-2 ring-inset ring-accent ${HIGHLIGHT[over]}`} />}
@@ -206,8 +211,7 @@ function NodeView({ node }: { node: Node }) {
 
 function Strip({ widgets }: { widgets: WidgetInstance[] }) {
 	const ctx = useContext(DashboardContext);
-	const dragged = ctx.dragging ? findWidget(ctx.view, ctx.dragging) : undefined;
-	const fits = !dragged || widgetDef(dragged.type)?.size !== 'main';
+	const fits = !ctx.dragging || widgetDef(ctx.dragging.type)?.size !== 'main';
 	const dropAt = ctx.drop && 'strip' in ctx.drop ? ctx.drop.strip : null;
 	const acceptDrop = (index: number) => ({
 		onDragOver: (e: React.DragEvent) => {
@@ -220,17 +224,14 @@ function Strip({ widgets }: { widgets: WidgetInstance[] }) {
 			if (!ctx.dragging || !fits) return;
 			e.preventDefault();
 			e.stopPropagation();
-			const id = ctx.dragging;
-			ctx.apply((v) => moveToStrip(v, id, index));
-			ctx.setDragging(null);
-			ctx.setDrop(null);
+			ctx.dropped((v, w) => placeInStrip(v, w, index));
 		},
 	});
 	if (widgets.length === 0 && !ctx.editing) return null;
 	return (
 		<div
 			data-testid="strip"
-			className={`flex min-h-16 flex-none flex-wrap items-start gap-1.5 border-t border-line p-1.5 ${ctx.editing ? 'bg-raised' : ''}`}
+			className={`flex min-h-16 flex-none flex-wrap items-start gap-1.5 border-t border-line p-1.5 ${ctx.editing ? 'bg-raised' : ''} ${ctx.dragging && fits ? (dropAt === widgets.length ? 'outline-2 -outline-offset-2 outline-accent' : 'outline-1 -outline-offset-1 outline-dashed outline-accent') : ''}`}
 			{...(ctx.editing ? acceptDrop(widgets.length) : {})}
 		>
 			{widgets.length === 0 && <span className="self-center px-2 text-xs text-muted">Compact widgets go here.</span>}
@@ -243,7 +244,7 @@ function Strip({ widgets }: { widgets: WidgetInstance[] }) {
 						data-testid={`strip-${w.id}`}
 						style={{ height }}
 						className={`group relative min-w-28 flex-none ${ctx.editing ? 'cursor-grab active:cursor-grabbing' : ''} ${dropAt === i ? 'before:absolute before:inset-y-0 before:-left-1 before:w-0.5 before:rounded before:bg-accent' : ''}`}
-						{...dragProps(w.id, ctx)}
+						{...dragProps(() => w, ctx)}
 						{...(ctx.editing ? acceptDrop(i) : {})}
 					>
 						<WidgetView instance={w} />
@@ -275,13 +276,13 @@ function Preview({ type, device, props }: { type: string; device: string; props?
 	);
 }
 
-/** A live preview that adds the widget when it is clicked. The button lies over the preview: a widget has buttons and fields of its own. */
-function PreviewButton({ def, device, props, caption = '', testId, onClick }: { def: WidgetDef; device: string; props?: Record<string, unknown>; caption?: string; testId: string; onClick: () => void }) {
+/** A live preview that adds the widget when it is clicked, or where it is dragged. The target lies over the preview: a widget has buttons and fields of its own. */
+function PreviewButton({ def, device, props, caption = '', testId, make, onClick }: { def: WidgetDef; device: string; props?: Record<string, unknown>; caption?: string; testId: string; make: () => WidgetInstance; onClick: () => void }) {
 	return (
 		<div className="group relative flex w-fit max-w-full flex-col gap-1">
 			<div className="w-fit max-w-full rounded-lg ring-accent group-hover:ring-2"><Preview type={def.type} device={device} props={props} /></div>
 			<span aria-hidden="true" className="text-xs text-muted group-hover:text-ink">{def.title}{caption}</span>
-			<button data-testid={testId} className="absolute inset-0 rounded-lg" aria-label={`Add ${def.title} ${device}${caption}`} title={def.description} onClick={onClick} />
+			<AddTarget testId={testId} label={`${def.title} ${device}${caption}`} make={make} onClick={onClick} className="absolute inset-0 rounded-lg active:cursor-grabbing" image={(from) => from.parentElement!.firstElementChild} />
 		</div>
 	);
 }
@@ -306,26 +307,49 @@ function Thumbnail({ type, large }: { type: string; large?: boolean }) {
 	);
 }
 
-/** A row of the picker for a widget that is not shown live: picture, name, what it is for. */
-function PickerRow({ def, testId, onClick }: { def: WidgetDef; testId: string; onClick: () => void }) {
+/** What can be clicked to add a widget, and dragged to where it should be. (Not a <button>: Firefox does not drag buttons.) */
+function AddTarget({ testId, label, className, make, onClick, image, children }: { testId: string; label: string; className: string; make: () => WidgetInstance; onClick: () => void; image?: (from: HTMLElement) => Element | null; children?: ReactNode }) {
+	const ctx = useContext(DashboardContext);
 	return (
-		<button data-testid={testId} className="-mx-2 flex items-center gap-3 rounded-lg p-2 text-left hover:bg-raised" onClick={onClick}>
+		<div
+			role="button"
+			tabIndex={0}
+			data-testid={testId}
+			aria-label={label}
+			title={`${label}: click, or drag it into the view`}
+			className={className}
+			onClick={onClick}
+			onKeyDown={(e) => {
+				if (e.key !== 'Enter' && e.key !== ' ') return;
+				e.preventDefault();
+				onClick();
+			}}
+			{...dragProps(make, ctx, image)}
+		>
+			{children}
+		</div>
+	);
+}
+
+/** A row of the picker for a widget that is not shown live: picture, name, what it is for. */
+function PickerRow({ def, testId, make, onClick }: { def: WidgetDef; testId: string; make: () => WidgetInstance; onClick: () => void }) {
+	return (
+		<AddTarget testId={testId} label={def.title} make={make} onClick={onClick} className="-mx-2 flex items-center gap-3 rounded-lg p-2 text-left hover:bg-raised active:cursor-grabbing">
 			<Thumbnail type={def.type} />
 			<span className="min-w-0">
 				<span className="block text-sm">{def.title}</span>
 				{def.description && <span className="block text-xs text-muted">{def.description}</span>}
 			</span>
-		</button>
+		</AddTarget>
 	);
 }
 
 /** The panel next to the view with everything that can be placed. What the profiles of a device offer is shown live, by device; what fits any
  *  device is listed once and asks for the device. */
-function Picker({ onPick, onClose, onNewWidget }: { onPick: (instance: WidgetInstance) => void; onClose: () => void; onNewWidget: () => void }) {
+function Picker({ chosen, setChosen, onPick, onClose, onNewWidget }: { /** A widget for any device that is being set up. */ chosen: Chosen | null; setChosen: (c: Chosen | null) => void; onPick: (instance: WidgetInstance) => void; onClose: () => void; onNewWidget: () => void }) {
 	const { devices } = useContext(DashboardContext);
 	const defs = useWidgetDefs();
 	const [search, setSearch] = useState('');
-	const [chosen, setChosen] = useState<{ type: string; device: string } | null>(null);
 	const ids = Object.keys(devices).sort();
 	const matches = (...texts: (string | undefined)[]) => texts.some((t) => t?.toLowerCase().includes(search.trim().toLowerCase()));
 	const specific = (id: string) =>
@@ -345,13 +369,19 @@ function Picker({ onPick, onClose, onNewWidget }: { onPick: (instance: WidgetIns
 		const preview = (props?: Record<string, unknown>) => (
 			<div className="flex flex-col gap-1" data-testid="picker-preview">
 				<span className="text-sm text-muted">Preview</span>
-				<div className="rounded-lg bg-ground p-3"><Preview type={def.type} device={chosen.device} props={props} /></div>
+				<div className="rounded-lg bg-ground p-3">
+					<div className="relative w-fit min-w-28 max-w-full">
+						<Preview type={def.type} device={chosen.device} props={props} />
+						<AddTarget testId="drag-preview" label={def.title} make={() => widget(def.type, chosen.device, props)} onClick={() => done(widget(def.type, chosen.device, props))} className="absolute inset-0 cursor-grab rounded-lg active:cursor-grabbing" image={(from) => from.parentElement!.firstElementChild} />
+					</div>
+				</div>
 			</div>
 		);
 		const info = devices[chosen.device];
 		body = (
 			<div className="flex flex-col gap-3 overflow-y-auto p-4">
 				{def.description && <p className="text-sm text-muted">{def.description}.</p>}
+				{chosen.place && <p className="text-sm text-accent">It will be placed where you dropped it.</p>}
 				<FormRow label="Device" htmlFor="pick-device">
 					<Select id="pick-device" data-testid="pick-device" value={chosen.device} onChange={(e) => setChosen({ ...chosen, device: e.target.value })}>
 						{ids.map((id) => <option key={id}>{id}</option>)}
@@ -385,10 +415,10 @@ function Picker({ onPick, onClose, onNewWidget }: { onPick: (instance: WidgetIns
 						return (
 							<section key={id} className="flex flex-col gap-2">
 								<h3 className="flex items-baseline gap-2 text-sm font-medium">{id}<span className="truncate text-xs font-normal text-faint">{devices[id]!.schema?.class}</span></h3>
-								{entries.filter(({ d }) => d.size === 'main').map(({ d, v }) => <PickerRow key={d.type} def={d} testId={`add-${d.type}-${id}`} onClick={() => onPick(widget(d.type, id, v.props))} />)}
+								{entries.filter(({ d }) => d.size === 'main').map(({ d, v }) => <PickerRow key={d.type} def={d} testId={`add-${d.type}-${id}`} make={() => widget(d.type, id, v.props)} onClick={() => onPick(widget(d.type, id, v.props))} />)}
 								<div className="flex flex-wrap gap-2">
 									{entries.filter(({ d }) => d.size !== 'main').map(({ d, v, many }) => (
-										<PreviewButton key={`${d.type}${v.label}`} def={d} device={id} props={v.props} caption={many ? ` · ${v.label}` : ''} testId={`add-${d.type}-${id}${v.props && 'channel' in v.props ? `-${v.props.channel}` : ''}`} onClick={() => onPick(widget(d.type, id, v.props))} />
+										<PreviewButton key={`${d.type}${v.label}`} def={d} device={id} props={v.props} caption={many ? ` · ${v.label}` : ''} testId={`add-${d.type}-${id}${v.props && 'channel' in v.props ? `-${v.props.channel}` : ''}`} make={() => widget(d.type, id, v.props)} onClick={() => onPick(widget(d.type, id, v.props))} />
 									))}
 								</div>
 							</section>
@@ -397,13 +427,13 @@ function Picker({ onPick, onClose, onNewWidget }: { onPick: (instance: WidgetIns
 					{server.length > 0 && (
 						<section className="flex flex-col gap-2">
 							<h3 className="text-sm font-medium">Whole server</h3>
-							{server.map((d) => <PreviewButton key={d.type} def={d} device="" testId={`add-${d.type}`} onClick={() => onPick(widget(d.type))} />)}
+							{server.map((d) => <PreviewButton key={d.type} def={d} device="" testId={`add-${d.type}`} make={() => widget(d.type)} onClick={() => onPick(widget(d.type))} />)}
 						</section>
 					)}
 					{ids.length > 0 && generic.length > 0 && (
 						<section className="flex flex-col">
 							<h3 className="mb-1 text-sm font-medium">For any device</h3>
-							{generic.map((d) => <PickerRow key={d.type} def={d} testId={`add-${d.type}`} onClick={() => setChosen({ type: d.type, device: ids[0]! })} />)}
+							{generic.map((d) => <PickerRow key={d.type} def={d} testId={`add-${d.type}`} make={() => widget(d.type)} onClick={() => setChosen({ type: d.type, device: ids[0]! })} />)}
 						</section>
 					)}
 				</div>
@@ -477,7 +507,8 @@ export function Dashboard() {
 	const [creatingWidget, setCreatingWidget] = useState(false);
 	const [naming, setNaming] = useState<'new' | 'rename' | null>(null);
 	const [configuring, setConfiguring] = useState<WidgetInstance | null>(null);
-	const [dragging, setDragging] = useState<string | null>(null);
+	const [dragging, setDragging] = useState<WidgetInstance | null>(null);
+	const [chosen, setChosen] = useState<Chosen | null>(null);
 	const [drop, setDrop] = useState<DropTarget>(null);
 	const [drafts, setDrafts] = useState<Record<string, View>>({});
 	const [error, setError] = useState<string | null>(null);
@@ -569,7 +600,20 @@ export function Dashboard() {
 		setEditing(true);
 	}
 
-	const ctx: Ctx = { editing, devices, dragging, setDragging, drop, setDrop, apply, view, configure: setConfiguring };
+	/** The end of the list: main widgets below everything, compact ones at the end of the strip. */
+	const atTheEnd: Place = (v, w) => ((widgetDef(w.type)?.size ?? 'main') === 'main' ? addMain(v, w) : addToStrip(v, w));
+
+	function dropped(place: Place) {
+		const w = dragging;
+		setDragging(null);
+		setDrop(null);
+		if (!w) return;
+		if (!w.device && widgetDef(w.type)?.generic) return setChosen({ type: w.type, device: Object.keys(devices).sort()[0] ?? '', place }); // ask for the device first
+		apply((v) => place(v, w));
+		setChosen(null);
+	}
+
+	const ctx: Ctx = { editing, devices, dragging, setDragging, drop, setDrop, apply, dropped, view, configure: setConfiguring };
 	const empty = !view.root && view.strip.length === 0;
 	return (
 		<DashboardContext.Provider value={ctx}>
@@ -600,6 +644,7 @@ export function Dashboard() {
 								if (noViews) return createFirstView();
 								setEditing(!editing);
 								setPicking(false);
+								setChosen(null);
 							}}
 						>
 							{noViews ? 'Edit layout' : editing ? 'Done' : 'Edit'}
@@ -653,7 +698,18 @@ export function Dashboard() {
 				{creatingWidget && <NewWidgetDialog onClose={() => setCreatingWidget(false)} />}
 				<div className="flex min-h-0 flex-1">
 					<div className="flex min-w-0 flex-1 flex-col">
-				<div className={`min-h-0 flex-1 ${noViews ? 'overflow-auto' : 'overflow-hidden'}`}>
+				<div
+							{...(editing && dragging && !view.root && !noViews
+								? {
+										'data-testid': 'drop-empty',
+										onDragOver: (e: React.DragEvent) => e.preventDefault(),
+										onDrop: (e: React.DragEvent) => {
+											e.preventDefault();
+											dropped((v, w) => placeInMain(v, w));
+										},
+									}
+								: {})}
+							className={`min-h-0 flex-1 ${editing && dragging && !view.root && !noViews ? 'rounded-lg outline-2 -outline-offset-8 outline-dashed outline-accent' : ''} ${noViews ? 'overflow-auto' : 'overflow-hidden'}`}>
 					{noViews && connection === 'connected' && Object.keys(devices).length > 0 ? (
 						<AutoGrid devices={devices} />
 					) : view.root ? (
@@ -669,7 +725,7 @@ export function Dashboard() {
 										page, or start the server with <code className="font-mono">--workspace &lt;folder&gt;</code> to use another workspace.
 									</>
 								) : empty ? (
-									editing ? 'This view is empty. Add a widget.' : 'This view is empty. Press Edit to add widgets.'
+									editing ? 'This view is empty. Add a widget, or drag one here.' : 'This view is empty. Press Edit to add widgets.'
 								) : null}
 							</p>
 						)
@@ -679,11 +735,13 @@ export function Dashboard() {
 					</div>
 					{editing && picking && (
 						<Picker
-							onPick={(instance) => {
-								const size = widgetDef(instance.type)?.size ?? 'main';
-								apply((v) => (size === 'main' ? addMain(v, instance) : addToStrip(v, instance)));
+							chosen={chosen}
+							setChosen={setChosen}
+							onPick={(instance) => apply((v) => (chosen?.place ?? atTheEnd)(v, instance))}
+							onClose={() => {
+								setPicking(false);
+								setChosen(null);
 							}}
-							onClose={() => setPicking(false)}
 							onNewWidget={() => setCreatingWidget(true)}
 						/>
 					)}

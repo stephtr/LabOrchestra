@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { addMain, addToStrip, defaultView, emptyView, mains, moveToMain, moveToStrip, parseView, removeWidget, setSizes, swapMains, widget } from './layout.ts';
+import { addMain, addToStrip, defaultView, emptyView, mains, parseView, placeInMain, placeInStrip, removeWidget, setSizes, swapMains, widget } from './layout.ts';
 
 const ids = (v: ReturnType<typeof emptyView>) => mains(v.root).map((m) => m.widget.id);
 
@@ -48,10 +48,10 @@ test('moving between strip and panes', () => {
 	const a = widget('x');
 	const s = widget('summary', 'd');
 	let view = addToStrip(addMain(emptyView(), a), s);
-	view = moveToMain(view, s.id, { id: a.id, side: 'top' });
+	view = placeInMain(view, s, { id: a.id, side: 'top' });
 	assert.deepEqual(ids(view), [s.id, a.id]);
 	assert.equal(view.strip.length, 0);
-	view = moveToStrip(view, a.id, 0);
+	view = placeInStrip(view, a, 0);
 	assert.deepEqual(view.strip.map((w) => w.id), [a.id]);
 	assert.deepEqual(ids(view), [s.id]);
 });
@@ -60,8 +60,8 @@ test('reordering inside the strip', () => {
 	const [a, b, c] = [widget('s'), widget('s'), widget('s')] as const;
 	let view = emptyView();
 	for (const w of [a, b, c]) view = addToStrip(view, w);
-	assert.deepEqual(moveToStrip(view, a.id, 3).strip.map((w) => w.id), [b.id, c.id, a.id]);
-	assert.deepEqual(moveToStrip(view, c.id, 0).strip.map((w) => w.id), [c.id, a.id, b.id]);
+	assert.deepEqual(placeInStrip(view, a, 3).strip.map((w) => w.id), [b.id, c.id, a.id]);
+	assert.deepEqual(placeInStrip(view, c, 0).strip.map((w) => w.id), [c.id, a.id, b.id]);
 });
 
 test('swap and sizes; the argument is never changed', () => {
@@ -99,4 +99,14 @@ test('the default view shows oscilloscopes as panes and other devices in the str
 	const view = defaultView({ scope: { schema: { widget: 'oscilloscope' } }, pressure: { schema: {} }, other: { schema: null } });
 	assert.deepEqual(mains(view.root).map((m) => m.widget.device), ['scope']);
 	assert.deepEqual(view.strip.map((w) => w.device), ['other', 'pressure']);
+});
+
+test('a widget that is not in the view yet is added where it is dropped', () => {
+	const a = widget('x');
+	const n = widget('x');
+	assert.deepEqual(ids(placeInMain(addMain(emptyView(), a), n, { id: a.id, side: 'left' })), [n.id, a.id]);
+	assert.deepEqual(ids(placeInMain(emptyView(), n)), [n.id]); // an empty view
+	const strip = addToStrip(addToStrip(emptyView(), widget('s')), widget('s'));
+	assert.equal(placeInStrip(strip, n, 1).strip[1]!.id, n.id);
+	assert.equal(placeInStrip(strip, n, 1).strip.length, 3);
 });

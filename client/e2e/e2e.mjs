@@ -693,6 +693,29 @@ export default function BigPressure({ device, props }: { device: string; props: 
 	assert.match(await text('status_tile'), /ready/); // the template shows the status of the device
 	ok('new widget from a template appears in the picker and works');
 
+	// drag out of the picker: a preview into the strip, a large widget to the side of a pane, a widget for any device (asks for it, keeps the place)
+	await openPicker();
+	const undragged = readView();
+	await page.getByTestId('add-pressure-pressure-1').dragTo(page.getByTestId('strip-' + undragged.strip[0].id), { targetPosition: { x: 4, y: 20 } });
+	view = await waitView((v) => v.strip.length === undragged.strip.length + 1, 'the dragged preview');
+	assert.deepEqual([view.strip[0].type, view.strip[0].props], ['pressure', { channel: 1 }]);
+	const panes = page.locator('[data-testid^="pane-"]');
+	const paneCount = await panes.count();
+	const paneBox = await panes.first().boundingBox();
+	await page.getByTestId('add-oscilloscope-scope').dragTo(panes.first(), { targetPosition: { x: 10, y: paneBox.height / 2 } });
+	await page.waitForFunction((n) => document.querySelectorAll('[data-testid^="pane-"]').length === n + 1, paneCount);
+	await page.getByTestId('add-summary').dragTo(page.getByTestId('strip-' + view.strip[0].id), { targetPosition: { x: 4, y: 20 } });
+	await page.getByTestId('pick-device').selectOption('rf');
+	await page.getByTestId('pick-add').click();
+	view = await waitView((v) => v.strip[0].type === 'summary', 'the summary where it was dropped');
+	assert.equal(view.strip[0].device, 'rf');
+	await page.getByTestId('add-value').click();
+	await page.getByTestId('drag-preview').dragTo(page.getByTestId('strip-' + view.strip[0].id), { targetPosition: { x: 4, y: 20 } });
+	await waitView((v) => v.strip[0].type === 'value' && v.strip[0].device, 'the configured widget');
+	await page.locator('[data-testid^="pane-"]').first().getByLabel('Remove widget').click(); // the second oscilloscope again
+	await page.getByLabel('Close panel').click();
+	ok('drag and drop out of the picker: into the strip, next to a pane, with a device to choose, and the configured preview');
+
 	// several views: duplicate, rename, reorder
 	await page.getByTestId('view-duplicate').click();
 	await page.getByTestId('view-tab-dashboard_copy').waitFor();
@@ -713,8 +736,19 @@ export default function BigPressure({ device, props }: { device: string; props: 
 	page.once('dialog', (d) => d.accept());
 	await page.getByTestId('view-delete').click();
 	await page.getByTestId('view-tab-dashboard_copy').waitFor({ state: 'detached' });
+	await page.getByTestId('new-view').click();
+	await page.getByTestId('name-input').fill('Empty one');
+	await page.getByTestId('name-save').click();
+	await page.getByTestId('view-tab-empty_one').waitFor();
+	await openPicker();
+	await page.getByTestId('add-oscilloscope-scope').dragTo(page.getByTestId('no-devices'));
+	await page.locator('[data-testid^="pane-"]').waitFor();
+	page.once('dialog', (d) => d.accept());
+	await page.getByTestId('view-delete').click();
+	await page.getByTestId('view-tab-empty_one').waitFor({ state: 'detached' });
+	await page.getByLabel('Close panel').click();
 	await page.getByTestId('view-tab-dashboard').click();
-	ok('views: duplicate, rename, reorder, delete');
+	ok('views: duplicate, rename, reorder, delete; an empty view takes a dragged widget');
 	await page.getByTestId('edit-toggle').click(); // Done
 
 	// a hand edit of the file reaches the open page; a missing device gives a placeholder

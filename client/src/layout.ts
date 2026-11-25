@@ -116,21 +116,16 @@ export function removeWidget(view: View, id: string): View {
 	return { ...view, root: normalize(root), strip: view.strip.filter((w) => w.id !== id) };
 }
 
-/** Moves a widget (from the strip or from a pane) next to a main widget, which makes it a main widget. */
-export function moveToMain(view: View, id: string, target: { id: string; side: Side }): View {
-	if (id === target.id) return view;
-	const w = findWidget(view, id);
-	if (!w) return view;
-	return addMain(removeWidget(view, id), w, target);
+/** Puts a widget next to a main widget (without a target: below everything), which makes it a main widget. One that is in the view already is moved. */
+export function placeInMain(view: View, w: WidgetInstance, target?: { id: string; side: Side }): View {
+	if (w.id === target?.id) return view;
+	return addMain(removeWidget(view, w.id), w, target);
 }
 
-/** Moves a widget into the strip at an index (it becomes a compact widget). */
-export function moveToStrip(view: View, id: string, index: number): View {
-	const w = findWidget(view, id);
-	if (!w) return view;
-	const before = view.strip.findIndex((s) => s.id === id);
-	const without = removeWidget(view, id);
-	return addToStrip(without, w, before >= 0 && before < index ? index - 1 : index);
+/** Puts a widget into the strip at an index (it becomes a compact widget). One that is in the view already is moved. */
+export function placeInStrip(view: View, w: WidgetInstance, index: number): View {
+	const before = view.strip.findIndex((s) => s.id === w.id);
+	return addToStrip(removeWidget(view, w.id), w, before >= 0 && before < index ? index - 1 : index);
 }
 
 /** Swaps two main widgets. */
