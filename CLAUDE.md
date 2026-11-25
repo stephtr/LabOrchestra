@@ -212,6 +212,11 @@ Layered, so a Python-only device author gets a UI without touching JavaScript:
 - Safety: ranges enforced by the server for every caller; actions can be marked `requires_confirmation`; MCP modes off / read-only / control, set in the UI; audit log by caller; abort in the UI.
 - **Scripts bypass action-level checks unless limits are enforced server-side, and running them is code execution on the lab PC.** No approval step in LabOrchestra: connecting the MCP server in Claude already takes a deliberate user action. `/mcp` must always require a token, including locally (today local connections bypass auth).
 
+- **Document later (note from the author): two ways to connect an operator's notebook (laptop) to the MCP server.** The operator's AI client (Claude Desktop, Claude Code, ...) is usually *not* on the lab PC, so the docs must say how it reaches LabOrchestra, with the exact steps for each:
+  1. **Directly to the server's `/mcp`** (Streamable HTTP) over the lab network: the client is given the URL and a token (revocable, created in the UI; `.mcp.json` snippet with the token from an environment variable). Needs the server reachable from the notebook, TLS when it is not the same machine, and the existing rule that `/mcp` is never exposed to the internet and always requires a token.
+  2. **A local MCP server on the operator's notebook** (the stdio bridge, e.g. `laborchestra mcp --url https://<lab-pc>:5095 --token ...`, or via `uvx --from laborchestra ...`), which the AI client starts itself, and which talks to the LabOrchestra server as a normal client with the same protocol as scripts. Better where the AI client only supports local stdio servers (Claude Desktop), where the token should stay on the notebook, or where one wants the bridge to add things that belong to the notebook (e.g. saving plots or files locally).
+  Both must give the same tools, schemas and safety rules (the server enforces them), and the UI should show the ready-to-copy configuration for each (URL, token, command), like it does for remote workers.
+
 ### Authentication
 - **No localhost bypass** (cross-site WebSockets, local reverse proxies). Check `Origin`. Local convenience: one-time login link opened at startup (Jupyter style); token file readable only by the OS account for local scripts.
 - Tokens: managed workers/procedures get a random in-memory token per spawn via environment variable; remote workers and MCP get revocable tokens created in the UI (stored hashed); browsers/scripts use the passphrase. Remote workers should use TLS.
@@ -304,7 +309,7 @@ Layered, so a Python-only device author gets a UI without touching JavaScript:
 - [x] Naming rule (snake_case checked at registration, C# converted) and unit metadata (Python profiles; units for C# devices with the C# profiles)
 - [x] Profiles with schema export from code (Python classes; C# drivers name them with `[Profile]`, units with `[Unit]`)
 - [ ] Procedures, recording service, event triggers; port the detuning scan
-- [ ] MCP server
+- [ ] MCP server (incl. docs for the operator's notebook: direct `/mcp` or a local stdio bridge, see there)
 - [ ] Updates, rollback, compatibility policy
 - [ ] Authentication: tokens, roles, no localhost bypass
 - [ ] Packaging, workspace folder, file watching, esbuild widgets

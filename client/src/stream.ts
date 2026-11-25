@@ -1,4 +1,4 @@
-import { HubConnection, HubConnectionBuilder } from '@microsoft/signalr';
+import { HubConnection, HubConnectionBuilder, HubConnectionState } from '@microsoft/signalr';
 import { MessagePackHubProtocol } from '@microsoft/signalr-protocol-msgpack';
 import { getToken, PROTOCOL } from './store';
 
@@ -14,6 +14,11 @@ type Handle = {
 	onFrame: (frame: StreamFrame) => void;
 	closed: boolean;
 };
+
+/** A notification to the server that is simply dropped while the connection is down (the server knows nothing of us then anyway). */
+function tell(hub: HubConnection, method: string, ...args: unknown[]) {
+	if (hub.state === HubConnectionState.Connected) hub.send(method, ...args).catch(() => undefined);
+}
 
 const handles = new Set<Handle>();
 let connection: Promise<HubConnection> | null = null;
@@ -33,7 +38,7 @@ function connect(): Promise<HubConnection> {
 			const copy = data.slice();
 			handle.latest = { sequence, meta, data: new Float32Array(copy.buffer, 0, Math.floor(copy.byteLength / 4)) };
 			// at once: this is how the server learns the round trip time (drawing may take longer)
-			void hub.send('received', id, sequence);
+			tell(hub, 'received', id, sequence);
 			schedule(handle, hub);
 		});
 		// the server forgets our subscriptions when the connection is lost: subscribe again
@@ -60,7 +65,7 @@ function schedule(handle: Handle, hub: HubConnection) {
 		handle.latest = null;
 		if (!frame || handle.closed) return;
 		handle.onFrame(frame);
-		if (handle.id) void hub.send('ack', handle.id, frame.sequence); // a hidden tab never gets here: no frames are sent to it
+		if (handle.id) tell(hub, 'ack', handle.id, frame.sequence); // a hidden tab never gets here: no frames are sent to it
 	});
 }
 
@@ -79,7 +84,7 @@ export function subscribeStream(device: string, stream: string, params: Record<s
 	return {
 		update(next) {
 			handle.params = next;
-			if (handle.id) void connect().then((hub) => hub.invoke('update', handle.id, next));
+			if (handle.id) void connect().then((hub) => hub.invoke('update', handle.id, next)).catch(() => undefined); // after a reconnect it subscribes again with the new parameters
 		},
 		close() {
 			handle.closed = true;

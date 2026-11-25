@@ -95,7 +95,11 @@ try {
 	browser = await chromium.launch(process.env.CI ? { channel: 'chrome' } : {});
 	const page = await browser.newPage();
 	page.setDefaultTimeout(15000);
-	page.on('pageerror', (e) => console.log('  pageerror', e.message));
+	const pageErrors = [];
+	page.on('pageerror', (e) => {
+		pageErrors.push(e.message);
+		console.log('  pageerror', e.message);
+	});
 	const text = (testId) => page.getByTestId(testId).textContent();
 	const waitText = (testId, expected) =>
 		page.waitForFunction(
@@ -823,6 +827,15 @@ export default function BigPressure({ device, props }: { device: string; props: 
 	ok('a changed view file reaches the page; a missing device shows a placeholder');
 
 	if (process.env.E2E_SCREENSHOT) await page.screenshot({ path: process.env.E2E_SCREENSHOT });
+	// a page that asks for things while the connection is still being made waits instead of showing a transport error
+	await page.getByTestId('nav-devices').click();
+	await page.reload();
+	await page.getByTestId('row-pressure').waitFor();
+	await page.waitForTimeout(500);
+	assert.equal(await page.getByRole('alert').count(), 0, 'no error is shown on the Devices page after a reload');
+	await page.getByTestId('nav-dashboard').click();
+	ok('a reload of the Devices page shows no error');
+
 	// procedures: a form from the signature, progress, pause, abort with cleanup, history
 	fs.mkdirSync(path.join(dir, 'workspace/procedures'), { recursive: true });
 	fs.writeFileSync(
@@ -915,6 +928,7 @@ async def measure(lab, steps: int = 3, pause_s: float = 0.4, levels: list[float]
 	assert.equal(await page.getByTestId('add-widget').count(), 0);
 	ok('editing ends by itself after a while without activity');
 
+	assert.deepEqual(pageErrors.filter((m) => /Cannot send data|not in the 'Connected'/.test(m)), [], 'no page error about sending while disconnected');
 	failed = false;
 	console.log('OK');
 } catch (e) {

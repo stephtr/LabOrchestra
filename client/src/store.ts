@@ -102,6 +102,31 @@ let attempt = 0;
 function set(change: Partial<Store>) {
 	store = { ...store, ...change };
 	listeners.forEach((listener) => listener());
+	for (const waiter of [...connectionWaiters]) waiter();
+}
+
+/** Those who wait for the connection to be up (see whenConnected). */
+const connectionWaiters = new Set<() => void>();
+const isUp = () => hub !== null && hub.state === HubConnectionState.Connected && store.connection === 'connected';
+
+/** Resolves with the connection as soon as it is up and the first sync is done. A page that asks for something right after it was loaded, or
+ *  while the server restarts, waits for that instead of failing with "Cannot send data if the connection is not in the 'Connected' State". */
+function whenConnected(timeoutMs = 15_000): Promise<HubConnection> {
+	if (isUp()) return Promise.resolve(hub!);
+	if (store.connection === 'login') return Promise.reject(new RemoteError('Not signed in'));
+	return new Promise((resolve, reject) => {
+		const timer = setTimeout(() => {
+			connectionWaiters.delete(check);
+			reject(new RemoteError('There is no connection to the server (still trying)'));
+		}, timeoutMs);
+		const check = () => {
+			if (!isUp()) return;
+			clearTimeout(timer);
+			connectionWaiters.delete(check);
+			resolve(hub!);
+		};
+		connectionWaiters.add(check);
+	});
 }
 
 export function useStore(): Store {
@@ -276,12 +301,16 @@ async function loadLogs(connection: HubConnection, source: string) {
 /** Follow the log of "server" or "device:<id>" (live, with the latest entries first loaded). */
 export async function subscribeLogs(source: string) {
 	subscribedLogs.add(source);
-	if (hub && store.connection === 'connected') await loadLogs(hub, source);
+	try {
+		if (isUp()) await loadLogs(hub!, source);
+	} catch {
+		/* the connection dropped just now: it is subscribed again after the reconnect (sync) */
+	}
 }
 
 export function unsubscribeLogs(source: string) {
 	subscribedLogs.delete(source);
-	if (hub && store.connection === 'connected') void hub.invoke('unsubscribe_logs', source);
+	if (isUp()) hub!.invoke('unsubscribe_logs', source).catch(() => undefined);
 }
 
 export class RemoteError extends Error {
@@ -310,9 +339,9 @@ function toRemoteError(e: unknown): Error {
 
 /** Calls a method of the server; errors become RemoteError with the type and message of the cause. */
 export async function invokeHub<T = unknown>(method: string, ...args: unknown[]): Promise<T> {
-	if (!hub) throw new RemoteError('Not connected');
+	const connection = await whenConnected();
 	try {
-		return await hub.invoke<T>(method, ...args);
+		return await connection.invoke<T>(method, ...args);
 	} catch (e) {
 		throw toRemoteError(e);
 	}
