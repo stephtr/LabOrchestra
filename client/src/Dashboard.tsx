@@ -380,7 +380,7 @@ function Dock({ paneWidgetId }: { paneWidgetId: string }) {
 					data-testid={`dock-item-${w.id}`}
 					data-dropzone
 					style={{ height: COMPACT_HEIGHT.S }}
-					className={`group relative w-full flex-none ${ctx.editing ? 'cursor-grab active:cursor-grabbing' : ''} ${dropAt === i ? 'before:absolute before:inset-x-0 before:-top-1 before:h-0.5 before:rounded before:bg-accent' : ''} ${dropAt === widgets.length && i === widgets.length - 1 ? 'after:absolute after:inset-x-0 after:-bottom-1 after:h-0.5 after:rounded after:bg-accent' : ''}`}
+					className={`group relative w-full flex-none ${ctx.editing ? 'cursor-grab active:cursor-grabbing' : ''} ${dropAt === i ? 'before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:rounded before:bg-accent' : ''} ${dropAt === widgets.length && i === widgets.length - 1 ? 'after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:rounded after:bg-accent' : ''}`}
 					{...dragProps(() => w, ctx)}
 					{...(ctx.editing ? accept(i) : {})}
 				>
@@ -488,7 +488,7 @@ function AreaView({ node, onMeasure }: { node: Extract<Node, { kind: 'area' }>; 
 							data-width={width}
 							data-dropzone
 							style={{ height, ...(width ? stretch(width) : {}) }}
-							className={`group relative min-w-28 ${width ? '' : 'flex-none'} ${ctx.editing ? 'cursor-grab active:cursor-grabbing' : ''} ${dropAt === i ? 'before:absolute before:inset-y-0 before:-left-1 before:w-0.5 before:rounded before:bg-accent' : ''} ${dropAt === widgets.length && i === widgets.length - 1 ? 'after:absolute after:inset-y-0 after:-right-1 after:w-0.5 after:rounded after:bg-accent' : ''}`}
+							className={`group relative min-w-28 ${width ? '' : 'flex-none'} ${ctx.editing ? 'cursor-grab active:cursor-grabbing' : ''} ${dropAt === i ? 'before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:rounded before:bg-accent' : ''} ${dropAt === widgets.length && i === widgets.length - 1 ? 'after:absolute after:inset-y-0 after:right-0 after:w-0.5 after:rounded after:bg-accent' : ''}`}
 							{...dragProps(() => w, ctx)}
 							{...(ctx.editing ? acceptDrop(i) : {})}
 						>
