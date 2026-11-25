@@ -1,14 +1,15 @@
 {
+	"version": 1,
 	"devices": {
 		"acq": {
-			"driver": "simulated_oscilloscope",
-			"description": "Simulated oscilloscope (tones and noise). With a real PicoScope: \"driver\": \"picoscope_5000a\"."
+			"description": "Simulated oscilloscope (tones and noise). With a real PicoScope: \u0022driver\u0022: \u0022picoscope_5000a\u0022.",
+			"driver": "simulated_oscilloscope"
 		},
 		"acq2": {
-			"driver": "simulated_oscilloscope",
 			"config": {
 				"active_channels": 3
-			}
+			},
+			"driver": "simulated_oscilloscope"
 		},
 		"waveplates": {
 			"file": "devices/elliptec.py",
@@ -48,6 +49,9 @@
 					}
 				]
 			}
+		},
+		"test_device": {
+			"remote": true
 		}
 	}
 }

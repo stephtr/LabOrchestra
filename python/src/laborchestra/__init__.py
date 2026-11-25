@@ -3,6 +3,7 @@
 from .device import Device, action
 from .errors import AuthError, ConnectionLost, LabOrchestraError, RemoteError, SchemaError
 from .lab import AsyncLab, Lab, connect, connect_async
+from .procedures import procedure
 from .recording import Recording, load_recording
 from .stream import Frame
 
@@ -11,6 +12,7 @@ from ._hub import PROTOCOL  # noqa: E402
 __all__ = [
     "Device",
     "action",
+    "procedure",
     "connect",
     "connect_async",
     "Lab",

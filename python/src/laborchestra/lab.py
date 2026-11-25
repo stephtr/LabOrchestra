@@ -253,6 +253,45 @@ class AsyncLab:
     async def restart_device(self, device_id: str) -> None:
         await self._hub.invoke("restart_device", device_id)
 
+    # --- procedures ------------------------------------------------------------------------------------------------
+    async def list_procedures(self) -> list[dict]:
+        """The procedures of the workspace: name, title, doc, devices, params (name, type, default, required). A file that cannot be loaded has an ``error``."""
+        return await self._hub.invoke("list_procedures", timeout=180)
+
+    async def start_procedure(self, procedure: str, /, **params: Any) -> dict:
+        """Starts a procedure with these parameters and returns the run (see :meth:`wait_for_run`). Raises RemoteError (ReservationError) when a device it
+        declares is reserved by another run."""
+        return await self._hub.invoke("start_procedure", procedure, params, timeout=180)
+
+    async def get_run(self, run_id: str) -> dict:
+        """A run: status (preparing, starting, running, paused, aborting, finished, failed, aborted, crashed), progress, message, result, error, ..."""
+        return await self._hub.invoke("get_run", run_id)
+
+    async def list_runs(self, limit: int = 50) -> list[dict]:
+        return await self._hub.invoke("list_runs", limit)
+
+    async def abort_run(self, run_id: str, force: bool = False) -> None:
+        """Asks the procedure to stop (its finally blocks run). ``force=True`` kills its process at once."""
+        await self._hub.invoke("abort_run", run_id, force)
+
+    async def pause_run(self, run_id: str) -> None:
+        """Pauses at the procedure's next sleep, checkpoint or device call."""
+        await self._hub.invoke("pause_run", run_id, True)
+
+    async def resume_run(self, run_id: str) -> None:
+        await self._hub.invoke("pause_run", run_id, False)
+
+    async def wait_for_run(self, run_id: str, timeout: float = 3600) -> dict:
+        """Waits until the run is over and returns it. Raises TimeoutError."""
+        end = asyncio.get_running_loop().time() + timeout
+        while True:
+            run = await self.get_run(run_id)
+            if run["ended"] is not None:
+                return run
+            if asyncio.get_running_loop().time() > end:
+                raise TimeoutError(f"The run {run_id} is still going after {timeout} s")
+            await asyncio.sleep(0.2)
+
     async def list_device_files(self) -> list[dict]:
         """Python files of the workspace with the ids of the devices that use them: {"file", "devices"}."""
         return await self._hub.invoke("list_device_files")
@@ -502,6 +541,30 @@ class Lab:
 
     def restart_device(self, device_id: str) -> None:
         self._run(self._async.restart_device(device_id))
+
+    def list_procedures(self) -> list[dict]:
+        return self._run(self._async.list_procedures())
+
+    def start_procedure(self, procedure: str, /, **params: Any) -> dict:
+        return self._run(self._async.start_procedure(procedure, **params))
+
+    def get_run(self, run_id: str) -> dict:
+        return self._run(self._async.get_run(run_id))
+
+    def list_runs(self, limit: int = 50) -> list[dict]:
+        return self._run(self._async.list_runs(limit))
+
+    def abort_run(self, run_id: str, force: bool = False) -> None:
+        self._run(self._async.abort_run(run_id, force))
+
+    def pause_run(self, run_id: str) -> None:
+        self._run(self._async.pause_run(run_id))
+
+    def resume_run(self, run_id: str) -> None:
+        self._run(self._async.resume_run(run_id))
+
+    def wait_for_run(self, run_id: str, timeout: float = 3600) -> dict:
+        return self._run(self._async.wait_for_run(run_id, timeout), timeout + 5)
 
     def list_device_files(self) -> list[dict]:
         return self._run(self._async.list_device_files())

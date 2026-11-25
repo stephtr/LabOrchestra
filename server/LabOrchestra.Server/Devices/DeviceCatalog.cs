@@ -57,10 +57,14 @@ public sealed partial class DeviceCatalog(Workspace workspace, EnvironmentManage
 
 	/// <summary>Runs the worker module of an environment for one question and returns the JSON after the marker line it prints (the device may
 	/// print on its own while it loads, so the answer is marked). A failure says what the worker wrote.</summary>
-	private async Task<string> RunWorkerAsync(string python, string[] arguments, string marker, string what, CancellationToken cancel)
+	private Task<string> RunWorkerAsync(string python, string[] arguments, string marker, string what, CancellationToken cancel) =>
+		RunModuleAsync(python, "laborchestra.worker", arguments, marker, what, cancel);
+
+	/// <summary>Like <see cref="RunWorkerAsync"/> for any module of the laborchestra package (the procedure runner, too).</summary>
+	internal async Task<string> RunModuleAsync(string python, string module, string[] arguments, string marker, string what, CancellationToken cancel)
 	{
 		var info = new ProcessStartInfo(python) { WorkingDirectory = workspace.Path, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
-		foreach (var a in new[] { "-u", "-m", "laborchestra.worker" }.Concat(arguments)) info.ArgumentList.Add(a);
+		foreach (var a in new[] { "-u", "-m", module }.Concat(arguments)) info.ArgumentList.Add(a);
 		using var process = Process.Start(info)!;
 		var output = process.StandardOutput.ReadToEndAsync(cancel);
 		var errors = process.StandardError.ReadToEndAsync(cancel);

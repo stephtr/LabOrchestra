@@ -62,6 +62,11 @@ builder.Services.AddSingleton<WorkerSupervisor>();
 builder.Services.AddSingleton<DeviceCatalog>();
 builder.Services.AddSingleton<LabOrchestra.Server.Devices.Scaffolder>();
 builder.Services.AddSingleton<LabOrchestra.Server.Devices.FileOpener>();
+builder.Services.AddSingleton(sp => new LabOrchestra.Server.Procedures.ProcedureService(
+	sp.GetRequiredService<Workspace>(), sp.GetRequiredService<EnvironmentManager>(), sp.GetRequiredService<LabOrchestra.Server.Devices.DeviceCatalog>(), sp.GetRequiredService<TokenService>(),
+	sp.GetRequiredService<RecordingService>(), sp.GetRequiredService<DeviceRegistry>(), sp.GetRequiredService<LogStore>(), sp.GetRequiredService<WorkerGuard>(), sp.GetRequiredService<ServerInfo>(),
+	config, sp.GetRequiredService<IHubContext<ControlHub>>(), dataDir, sp.GetRequiredService<ILogger<LabOrchestra.Server.Procedures.ProcedureService>>()));
+builder.Services.AddHostedService(sp => sp.GetRequiredService<LabOrchestra.Server.Procedures.ProcedureService>());
 builder.Services.AddSingleton(new LabOrchestra.Server.Widgets.ClientDirectory(clientDir is null ? null : Path.GetFullPath(clientDir)));
 builder.Services.AddSingleton<LabOrchestra.Server.Widgets.WidgetService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<LabOrchestra.Server.Widgets.WidgetService>());

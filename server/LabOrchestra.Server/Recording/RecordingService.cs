@@ -109,11 +109,23 @@ public sealed partial class RecordingService(string directory, DeviceRegistry re
 		return Status();
 	}
 
+	/// <summary>Who may describe a recording's run in its header (the procedure, its source and parameters): set by the procedure service.</summary>
+	public Func<string, Dictionary<string, object?>?>? RunInfo { get; set; }
+
+	/// <summary>Stops the recording if <paramref name="by"/> started it (a procedure that ended or died must not leave one open); the header says why.</summary>
+	public bool StopOwnedBy(string by, string reason)
+	{
+		lock (_gate)
+			if (_active is null || _active.By != by) return false;
+		try { Finish(discard: false, reason); return true; }
+		catch (InvalidOperationException) { return false; } // stopped by someone else in the meantime
+	}
+
 	public Dictionary<string, object?> Stop() => Finish(discard: false);
 
 	public Dictionary<string, object?> Abort(bool discard) => Finish(discard);
 
-	private Dictionary<string, object?> Finish(bool discard)
+	private Dictionary<string, object?> Finish(bool discard, string? endReason = null)
 	{
 		Active active;
 		lock (_gate)
@@ -139,8 +151,8 @@ public sealed partial class RecordingService(string directory, DeviceRegistry re
 		}
 		else
 		{
-			WriteHeader(active, DateTimeOffset.UtcNow);
-			log.LogInformation("Recording '{Name}' finished ({Count} events)", active.Name, active.Count);
+			WriteHeader(active, DateTimeOffset.UtcNow, endReason);
+			log.LogInformation("Recording '{Name}' finished ({Count} events){Reason}", active.Name, active.Count, endReason is null ? "" : ": " + endReason);
 		}
 		Notify();
 		return new() { ["name"] = active.Name, ["events"] = active.Count, ["discarded"] = discard };
@@ -252,7 +264,7 @@ public sealed partial class RecordingService(string directory, DeviceRegistry re
 		}
 	}
 
-	private void WriteHeader(Active active, DateTimeOffset? end)
+	private void WriteHeader(Active active, DateTimeOffset? end, string? endReason = null)
 	{
 		var header = new Dictionary<string, object?>
 		{
@@ -267,8 +279,10 @@ public sealed partial class RecordingService(string directory, DeviceRegistry re
 			["devices"] = Describe(active.Initial),
 			["events"] = new Dictionary<string, object?> { ["file"] = $"{active.Name}/events.json" },
 		};
+		if (RunInfo?.Invoke(active.By) is { } run) header["run"] = run;
 		if (end is { } e)
 		{
+			if (endReason is not null) { header["interrupted"] = true; header["end_reason"] = endReason; }
 			header["end_time"] = Iso(e);
 			header["duration_s"] = Math.Round((e - active.Start).TotalSeconds, 3);
 			header["events"] = new Dictionary<string, object?> { ["file"] = $"{active.Name}/events.json", ["count"] = active.Count };

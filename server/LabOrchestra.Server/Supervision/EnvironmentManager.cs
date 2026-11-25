@@ -133,6 +133,9 @@ public sealed partial class EnvironmentManager(IConfiguration config, string dat
 		: File.Exists(dependency) ? $"{Path.GetFileName(dependency)}:{Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(dependency)))}"
 		: dependency;
 
+	/// <summary>A run (or whatever else asked for an environment under an id) is over: the environment is not in use for it any more.</summary>
+	public void Release(string id) => _inUse.TryRemove(id, out _);
+
 	private void Touch(string deviceId, string key, string directory)
 	{
 		_inUse[deviceId] = key;

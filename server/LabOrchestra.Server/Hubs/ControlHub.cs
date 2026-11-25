@@ -39,7 +39,7 @@ public static class Errors
 }
 
 /// <summary>Connection of browsers, scripts and devices that talk to other devices.</summary>
-[Authorize(Roles = $"{Roles.Client},{Roles.Device}")]
+[Authorize(Roles = $"{Roles.Client},{Roles.Device},{Roles.Run}")]
 public sealed class ControlHub(
 	DeviceRegistry registry,
 	LogStore logs,
@@ -55,6 +55,7 @@ public sealed class ControlHub(
 	Devices.Scaffolder scaffolder,
 	Widgets.WidgetService widgets,
 	Devices.FileOpener opener,
+	Procedures.ProcedureService procedures,
 	TokenStore tokenStore,
 	Supervision.EnvironmentManager environments,
 	IHubContext<DeviceHub> devices) : Hub
@@ -68,7 +69,10 @@ public sealed class ControlHub(
 	}
 
 	/// <summary>Who is calling: "ui", "script", ... for clients, "device:name" for devices.</summary>
-	private string Caller() => Context.User?.FindFirst("device_id")?.Value is { } id ? $"device:{id}" : (string)Context.Items["client"]!;
+	private string Caller() =>
+		Context.User?.FindFirst("device_id")?.Value is { } id ? $"device:{id}"
+		: Context.User?.FindFirst("run_id")?.Value is { } run ? $"run:{run}"
+		: (string)Context.Items["client"]!;
 
 	private static HubException Fail(Exception e) => new(Errors.Json(e is ArgumentException ? "ValueError" : "RecordingError", e.Message));
 
@@ -190,6 +194,68 @@ public sealed class ControlHub(
 		var remote = Context.GetHttpContext()?.Connection.RemoteIpAddress is { } ip && !System.Net.IPAddress.IsLoopback(ip);
 		try { return opener.Open(path, how, isLocal: !remote); }
 		catch (Exception e) when (e is ArgumentException or InvalidOperationException) { throw new HubException(Errors.Json("ValueError", e.Message)); }
+	}
+
+	// --- procedures ------------------------------------------------------------------------------------------------------
+	/// <summary>The procedures of the workspace (procedures/*.py): name, title, doc, devices and parameters; a file that cannot be loaded comes with its error.</summary>
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("list_procedures")]
+	public Task<List<Dictionary<string, object?>>> ListProcedures() => procedures.ListAsync(Context.ConnectionAborted);
+
+	/// <summary>Starts a procedure; returns the run (see get_run). Refused when a device it declares is reserved by another run.</summary>
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("start_procedure")]
+	public async Task<Dictionary<string, object?>> StartProcedure(string name, object? parameters)
+	{
+		try { return await procedures.StartAsync(name, Plain.From(parameters) as Dictionary<string, object?> ?? [], Caller(), Context.ConnectionAborted); }
+		catch (Procedures.ReservationException e) { throw new HubException(Errors.Json("ReservationError", e.Message)); }
+		catch (ArgumentException e) { throw new HubException(Errors.Json("ValueError", e.Message)); }
+	}
+
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("list_runs")]
+	public List<Dictionary<string, object?>> ListRuns(int limit) => procedures.List(Math.Clamp(limit, 1, 1000));
+
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("get_run")]
+	public Dictionary<string, object?> GetRun(string id)
+	{
+		try { return procedures.Get(id); }
+		catch (ArgumentException e) { throw new HubException(Errors.Json("LookupError", e.Message)); }
+	}
+
+	/// <summary>Asks the procedure to stop (its finally blocks run); with <paramref name="force"/> its process is killed at once.</summary>
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("abort_run")]
+	public async Task AbortRun(string id, bool force)
+	{
+		try { await procedures.AbortAsync(id, force); }
+		catch (ArgumentException e) { throw new HubException(Errors.Json("LookupError", e.Message)); }
+	}
+
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("pause_run")]
+	public async Task PauseRun(string id, bool pause)
+	{
+		try { await procedures.PauseAsync(id, pause); }
+		catch (Exception e) when (e is ArgumentException or InvalidOperationException) { throw new HubException(Errors.Json("ValueError", e.Message)); }
+	}
+
+	/// <summary>The procedure's process says it is there (so that commands can reach it). Only a run may, and only for itself.</summary>
+	[Authorize(Roles = Roles.Run)]
+	[HubMethodName("run_attach")]
+	public void RunAttach(string runId)
+	{
+		if (Context.User?.FindFirst("run_id")?.Value != runId) throw new HubException(Errors.Json("PermissionError", "A run may only attach itself"));
+		procedures.Attach(runId, Context.ConnectionId);
+	}
+
+	[Authorize(Roles = Roles.Run)]
+	[HubMethodName("run_report")]
+	public void RunReport(string runId, object? report)
+	{
+		if (Context.User?.FindFirst("run_id")?.Value != runId) throw new HubException(Errors.Json("PermissionError", "A run may only report for itself"));
+		procedures.Report(runId, Plain.From(report) as Dictionary<string, object?> ?? []);
 	}
 
 	/// <summary>The runtime widgets (widgets/ in the workspace): name, version (changes with the code), build error; and the version of the stylesheet.</summary>
@@ -410,6 +476,7 @@ public sealed class ControlHub(
 		if (entry.ConnectionId is null || !DeviceRegistry.IsUp(entry.Status))
 			throw new HubException(Errors.Json("DeviceNotReady", $"Device '{device}' is not ready (status: {entry.Status})"));
 		var caller = Caller();
+		if (caller.StartsWith("run:")) procedures.CheckAccess(caller[4..], device); // a procedure uses the devices it declared
 		bus.Publish(device, "action", caller, new() { ["action"] = name, ["args"] = Plain.From(args) });
 		if (entry.LocalCall is { } local && entry.ConnectionId.StartsWith(Drivers.InProcessDevice.ConnectionPrefix))
 		{

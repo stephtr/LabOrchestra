@@ -9,6 +9,8 @@ public static class Roles
 {
 	public const string Client = "client";
 	public const string Device = "device";
+	/// <summary>A procedure that is running: a token bound to one run, for the lifetime of its process. It may do what a script may (call actions, record), within the devices the procedure declared, and nothing of the management.</summary>
+	public const string Run = "run";
 }
 
 /// <summary>
@@ -19,6 +21,7 @@ public sealed class TokenService
 {
 	private readonly byte[] _passphrase;
 	private readonly ConcurrentDictionary<string, string> _deviceTokens = new();
+	private readonly ConcurrentDictionary<string, string> _runTokens = new();
 
 	private readonly TokenStore _store;
 
@@ -51,6 +54,19 @@ public sealed class TokenService
 		return token;
 	}
 
+	public string IssueRunToken(string runId)
+	{
+		var token = NewSecret();
+		_runTokens[token] = runId;
+		return token;
+	}
+
+	public void RevokeRunToken(string runId)
+	{
+		foreach (var (token, id) in _runTokens)
+			if (id == runId) _runTokens.TryRemove(token, out _);
+	}
+
 	public void RevokeDeviceTokens(string deviceId)
 	{
 		foreach (var (token, id) in _deviceTokens)
@@ -61,6 +77,8 @@ public sealed class TokenService
 	{
 		if (CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(token), _passphrase))
 			return Principal(Roles.Client);
+		if (_runTokens.TryGetValue(token, out var runId))
+			return Principal(Roles.Run, new Claim("run_id", runId));
 		if (_deviceTokens.TryGetValue(token, out var deviceId))
 			return Principal(Roles.Device, new Claim("device_id", deviceId));
 		if (token.StartsWith("lo_") && _store.Find(token) is { Kind: "worker", Device: { } remoteDevice })
