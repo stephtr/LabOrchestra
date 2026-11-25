@@ -23,6 +23,7 @@ import {
 } from './layout';
 import { CustomForm } from './generic';
 import { NewWidgetDialog } from './NewWidgetDialog';
+import { WidgetSettingsDialog } from './WidgetSettingsDialog';
 import { navigate, usePath } from './router';
 import { DeviceInfo, deleteView, saveView, useStore } from './store';
 import { DeviceCard } from './DeviceCard';
@@ -42,6 +43,8 @@ type Ctx = {
 	setDrop: (drop: DropTarget) => void;
 	apply: (change: (view: View) => View) => void;
 	view: View;
+	/** Opens the settings dialog of a widget instance. */
+	configure: (instance: WidgetInstance) => void;
 };
 const DashboardContext = createContext<Ctx>(null as never);
 
@@ -104,14 +107,6 @@ const HIGHLIGHT: Record<Side | 'swap', string> = {
 	swap: 'left-0 top-0 h-full w-full',
 };
 
-/** Asks for a name for one instance ("QWP", "Vorvakuum"); empty takes the name away. */
-function rename(ctx: Ctx, instance: WidgetInstance) {
-	const label = window.prompt('Label of this widget (empty: the default)', typeof instance.props?.label === 'string' ? instance.props.label : '');
-	if (label === null) return;
-	const { label: _old, ...rest } = instance.props ?? {};
-	ctx.apply((v) => setProps(v, instance.id, label.trim() ? { ...rest, label: label.trim() } : rest));
-}
-
 function Pane({ instance }: { instance: WidgetInstance }) {
 	const ctx = useContext(DashboardContext);
 	const over = ctx.drop && 'pane' in ctx.drop && ctx.drop.pane === instance.id ? ctx.drop.side : null;
@@ -123,7 +118,7 @@ function Pane({ instance }: { instance: WidgetInstance }) {
 						⠿ {instance.type}{instance.device ? ` · ${instance.device}` : ''}
 					</span>
 					<span className="flex-1" />
-					<button className="text-zinc-500 hover:text-brand" aria-label="Set label" onClick={() => rename(ctx, instance)}>✎</button>
+					<button data-testid={`settings-${instance.id}`} className="text-zinc-500 hover:text-brand" aria-label="Widget settings" onClick={() => ctx.configure(instance)}>⚙</button>
 					<button className="text-zinc-500 hover:text-red-600" aria-label="Remove widget" onClick={() => ctx.apply((v) => removeWidget(v, instance.id))}>
 						✕
 					</button>
@@ -257,7 +252,7 @@ function Strip({ widgets }: { widgets: WidgetInstance[] }) {
 						<WidgetView instance={w} />
 						{ctx.editing && (
 							<span className="absolute right-1 top-0 flex gap-1 text-xs text-zinc-500">
-								<button className="hover:text-brand" aria-label="Set label" onClick={() => rename(ctx, w)}>✎</button>
+								<button data-testid={`settings-${w.id}`} className="hover:text-brand" aria-label="Widget settings" onClick={() => ctx.configure(w)}>⚙</button>
 								<button className="hover:text-red-600" aria-label="Remove widget" onClick={() => ctx.apply((v) => removeWidget(v, w.id))}>✕</button>
 							</span>
 						)}
@@ -332,6 +327,7 @@ export function Dashboard() {
 	const [editing, setEditing] = useState(false);
 	const [picking, setPicking] = useState(false);
 	const [creatingWidget, setCreatingWidget] = useState(false);
+	const [configuring, setConfiguring] = useState<WidgetInstance | null>(null);
 	const [dragging, setDragging] = useState<string | null>(null);
 	const [drop, setDrop] = useState<DropTarget>(null);
 	const [drafts, setDrafts] = useState<Record<string, View>>({});
@@ -431,7 +427,7 @@ export function Dashboard() {
 		setEditing(true);
 	}
 
-	const ctx: Ctx = { editing, devices, dragging, setDragging, drop, setDrop, apply, view };
+	const ctx: Ctx = { editing, devices, dragging, setDragging, drop, setDrop, apply, view, configure: setConfiguring };
 	const empty = !view.root && view.strip.length === 0;
 	return (
 		<DashboardContext.Provider value={ctx}>
@@ -498,6 +494,16 @@ export function Dashboard() {
 						{noViews ? 'Edit layout' : editing ? 'Done' : 'Edit'}
 					</button>
 				</div>
+				{configuring && (
+					<WidgetSettingsDialog
+						key={configuring.id}
+						instance={configuring}
+						title={widgetDef(configuring.type)?.title ?? configuring.type}
+						specs={widgetDef(configuring.type)?.props ?? []}
+						onSave={(props) => apply((v) => setProps(v, configuring.id, props))}
+						onClose={() => setConfiguring(null)}
+					/>
+				)}
 				{creatingWidget && <NewWidgetDialog onClose={() => setCreatingWidget(false)} />}
 				{editing && picking && (
 					<Picker

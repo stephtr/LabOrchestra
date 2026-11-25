@@ -423,8 +423,17 @@ try {
 	await page.getByTestId('add-recording').click();
 	await page.getByTestId('pressure-value-pressure-0').waitFor();
 	assert.equal(await text('pressure-value-pressure-0'), await text('state-pressure-channels.0.pressure'));
-	page.once('dialog', (d) => d.accept('Vorvakuum'));
-	await page.getByTestId('strip-' + (await waitView((v) => v.strip.some((w) => w.type === 'pressure'), 'pressure widget')).strip.find((w) => w.type === 'pressure').id).getByLabel('Set label').click();
+	const pressureId = (await waitView((v) => v.strip.some((w) => w.type === 'pressure'), 'pressure widget')).strip.find((w) => w.type === 'pressure').id;
+	await page.getByTestId('strip-' + pressureId).getByLabel('Widget settings').click();
+	const settings = page.getByTestId('widget-settings');
+	await settings.getByTestId('prop-channel').fill('1.5');
+	await settings.getByTestId('settings-save').click();
+	assert.match(await settings.getByRole('alert').textContent(), /whole number/); // checked against the widget's declared props
+	await settings.getByTestId('prop-channel').fill('0');
+	await settings.getByTestId('prop-label').fill('Vorvakuum');
+	await settings.getByTestId('settings-save').click();
+	await settings.waitFor({ state: 'detached' });
+	assert.deepEqual((await waitView((v) => v.strip.find((w) => w.id === pressureId)?.props?.label === 'Vorvakuum', 'label')).strip.find((w) => w.id === pressureId).props, { label: 'Vorvakuum' }); // channel 0 is the default: not stored
 	await page.getByTestId('pressure-pressure-0').getByText('Vorvakuum').waitFor();
 	script('lab.pressure.set_pressure(0, 0.0789)');
 	await waitText('pressure-value-pressure-0', '0.0789');
@@ -542,7 +551,7 @@ try {
 	const widgetFile = path.join(dir, 'workspace/widgets/pressure_big.tsx');
 	const widgetSource = (version, extra = '') => `import { useDevice, Tile } from '@laborchestra/widget';
 import { useState } from 'react';
-export const meta = { title: 'Big pressure', size: 'S', profile: 'pressure_sensor' };
+export const meta = { title: 'Big pressure', size: 'S', profile: 'pressure_sensor', props: [{ name: 'channel', label: 'Gauge', type: 'integer', min: 0, default: 0 }] };
 export default function BigPressure({ device, props }: { device: string; props: { channel?: number } }) {
 	const d = useDevice(device);
 	const [clicks, setClicks] = useState(0);
@@ -594,6 +603,13 @@ export default function BigPressure({ device, props }: { device: string; props: 
 	await page.getByTestId('rw-value').waitFor(); // the instance is saved in the view like any other
 	ok('runtime widget: a crash stays inside the widget; the widget is part of the saved view');
 	await page.getByTestId('edit-toggle').click();
+	const runtimeId = readView().strip.find((w) => w.type === 'ws:pressure_big').id;
+	await page.getByTestId('strip-' + runtimeId).getByLabel('Widget settings').click(); // the widget declares a "Gauge" setting in its meta
+	await page.getByTestId('widget-settings').getByLabel('Gauge').fill('1');
+	await page.getByTestId('settings-save').click();
+	await page.waitForFunction(() => /e-8/.test(document.querySelector('[data-testid="rw-value"]')?.textContent ?? ''));
+	assert.equal(readView().strip.find((w) => w.id === runtimeId).props.channel, 1);
+	ok('settings dialog: props declared by a widget (built-in or from the workspace) are edited and checked');
 
 	// "New widget": a file from a template that is built and offered at once (edit mode is on)
 	await page.getByTestId('new-widget').click();

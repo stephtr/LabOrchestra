@@ -13,8 +13,19 @@ declare module '@laborchestra/widget' {
 
 	/** What a widget gets as props. */
 	export type WidgetProps = { id: string; device: string; info: DeviceInfo; props: Record<string, unknown> };
+	/** One setting of a widget instance, edited in its settings dialog and given to the widget in `props`. */
+	export type PropSpec = {
+		name: string;
+		label?: string;
+		type: 'text' | 'number' | 'integer' | 'boolean' | 'select';
+		default?: unknown;
+		options?: string[];
+		min?: number;
+		max?: number;
+		help?: string;
+	};
 	/** What a widget module exports as `meta`, so that the picker knows it. */
-	export type WidgetMeta = { title: string; size: 'main' | 'S' | 'M'; profile?: string; needsDevice?: boolean };
+	export type WidgetMeta = { title: string; size: 'main' | 'S' | 'M'; profile?: string; needsDevice?: boolean; props?: PropSpec[] };
 	export type Device = {
 		id: string;
 		status: string;

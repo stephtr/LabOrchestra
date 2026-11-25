@@ -10,7 +10,9 @@ import { formatSI as formatSIImpl } from './OscilloscopeWidget';
 import { callAction as callActionImpl, DeviceInfo, RecordingStatus, useStore } from './store';
 import { StreamFrame, subscribeStream } from './stream';
 
-export type { DeviceInfo, RecordingStatus, StreamFrame };
+import type { PropSpec } from './settings';
+
+export type { DeviceInfo, PropSpec, RecordingStatus, StreamFrame };
 
 /** What a widget gets from the host as props: the widget instance's id, the device it is placed for, that device's current info, and its props. */
 export type WidgetProps = { id: string; device: string; info: DeviceInfo; props: Record<string, unknown> };
@@ -24,6 +26,8 @@ export type WidgetMeta = {
 	profile?: string;
 	/** False for a widget that shows no device. */
 	needsDevice?: boolean;
+	/** The settings of an instance, edited in the widget's settings dialog (every widget also has a label). They arrive in the widget's `props`. */
+	props?: PropSpec[];
 };
 
 export type Device = {
