@@ -45,6 +45,8 @@ builder.Services.AddSingleton(workspace);
 builder.Services.AddSingleton(new ServerInfo(workerUrl));
 builder.Services.AddSingleton(sp => new EnvironmentManager(config, dataDir, sp.GetRequiredService<LogStore>(), sp.GetRequiredService<ILogger<EnvironmentManager>>()));
 builder.Services.AddSingleton<EventBus>();
+builder.Services.AddSingleton(sp => new EventLog(dataDir, sp.GetRequiredService<EventBus>(), double.Parse(config["history_interval_s"] ?? "10", System.Globalization.CultureInfo.InvariantCulture), sp.GetRequiredService<ILogger<EventLog>>()));
+builder.Services.AddHostedService(sp => sp.GetRequiredService<EventLog>());
 builder.Services.AddSingleton<StreamManager>();
 builder.Services.AddSingleton<DeviceRegistry>();
 builder.Services.AddSingleton(sp => new LabOrchestra.Server.Drivers.DriverCatalog(

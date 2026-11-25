@@ -34,6 +34,7 @@ public sealed partial class RecordingService(string directory, DeviceRegistry re
 	private sealed class Active
 	{
 		public required string Name { get; init; }
+		public string Id { get; } = Guid.NewGuid().ToString("N");
 		public required string Base { get; init; }
 		public required DateTimeOffset Start { get; init; }
 		public required string By { get; init; }
@@ -257,6 +258,7 @@ public sealed partial class RecordingService(string directory, DeviceRegistry re
 		{
 			["format"] = FormatVersion,
 			["kind"] = "recording",
+			["id"] = active.Id, // stable and unique, for notes, runs and the lab notebook to point at
 			["name"] = active.Name,
 			["start_time"] = Iso(active.Start),
 			["started_by"] = active.By,

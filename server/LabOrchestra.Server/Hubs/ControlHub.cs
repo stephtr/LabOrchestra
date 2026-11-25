@@ -49,6 +49,7 @@ public sealed class ControlHub(
 	RecordingService recordings,
 	Workspace workspace,
 	EventBus bus,
+	EventLog eventLog,
 	IHubContext<DeviceHub> devices) : Hub
 {
 	public override Task OnConnectedAsync()
@@ -211,6 +212,26 @@ public sealed class ControlHub(
 		registry.Snapshot(device) ?? throw new HubException(Errors.Json("LookupError", $"Device '{device}' does not exist"));
 
 	/// <param name="source">"server", "device:pressure" or null for all; since = 0 returns the latest entries.</param>
+	/// <summary>What happened to devices, oldest first: actions with their caller and status changes. Persistent, also outside recordings.</summary>
+	[HubMethodName("get_events")]
+	public List<Dictionary<string, object?>> GetEvents(string? device, string? kind, double since, double until, int limit) =>
+		eventLog.Events(device, kind, since, until, Math.Clamp(limit, 1, 5000));
+
+	/// <summary>The history of a numeric state field (one value per ten seconds is kept) as [time, value] pairs.</summary>
+	[HubMethodName("get_history")]
+	public List<double[]> GetHistory(string device, string path, double since, double until, int maxPoints) =>
+		eventLog.History(device, path, since, until, Math.Clamp(maxPoints, 0, 20000));
+
+	[HubMethodName("add_note")]
+	public string AddNote(string text, string[]? refs)
+	{
+		try { return eventLog.AddNote(text, refs, Caller()); }
+		catch (ArgumentException e) { throw new HubException(Errors.Json("ValueError", e.Message)); }
+	}
+
+	[HubMethodName("get_notes")]
+	public List<Dictionary<string, object?>> GetNotes(string? reference, double since, int limit) => eventLog.Notes(reference, since, Math.Clamp(limit, 1, 1000));
+
 	/// <summary>An error in a browser (React error boundary, window.onerror), so that it shows up in the server's log, where AI and people look.</summary>
 	[HubMethodName("report_client_error")]
 	public void ReportClientError(string message, string? stack, string? where)

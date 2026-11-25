@@ -117,3 +117,7 @@ Errors cross the wire as JSON text `{type, message, traceback}`. SignalR needs e
 ## Native FFT
 
 The oscilloscope plugin uses pffft (`native/pffft`, built by `native/build.sh` as part of `dotnet build` and put next to the plugin; needs `bash` and `clang`/`cc`). Without a compiler the build goes on and the plugin falls back to the managed FFT (about 30 times slower); the device state `fft_engine` shows which one runs. `LABORCHESTRA_MANAGED_FFT=1` forces the fallback.
+
+## Events, history and notes
+
+`events.db` (SQLite, in the data folder) keeps what happened, also when no recording ran: `lab.events("pressure", "action", since=...)` (actions with the caller, status changes), `lab.history("pressure", "channels.1.pressure", since=...)` (every numeric state field, one value per 10 s, 30 days; `history_interval_s` changes the interval), and notes (`lab.add_note("text", ["pressure"])`, `lab.notes("pressure")`). Recordings have an `id` in their header. Events are written by one background thread, so a slow disk never delays a device.

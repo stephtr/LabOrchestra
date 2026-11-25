@@ -283,6 +283,24 @@ class AsyncLab:
     async def delete_secret(self, name: str) -> None:
         await self._hub.invoke("delete_secret", name)
 
+    async def events(self, device: str | None = None, kind: str | None = None, since: float = 0, until: float = 0, limit: int = 500) -> list[dict]:
+        """What happened to devices, oldest first (persistent, also when nothing was recording): ``kind`` is "action" (data: action, args)
+        or "status" (data: status, error); ``by`` says who caused it. ``since``/``until`` are unix times."""
+        return await self._hub.invoke("get_events", device, kind, since, until, limit)
+
+    async def history(self, device: str, path: str, since: float = 0, until: float = 0, max_points: int = 1000) -> list[list[float]]:
+        """A numeric state field over time as [unix time, value] pairs, e.g. ``history("pressure", "channels.1.pressure", since=time.time() - 86400)``.
+        The server keeps one value per field per ten seconds for 30 days; longer series are averaged into ``max_points``."""
+        return await self._hub.invoke("get_history", device, path, since, until, max_points)
+
+    async def add_note(self, text: str, refs: list[str] | None = None) -> str:
+        """A note, optionally pointing at devices, recordings or other ids (``refs``); returns its id."""
+        return await self._hub.invoke("add_note", text, refs or [])
+
+    async def notes(self, ref: str | None = None, since: float = 0, limit: int = 200) -> list[dict]:
+        """Notes (id, time, author, text, refs), oldest first; with ``ref`` only those that point at it."""
+        return await self._hub.invoke("get_notes", ref, since, limit)
+
     async def logs(self, source: str | None = None, level: str | None = None, since: int = 0, limit: int = 200) -> list[dict]:
         """Log entries as dicts (seq, time, level, source, logger, message, traceback).
 
@@ -403,6 +421,18 @@ class Lab:
 
     def logs(self, source: str | None = None, level: str | None = None, since: int = 0, limit: int = 200) -> list[dict]:
         return self._run(self._async.logs(source, level, since, limit))
+
+    def events(self, device: str | None = None, kind: str | None = None, since: float = 0, until: float = 0, limit: int = 500) -> list[dict]:
+        return self._run(self._async.events(device, kind, since, until, limit))
+
+    def history(self, device: str, path: str, since: float = 0, until: float = 0, max_points: int = 1000) -> list[list[float]]:
+        return self._run(self._async.history(device, path, since, until, max_points))
+
+    def add_note(self, text: str, refs: list[str] | None = None) -> str:
+        return self._run(self._async.add_note(text, refs))
+
+    def notes(self, ref: str | None = None, since: float = 0, limit: int = 200) -> list[dict]:
+        return self._run(self._async.notes(ref, since, limit))
 
     def stream(self, device: str, stream: str, parameters: dict | None = None, window: int = 8, max_fps: float = 30) -> SyncStream:
         """``with lab.stream("het", "display", {...}) as frames: for frame in frames:`` (see laborchestra.stream)."""
