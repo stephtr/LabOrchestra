@@ -48,7 +48,61 @@ log = logging.getLogger("laborchestra.worker")
 _current_caller: contextvars.ContextVar[str | None] = contextvars.ContextVar("lab_caller", default=None)
 
 
+DEVICES_GROUP = "laborchestra.devices"
+WIDGETS_GROUP = "laborchestra.widgets"
+
+
+def _entry_points(group: str):
+    from importlib.metadata import entry_points
+
+    return list(entry_points(group=group))
+
+
+def entry_point_info() -> dict:
+    """What the installed packages offer LabOrchestra: devices (entry point group ``laborchestra.devices``, ``name = "module:Class"``) and
+    widgets (group ``laborchestra.widgets``, ``name = "package.module"``: the package folder of that module holds ``<name>.js``, a built
+    ES module with the widget's default export and ``meta``). Nothing is imported here: this only reads the packages' metadata and looks
+    for the files, so that it is quick and cannot fail on a broken driver."""
+    devices = [
+        {"name": ep.name, "value": ep.value, "package": ep.dist.name if ep.dist else None, "version": ep.dist.version if ep.dist else None}
+        for ep in sorted(_entry_points(DEVICES_GROUP), key=lambda e: e.name)
+    ]
+    widgets = []
+    for ep in sorted(_entry_points(WIDGETS_GROUP), key=lambda e: e.name):
+        found = {"name": ep.name, "value": ep.value, "package": ep.dist.name if ep.dist else None, "file": None, "error": None}
+        try:
+            spec = importlib.util.find_spec(ep.value)
+            folders = list(spec.submodule_search_locations or []) if spec else []
+            if not folders and spec and spec.origin:
+                folders = [str(Path(spec.origin).parent)]
+            candidate = next((Path(f) / f"{ep.name}.js" for f in folders if (Path(f) / f"{ep.name}.js").is_file()), None)
+            if candidate is None:
+                found["error"] = f"{ep.value} has no {ep.name}.js (searched {', '.join(folders) or 'nothing: the module was not found'})"
+            else:
+                found["file"] = str(candidate)
+        except Exception as e:  # a broken package must not hide the others
+            found["error"] = f"{type(e).__name__}: {e}"
+        widgets.append(found)
+    return {"devices": devices, "widgets": widgets}
+
+
+def _load_entry_point(name: str) -> type[Device]:
+    entries = _entry_points(DEVICES_GROUP)
+    chosen = [e for e in entries if e.name == name] if name else entries
+    if not chosen:
+        offered = ", ".join(sorted(e.name for e in entries)) or "none"
+        raise SchemaError(f"No installed package offers a device '{name}' (entry point group {DEVICES_GROUP}; found: {offered})" if name else f"No installed package offers a device (entry point group {DEVICES_GROUP})")
+    if len(chosen) > 1:
+        raise SchemaError(f"Several devices are offered ({', '.join(sorted(e.name for e in chosen))}): name the one to run")
+    cls = chosen[0].load()
+    if not (isinstance(cls, type) and issubclass(cls, Device)):
+        raise SchemaError(f"The entry point {chosen[0].name} = {chosen[0].value} is not a Device class")
+    return cls
+
+
 def load_class(target: str) -> type[Device]:
+    if target.startswith("entry:"):  # a device that an installed package offers: entry:<name>
+        return _load_entry_point(target[len("entry:"):])
     path, name = target, None
     head, sep, tail = target.rpartition(":")
     if sep and tail.isidentifier() and len(head) > 1:
@@ -479,18 +533,24 @@ def _die_with_parent() -> None:
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="laborchestra-worker", description="Run one LabOrchestra device.")
-    parser.add_argument("target", help="path/to/device.py[:Class] or module:Class")
+    parser.add_argument("target", nargs="?", help="path/to/device.py[:Class], module:Class, or entry:<name> (a device an installed package offers)")
     parser.add_argument("--id", default=os.environ.get("LABORCHESTRA_DEVICE_ID"), help="device id (snake_case)")
     parser.add_argument("--url", default=os.environ.get("LABORCHESTRA_URL", DEFAULT_URL))
     parser.add_argument("--token", default=os.environ.get("LABORCHESTRA_TOKEN"))
     parser.add_argument("--config", default=os.environ.get("LABORCHESTRA_CONFIG", "{}"), help="options as JSON")
     parser.add_argument("--describe", action="store_true", help="print what the device offers (options, actions) and stop")
+    parser.add_argument("--list-entry-points", action="store_true", help="print the devices and widgets that installed packages offer, and stop")
     args = parser.parse_args(argv)
     logging.basicConfig(
         stream=sys.stderr,
         level=os.environ.get("LABORCHESTRA_LOG_LEVEL", "INFO"),
         format="%(levelname)s %(name)s: %(message)s",
     )
+    if args.list_entry_points:
+        print("LABORCHESTRA-ENTRY-POINTS " + json.dumps(entry_point_info()))
+        sys.exit(EXIT_OK)
+    if not args.target:
+        parser.error("a target is required (path/to/device.py, module:Class or entry:<name>)")
     if args.describe:
         try:
             cls = load_class(args.target)

@@ -51,7 +51,7 @@ def invoke(lab, method, *args):
 
 
 def widgets(lab):
-    return {w["name"]: w for w in invoke(lab, "list_widgets")["widgets"]}
+    return {w["name"].removeprefix("ws:"): w for w in invoke(lab, "list_widgets")["widgets"] if w["name"].startswith("ws:")}
 
 
 def test_a_widget_is_built_served_and_styled_and_a_changed_file_gives_a_new_version(server):
@@ -61,7 +61,7 @@ def test_a_widget_is_built_served_and_styled_and_a_changed_file_gives_a_new_vers
     (workspace / "widgets" / "Bad Name.tsx").write_text("ignored")  # not a snake_case name
     wait_for(lambda: "mine" in widgets(lab), 30, "the widget to be built")
     assert set(widgets(lab)) == {"mine"} and widgets(lab)["mine"]["error"] is None
-    served = invoke(lab, "get_widget", "mine")
+    served = invoke(lab, "get_widget", "ws:mine")
     code = served["code"]
     assert "one" in code and "import" in code
     assert "from \"react/jsx-runtime\"" in code and "from \"@laborchestra/widget\"" in code  # left for the host's import map
@@ -73,7 +73,7 @@ def test_a_widget_is_built_served_and_styled_and_a_changed_file_gives_a_new_vers
 
     (workspace / "widgets" / "mine.tsx").write_text(WIDGET.replace("VERSION", "two"))
     wait_for(lambda: widgets(lab)["mine"]["version"] != first_version, 30, "a new version")
-    assert "two" in invoke(lab, "get_widget", "mine")["code"]
+    assert "two" in invoke(lab, "get_widget", "ws:mine")["code"]
 
 
 def test_a_broken_widget_reports_the_error_and_the_others_still_work(server):
@@ -84,9 +84,9 @@ def test_a_broken_widget_reports_the_error_and_the_others_still_work(server):
     assert widgets(lab)["good"]["error"] is None
     error = widgets(lab)["broken"]["error"]
     assert error and "broken.tsx" in error
-    assert invoke(lab, "get_widget", "broken")["code"] is None
-    with pytest.raises(RemoteError, match="There is no widget 'nothing'"):
-        invoke(lab, "get_widget", "nothing")
+    assert invoke(lab, "get_widget", "ws:broken")["code"] is None
+    with pytest.raises(RemoteError, match="There is no widget 'ws:nothing'"):
+        invoke(lab, "get_widget", "ws:nothing")
     (workspace / "widgets" / "broken.tsx").write_text(WIDGET.replace("VERSION", "fixed"))
     wait_for(lambda: widgets(lab)["broken"]["error"] is None, 30, "the fix")
 
@@ -98,9 +98,9 @@ def test_a_widget_can_be_a_folder_with_files_of_its_own(server):
     (folder / "index.tsx").write_text("import { label } from './label';\nexport default function W() { return <b>{label}</b>; }\n")
     (folder / "label.ts").write_text("export const label = 'from a second file';\n")
     wait_for(lambda: "big_one" in widgets(lab) and widgets(lab)["big_one"]["error"] is None, 30, "the folder widget")
-    assert "from a second file" in invoke(lab, "get_widget", "big_one")["code"]  # bundled together
+    assert "from a second file" in invoke(lab, "get_widget", "ws:big_one")["code"]  # bundled together
     (folder / "label.ts").write_text("export const label = 'changed second file';\n")  # a change in any file rebuilds
-    wait_for(lambda: "changed second file" in invoke(lab, "get_widget", "big_one")["code"], 30, "the rebuild")
+    wait_for(lambda: "changed second file" in invoke(lab, "get_widget", "ws:big_one")["code"], 30, "the rebuild")
 
 
 def test_without_esbuild_the_widgets_say_so_instead_of_failing_silently(tmp_path):
@@ -132,7 +132,7 @@ def test_new_widget_from_every_template_builds_at_once_and_nothing_is_overwritte
         assert "{{" not in text and f"export default function My{''.join(w.title() for w in template.split('_'))}(" in text
         wait_for(lambda: f"my_{template}" in widgets(lab), 30, "the new widget")
         assert widgets(lab)[f"my_{template}"]["error"] is None  # a template must build as it is
-        assert "meta" in invoke(lab, "get_widget", f"my_{template}")["code"]  # it exports what the picker needs
+        assert "meta" in invoke(lab, "get_widget", f"ws:my_{template}")["code"]  # it exports what the picker needs
     assert (workspace / "widgets" / "laborchestra-widget.d.ts").read_text().startswith("// Types of the widget SDK")
     (workspace / "widgets" / "laborchestra-widget.d.ts").write_text("// my own\n")
     invoke(lab, "scaffold_widget", "blank", "another")

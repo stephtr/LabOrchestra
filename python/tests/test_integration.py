@@ -230,7 +230,7 @@ def test_devices_can_be_managed_through_the_api(server, lab, reset_devices):
     saved = json.loads((server.workspace / "devices.json").read_text())["devices"]
     assert saved["fresh"] == {"file": entry, "config": {"noise": 0.0}, "description": "added by the test"}
     assert saved["pressure"] and saved["counter"]  # the others are kept
-    assert lab.get_device_config("fresh") == {"file": entry, "driver": None, "python": None, "config": {"noise": 0.0}, "description": "added by the test", "remote": False}
+    assert lab.get_device_config("fresh") == {"file": entry, "driver": None, "python": None, "config": {"noise": 0.0}, "description": "added by the test", "remote": False, "package": None, "entry": None}
 
     pid = lab.fresh.state["process_id"]
     lab.update_device("fresh", entry, config={"noise": 0.0}, description="another text")  # only the description

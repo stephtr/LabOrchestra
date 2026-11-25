@@ -16,7 +16,7 @@ public sealed record ClientDirectory(string? Path);
 /// Whenever a file changes everything is built again and the clients are told, so that they load the new version without a reload. Their styling
 /// is one Tailwind stylesheet for the host and all widgets, made here (the compiler runs in an embedded JS engine; browsers load no compiler),
 /// because the host's build cannot know the classes of widgets that are written later.</summary>
-public sealed partial class WidgetService(Workspace workspace, ClientDirectory client, IConfiguration config, IHubContext<ControlHub> hub, ILogger<WidgetService> log) : IHostedService, IDisposable
+public sealed partial class WidgetService(Workspace workspace, ClientDirectory client, Devices.DeviceCatalog catalog, IConfiguration config, IHubContext<ControlHub> hub, ILogger<WidgetService> log) : IHostedService, IDisposable
 {
 	private sealed record Built(string Name, string Version, string? Code, string? Error);
 
@@ -24,10 +24,11 @@ public sealed partial class WidgetService(Workspace workspace, ClientDirectory c
 	private static readonly string[] Externals = ["react", "react/jsx-runtime", "react-dom", "react-dom/client", "@laborchestra/widget"];
 
 	private readonly object _gate = new();
-	private readonly SemaphoreSlim _building = new(1, 1);
-	private Dictionary<string, Built> _widgets = [];
+	private readonly SemaphoreSlim _building = new(1, 1), _packages = new(1, 1);
+	private Dictionary<string, Built> _workspaceWidgets = [], _packageWidgets = [];
+	private Dictionary<string, Built> _widgets = []; // both, by type: "ws:<name>" (widgets/ of the workspace) or "pkg:<name>" (shipped by a device package)
 	private string _css = "", _cssVersion = "";
-	private string? _problem; // why nothing can be built (esbuild missing), shown to the user
+	private string? _problem, _workspaceProblem; // why nothing can be built (esbuild missing), shown to the user; set together with the list
 	private FileSystemWatcher? _watcher;
 	private Timer? _debounce;
 	private Engine? _tailwind;
@@ -42,7 +43,13 @@ public sealed partial class WidgetService(Workspace workspace, ClientDirectory c
 	public Task StartAsync(CancellationToken cancel)
 	{
 		Directory.CreateDirectory(Folder);
-		_ = Task.Run(() => RebuildAsync(announce: false));
+		_ = Task.Run(async () =>
+		{
+			await RebuildAsync(announce: false);
+			await RefreshPackagesAsync(announce: true); // after the first publication: building an environment can take a while
+		});
+		workspace.Changed += () => _ = RefreshPackagesAsync(announce: true);
+		workspace.Edited += () => _ = RefreshPackagesAsync(announce: true);
 		_watcher = new FileSystemWatcher(Folder) { IncludeSubdirectories = true, NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.Size | NotifyFilters.DirectoryName, EnableRaisingEvents = true };
 		FileSystemEventHandler changed = (_, e) =>
 		{
@@ -99,24 +106,18 @@ public sealed partial class WidgetService(Workspace workspace, ClientDirectory c
 			if (esbuild is null)
 			{
 				problem = sources.Count == 0 ? null : "esbuild was not found, so widgets cannot be built. Install it (pnpm install in client/), put it next to the server, or set the option 'esbuild' to its path.";
-				built = sources.ToDictionary(s => s.Key, s => new Built(s.Key, "0", null, problem));
+				built = sources.ToDictionary(s => $"ws:{s.Key}", s => new Built($"ws:{s.Key}", "0", null, problem));
 				if (problem is not null) log.LogWarning("{Problem}", problem);
 			}
 			else
 			{
-				var results = await Task.WhenAll(sources.Select(async s => await CompileAsync(esbuild, s.Key, s.Value)));
+				var results = await Task.WhenAll(sources.Select(async s => await CompileAsync(esbuild, $"ws:{s.Key}", s.Value)));
 				built = results.ToDictionary(b => b.Name);
 			}
-			var css = await Task.Run(() => BuildCss(built.Values));
-			lock (_gate)
-			{
-				_widgets = built;
-				_problem = problem;
-				if (css is not null) (_css, _cssVersion) = (css, Hash(css));
-			}
 			foreach (var b in built.Values.Where(b => b.Error is not null && esbuild is not null)) log.LogError("Widget {Widget} was not built:\n{Error}", b.Name, b.Error);
-			log.LogInformation("Widgets: {Count} built ({Names})", built.Count, string.Join(", ", built.Keys.Order()));
-			if (announce) await hub.Clients.All.SendAsync("widgets", List());
+			log.LogInformation("Widgets of the workspace: {Count} built ({Names})", built.Count, string.Join(", ", built.Keys.Order()));
+			lock (_gate) { _workspaceWidgets = built; _workspaceProblem = problem; }
+			await PublishAsync(announce);
 		}
 		catch (Exception e)
 		{
@@ -126,6 +127,70 @@ public sealed partial class WidgetService(Workspace workspace, ClientDirectory c
 		{
 			_building.Release();
 		}
+	}
+
+	/// <summary>The widgets that device packages ship: for every package that a device of devices.json uses, its entry point group
+	/// <c>laborchestra.widgets</c> (found by the environment of the package; prebuilt ES modules, nothing to compile).</summary>
+	private async Task RefreshPackagesAsync(bool announce)
+	{
+		await _packages.WaitAsync();
+		try
+		{
+			var found = new Dictionary<string, Built>();
+			foreach (var (package, python) in workspace.Devices.Values.Where(d => d.Package is not null).Select(d => (d.Package!, d.Python)).Distinct())
+			{
+				try
+				{
+					using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(10)); // a first environment downloads the package
+					foreach (var w in (await catalog.EntryPointsAsync(package, python, timeout.Token)).GetProperty("widgets").EnumerateArray())
+					{
+						var name = "pkg:" + w.GetProperty("name").GetString();
+						var file = w.GetProperty("file").GetString();
+						var error = w.GetProperty("error").GetString();
+						if (found.ContainsKey(name)) found[name] = new Built(name, "0", null, $"Two packages offer a widget '{name}': {w.GetProperty("package").GetString()} and another one");
+						else if (error is not null || file is null) found[name] = new Built(name, "0", null, error ?? "No file");
+						else
+						{
+							var code = await File.ReadAllTextAsync(file);
+							found[name] = new Built(name, Hash(code), code, null);
+						}
+					}
+				}
+				catch (Exception e) when (e is InvalidOperationException or ArgumentException or OperationCanceledException or IOException)
+				{
+					log.LogError("The widgets of the package {Package} could not be listed: {Message}", package, e.Message);
+				}
+			}
+			bool changed;
+			lock (_gate) changed = !_packageWidgets.Select(w => (w.Key, w.Value.Version, w.Value.Error)).SequenceEqual(found.Select(w => (w.Key, w.Value.Version, w.Value.Error)));
+			if (!changed) return;
+			log.LogInformation("Widgets of packages: {Count} ({Names})", found.Count, string.Join(", ", found.Keys.Order()));
+			lock (_gate) _packageWidgets = found;
+			await PublishAsync(announce);
+		}
+		catch (Exception e)
+		{
+			log.LogError(e, "Listing the widgets of packages failed");
+		}
+		finally
+		{
+			_packages.Release();
+		}
+	}
+
+	/// <summary>Puts the widgets of the workspace and of packages together, builds the stylesheet for all of them, and tells the clients.</summary>
+	private async Task PublishAsync(bool announce)
+	{
+		Built[] all;
+		lock (_gate) all = [.. _workspaceWidgets.Values, .. _packageWidgets.Values];
+		var css = await Task.Run(() => BuildCss(all));
+		lock (_gate)
+		{
+			_widgets = _workspaceWidgets.Concat(_packageWidgets).ToDictionary(w => w.Key, w => w.Value);
+			_problem = _workspaceProblem;
+			if (css is not null) (_css, _cssVersion) = (css, Hash(css));
+		}
+		if (announce) await hub.Clients.All.SendAsync("widgets", List());
 	}
 
 	/// <summary>The entry file of every widget: widgets/&lt;name&gt;.tsx, or widgets/&lt;name&gt;/index.tsx.</summary>

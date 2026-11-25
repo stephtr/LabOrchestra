@@ -67,6 +67,18 @@ const script = (code) =>
 	}).trim();
 const ok = (m) => console.log('ok  ', m);
 
+// a device package for the "Python package" kind: installed (editable) into the interpreter the e2e server uses, which is named explicitly
+const packageDir = path.join(root, 'python/tests/packages/lab_test_pkg');
+try {
+	execFileSync(python, ['-c', 'import lab_test_pkg'], { stdio: 'ignore' });
+} catch {
+	try {
+		execFileSync('uv', ['pip', 'install', '--quiet', '--python', python, '--editable', packageDir], { stdio: 'inherit' });
+	} catch {
+		execFileSync(python, ['-m', 'pip', 'install', '--quiet', '--editable', packageDir], { stdio: 'inherit' });
+	}
+}
+
 let server = startServer();
 let browser;
 let failed = true;
@@ -610,6 +622,36 @@ export default function BigPressure({ device, props }: { device: string; props: 
 	await page.waitForFunction(() => /e-8/.test(document.querySelector('[data-testid="rw-value"]')?.textContent ?? ''));
 	assert.equal(readView().strip.find((w) => w.id === runtimeId).props.channel, 1);
 	ok('settings dialog: props declared by a widget (built-in or from the workspace) are edited and checked');
+
+	// a device from an installed package, added in the device dialog, and the widget the package brings
+	await page.getByTestId('edit-toggle').click(); // Done
+	await page.getByTestId('nav-devices').click();
+	await page.getByTestId('add-device').click();
+	const packageDialog = page.getByTestId('device-dialog');
+	await packageDialog.getByTestId('kind-package').check();
+	await packageDialog.getByTestId('field-package').fill(packageDir);
+	await packageDialog.getByTestId('look-inside').click();
+	await packageDialog.getByTestId('package-contents').waitFor();
+	assert.match(await packageDialog.getByTestId('package-contents').textContent(), /packaged_tile/); // it says which widgets come with it
+	await packageDialog.getByTestId('option-step').waitFor(); // the only device of the package was chosen: its options are there
+	await packageDialog.getByLabel('step').fill('3');
+	await packageDialog.getByTestId('field-id').fill('pkg_counter');
+	await packageDialog.getByTestId('save-device').click();
+	await packageDialog.waitFor({ state: 'detached' });
+	assert.deepEqual({ ...devicesFile().pkg_counter }, { package: packageDir, entry: 'test_counter', config: { step: 3 } });
+	await waitText('row-status-pkg_counter', 'ready');
+	assert.match(await text('row-pkg_counter'), /package: .*lab_test_pkg \(test_counter\)/);
+	ok('device dialog: a package is looked into, its device chosen, its options filled in');
+	await page.getByTestId('nav-dashboard').click();
+	await page.getByTestId('edit-toggle').click();
+	await page.getByTestId('add-widget').click();
+	await page.getByTestId('add-pkg:packaged_tile-pkg_counter').click(); // shipped by the package, not in the workspace
+	await page.getByTestId('packaged-count').waitFor();
+	assert.equal(await text('packaged-count'), '0');
+	script('lab.pkg_counter.increment()');
+	await waitText('packaged-count', '3');
+	assert.notEqual(await colour('packaged-count'), await colour('rw-version')); // text-lime-600 is in the server's stylesheet as well
+	ok('widget shipped by a package: offered for devices, shows the device, styled');
 
 	// "New widget": a file from a template that is built and offered at once (edit mode is on)
 	await page.getByTestId('new-widget').click();

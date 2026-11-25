@@ -21,7 +21,7 @@ export function DevicesPage() {
 	useEffect(() => {
 		void api.listDeviceEntries().then(setEntries, (e: Error) => setError(e.message));
 	}, [ids.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
-	const sourceOf = (id: string) => (entries[id]?.driver ? `driver: ${entries[id]!.driver}` : (entries[id]?.file ?? ''));
+	const sourceOf = (id: string) => (entries[id]?.package ? `package: ${entries[id]!.package}${entries[id]!.entry ? ` (${entries[id]!.entry})` : ''}` : entries[id]?.driver ? `driver: ${entries[id]!.driver}` : entries[id]?.remote ? 'remote worker' : (entries[id]?.file ?? ''));
 
 	async function run(action: Promise<unknown>) {
 		try {

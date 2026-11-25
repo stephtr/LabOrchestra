@@ -62,6 +62,18 @@ public sealed partial class EnvironmentManager(IConfiguration config, string dat
 	{
 		explicitPython ??= config["python"];
 		if (explicitPython is not null && File.Exists(explicitPython)) return explicitPython;
+		var (requires, dependencies) = ReadScriptMetadata(deviceFile);
+		return await BuildAsync(deviceId, requires, dependencies, explicitPython, cancel);
+	}
+
+	/// <summary>The interpreter for a device that an installed package offers: an environment with the package (a pip requirement, or the
+	/// folder or wheel of one) and its dependencies. A folder is installed editable, so that changes to it are seen by the next start.</summary>
+	public Task<string> GetPackagePythonAsync(string deviceId, string package, string? explicitPython, CancellationToken cancel) =>
+		BuildAsync(deviceId, null, [package.Trim()], explicitPython ?? config["python"], cancel);
+
+	private async Task<string> BuildAsync(string deviceId, string? requires, List<string> dependencies, string? explicitPython, CancellationToken cancel)
+	{
+		if (explicitPython is not null && File.Exists(explicitPython)) return explicitPython;
 		var uv = _uv.Value;
 		if (uv is null)
 		{
@@ -75,10 +87,10 @@ public sealed partial class EnvironmentManager(IConfiguration config, string dat
 
 		var package = config["laborchestra_package"] ?? FindPackage()
 			?? throw new InvalidOperationException("The laborchestra package was not found: set 'laborchestra_package' to its folder (or wheel)");
-		var (requires, dependencies) = ReadScriptMetadata(deviceFile);
 		var wanted = explicitPython ?? requires; // a version such as "3.12", or the requirement of the file; null: uv chooses
 		var identity = Directory.Exists(package) ? Path.GetFullPath(package) : $"{Path.GetFileName(package)}:{Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(package)))}";
-		var key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('\n', wanted ?? "", identity, string.Join('\n', dependencies.Order())))))[..16].ToLowerInvariant();
+		var identities = dependencies.Select(DependencyIdentity).Order().ToList(); // a folder or wheel is identified by where it is / what is in it
+		var key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('\n', wanted ?? "", identity, string.Join('\n', identities)))))[..16].ToLowerInvariant();
 		var directory = Path.Combine(dataDir, "envs", key);
 		var python = Path.Combine(directory, OperatingSystem.IsWindows() ? "Scripts" : "bin", OperatingSystem.IsWindows() ? "python.exe" : "python");
 		var marker = Path.Combine(directory, ".ready");
@@ -97,7 +109,11 @@ public sealed partial class EnvironmentManager(IConfiguration config, string dat
 			await RunAsync(uv, venv, source, cancel);
 			var install = new List<string> { "pip", "install", "--quiet", "--python", python };
 			if (Directory.Exists(package)) install.AddRange(["--editable", package]); else install.Add(package);
-			install.AddRange(dependencies);
+			foreach (var dependency in dependencies)
+			{
+				if (Directory.Exists(dependency)) install.AddRange(["--editable", Path.GetFullPath(dependency)]);
+				else install.Add(dependency);
+			}
 			await RunAsync(uv, install, source, cancel);
 			File.WriteAllText(marker, JsonSerializer.Serialize(new { wanted, package = identity, dependencies }));
 			logs.Add(source, "INFO", "environment", $"The environment {key} is ready");
@@ -111,6 +127,11 @@ public sealed partial class EnvironmentManager(IConfiguration config, string dat
 		}
 		finally { gate.Release(); }
 	}
+
+	private static string DependencyIdentity(string dependency) =>
+		Directory.Exists(dependency) ? Path.GetFullPath(dependency)
+		: File.Exists(dependency) ? $"{Path.GetFileName(dependency)}:{Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(dependency)))}"
+		: dependency;
 
 	private void Touch(string deviceId, string key, string directory)
 	{

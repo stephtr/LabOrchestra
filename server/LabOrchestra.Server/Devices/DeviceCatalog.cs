@@ -49,24 +49,59 @@ public sealed partial class DeviceCatalog(Workspace workspace, EnvironmentManage
 		var key = (full, File.GetLastWriteTimeUtc(full).Ticks);
 		if (_described.TryGetValue(key, out var known)) return known;
 		var python = await environments.GetPythonAsync("_describe", full, null, cancel);
+		var marker = await RunWorkerAsync(python, [full, "--describe"], "LABORCHESTRA-SCHEMA ", file, cancel);
+		var schema = Plain.FromJson(JsonSerializer.Deserialize<JsonElement>(marker));
+		_described[key] = schema;
+		return schema;
+	}
+
+	/// <summary>Runs the worker module of an environment for one question and returns the JSON after the marker line it prints (the device may
+	/// print on its own while it loads, so the answer is marked). A failure says what the worker wrote.</summary>
+	private async Task<string> RunWorkerAsync(string python, string[] arguments, string marker, string what, CancellationToken cancel)
+	{
 		var info = new ProcessStartInfo(python) { WorkingDirectory = workspace.Path, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
-		foreach (var a in new[] { "-u", "-m", "laborchestra.worker", full, "--describe" }) info.ArgumentList.Add(a);
+		foreach (var a in new[] { "-u", "-m", "laborchestra.worker" }.Concat(arguments)) info.ArgumentList.Add(a);
 		using var process = Process.Start(info)!;
 		var output = process.StandardOutput.ReadToEndAsync(cancel);
 		var errors = process.StandardError.ReadToEndAsync(cancel);
 		using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancel);
 		timeout.CancelAfter(TimeSpan.FromSeconds(60));
 		try { await process.WaitForExitAsync(timeout.Token); }
-		catch (OperationCanceledException) { process.Kill(entireProcessTree: true); throw new InvalidOperationException("The device file did not finish loading within 60 s"); }
-		var marker = (await output).Split('\n').LastOrDefault(l => l.StartsWith("LABORCHESTRA-SCHEMA "));
-		if (process.ExitCode != 0 || marker is null)
+		catch (OperationCanceledException) { process.Kill(entireProcessTree: true); throw new InvalidOperationException($"{what} did not finish loading within 60 s"); }
+		var line = (await output).Split('\n').LastOrDefault(l => l.StartsWith(marker));
+		if (process.ExitCode != 0 || line is null)
 		{
 			var text = (await errors).Trim().Split('\n').TakeLast(6);
-			throw new InvalidOperationException($"{file} could not be loaded: {string.Join(" | ", text)}");
+			throw new InvalidOperationException($"{what} could not be loaded: {string.Join(" | ", text)}");
 		}
-		var schema = Plain.FromJson(JsonSerializer.Deserialize<JsonElement>(marker["LABORCHESTRA-SCHEMA ".Length..]));
-		_described[key] = schema;
-		return schema;
+		return line[marker.Length..];
+	}
+
+	/// <summary>The devices and widgets that a package offers (its entry points), found by building its environment and looking at what is
+	/// installed there. <paramref name="package"/> is a pip requirement, or the folder or wheel of a package.</summary>
+	public async Task<JsonElement> EntryPointsAsync(string package, string? python, CancellationToken cancel)
+	{
+		var interpreter = await environments.GetPackagePythonAsync("_describe", package, python, cancel);
+		return JsonSerializer.Deserialize<JsonElement>(await RunWorkerAsync(interpreter, ["--list-entry-points"], "LABORCHESTRA-ENTRY-POINTS ", $"The package {package}", cancel));
+	}
+
+	/// <summary>What a package offers, and what one of its devices has (options and actions). Without <paramref name="entry"/> the device is
+	/// chosen when the package offers exactly one.</summary>
+	public async Task<Dictionary<string, object?>> DescribePackageAsync(string package, string? entry, string? python, CancellationToken cancel)
+	{
+		if (string.IsNullOrWhiteSpace(package)) throw new ArgumentException("Name a package: a pip requirement such as laborchestra-elliptec==1.2, or the folder of one");
+		var found = await EntryPointsAsync(package, python, cancel);
+		var devices = found.GetProperty("devices").EnumerateArray().Select(d => d.GetProperty("name").GetString()!).ToList();
+		var widgets = found.GetProperty("widgets");
+		var chosen = string.IsNullOrWhiteSpace(entry) ? (devices.Count == 1 ? devices[0] : null) : entry;
+		object? schema = null;
+		if (chosen is not null)
+		{
+			if (!devices.Contains(chosen)) throw new ArgumentException($"The package does not offer a device '{chosen}' (it offers: {(devices.Count == 0 ? "no devices" : string.Join(", ", devices))})");
+			var interpreter = await environments.GetPackagePythonAsync("_describe", package, python, cancel);
+			schema = Plain.FromJson(JsonSerializer.Deserialize<JsonElement>(await RunWorkerAsync(interpreter, [$"entry:{chosen}", "--describe"], "LABORCHESTRA-SCHEMA ", $"The device {chosen} of {package}", cancel)));
+		}
+		return new() { ["devices"] = Plain.FromJson(found.GetProperty("devices")), ["widgets"] = Plain.FromJson(widgets), ["entry"] = chosen, ["schema"] = schema };
 	}
 
 	public async Task AddAsync(string id, DeviceConfig config)
@@ -112,6 +147,7 @@ public sealed partial class DeviceCatalog(Workspace workspace, EnvironmentManage
 			return;
 		}
 		if (config.Remote == true) return; // no file: the worker runs elsewhere
+		if (config.Package is not null) return; // the package is looked at when the device starts (or by "look inside" before)
 		Resolve(Normalize(config.File!)); // must exist inside the workspace
 	}
 
@@ -119,13 +155,14 @@ public sealed partial class DeviceCatalog(Workspace workspace, EnvironmentManage
 	public static DeviceConfig Parse(object? input)
 	{
 		if (Plain.From(input) is not Dictionary<string, object?> map) throw new ArgumentException("The device needs to be an object with a 'file'");
-		var unknown = map.Keys.Except(["file", "driver", "python", "config", "description", "auto_restart", "remote"]).ToList();
+		var unknown = map.Keys.Except(["file", "driver", "python", "config", "description", "auto_restart", "remote", "package", "entry"]).ToList();
 		if (unknown.Count > 0) throw new ArgumentException($"Unknown field(s): {string.Join(", ", unknown)}");
 		string? Text(string key) => map.TryGetValue(key, out var v) && v is not null ? v as string ?? throw new ArgumentException($"'{key}' must be text") : null;
 		var file = Text("file");
 		var driver = Text("driver");
+		var package = string.IsNullOrWhiteSpace(Text("package")) ? null : Text("package")!.Trim();
 		var remote = map.TryGetValue("remote", out var r) && r is true;
-		if ((file is null ? 0 : 1) + (driver is null ? 0 : 1) + (remote ? 1 : 0) != 1) throw new ArgumentException("The device needs exactly one of 'file' (Python), 'driver' (C#) or 'remote' (a worker on another machine)");
+		if ((file is null ? 0 : 1) + (driver is null ? 0 : 1) + (remote ? 1 : 0) + (package is null ? 0 : 1) != 1) throw new ArgumentException("The device needs exactly one of 'file' (Python), 'package' (an installed Python package), 'driver' (C#) or 'remote' (a worker on another machine)");
 		Dictionary<string, JsonElement>? options = null;
 		if (map.TryGetValue("config", out var c) && c is not null)
 		{
@@ -134,6 +171,6 @@ public sealed partial class DeviceCatalog(Workspace workspace, EnvironmentManage
 		}
 		return new DeviceConfig(file is null ? null : Normalize(file), string.IsNullOrWhiteSpace(Text("python")) ? null : Text("python"), options is { Count: > 0 } ? options : null, string.IsNullOrWhiteSpace(Text("description")) ? null : Text("description"), driver,
 			map.TryGetValue("auto_restart", out var auto) && auto is not null ? auto as bool? ?? throw new ArgumentException("'auto_restart' must be true or false") : null,
-			remote ? true : null);
+			remote ? true : null, package, package is null || string.IsNullOrWhiteSpace(Text("entry")) ? null : Text("entry")!.Trim());
 	}
 }

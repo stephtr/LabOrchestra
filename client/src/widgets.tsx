@@ -90,7 +90,7 @@ function runtimeDef(w: RuntimeWidget): WidgetDef {
 	const meta = w.module?.meta;
 	const Module = w.module?.component;
 	return {
-		type: `ws:${w.name}`,
+		type: w.name,
 		title: meta?.title ?? w.name,
 		size: meta?.size ?? 'S',
 		needsDevice: meta?.needsDevice,
@@ -98,11 +98,11 @@ function runtimeDef(w: RuntimeWidget): WidgetDef {
 		accepts: (info) => !meta?.profile || hasProfile(info, meta.profile),
 		component: (props) =>
 			Module ? (
-				<WidgetBoundary key={w.version} name={w.name}>
+				<WidgetBoundary key={w.version} name={w.name.replace(/^\w+:/, '')}>
 					<Module {...props} />
 				</WidgetBoundary>
 			) : (
-				<div data-testid={`widget-error-${w.name}`} className="h-full overflow-auto whitespace-pre-wrap rounded-lg border border-red-400 bg-red-50 p-2 font-mono text-xs text-red-800 dark:bg-red-950 dark:text-red-300">
+				<div data-testid={`widget-error-${w.name.replace(/^\w+:/, '')}`} className="h-full overflow-auto whitespace-pre-wrap rounded-lg border border-red-400 bg-red-50 p-2 font-mono text-xs text-red-800 dark:bg-red-950 dark:text-red-300">
 					{w.error}
 				</div>
 			),

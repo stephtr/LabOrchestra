@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lab-test-pkg"
+version = "0.1.0"
+description = "A device package for the tests: one device and one widget."
+requires-python = ">=3.11"
+dependencies = []
+
+[project.entry-points."laborchestra.devices"]
+test_counter = "lab_test_pkg:TestCounter"
+
+[project.entry-points."laborchestra.widgets"]
+packaged_tile = "lab_test_pkg.widgets"
+
+[tool.setuptools.packages.find]
+include = ["lab_test_pkg*"]
+
+[tool.setuptools.package-data]
+"lab_test_pkg.widgets" = ["*.js"]

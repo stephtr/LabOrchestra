@@ -4,9 +4,10 @@ using System.Text.RegularExpressions;
 namespace LabOrchestra.Server;
 
 /// <summary>One entry of devices.json. <c>File</c> is relative to the workspace folder.</summary>
-/// <summary>A Python device names its <c>File</c>; a C# device names its <c>Driver</c> (a class with [Driver] in the server or in a plugin). With <c>auto_restart</c> a Python device starts again by itself when its file changes (off by default: a restart may touch hardware).</summary>
+/// <summary>A device that an installed Python package offers (entry point group <c>laborchestra.devices</c>) names its <c>Package</c> (a pip requirement such as "laborchestra-elliptec==1.2", or a folder or wheel) and its <c>Entry</c> (the name of the entry point; optional when the package offers one device). A Python device names its <c>File</c>; a C# device names its <c>Driver</c> (a class with [Driver] in the server or in a plugin). With <c>auto_restart</c> a Python device starts again by itself when its file changes (off by default: a restart may touch hardware).</summary>
 public sealed record DeviceConfig(string? File = null, string? Python = null, Dictionary<string, JsonElement>? Config = null, string? Description = null, string? Driver = null,
-	[property: System.Text.Json.Serialization.JsonPropertyName("auto_restart")] bool? AutoRestart = null, bool? Remote = null);
+	[property: System.Text.Json.Serialization.JsonPropertyName("auto_restart")] bool? AutoRestart = null, bool? Remote = null,
+	string? Package = null, string? Entry = null);
 
 /// <summary>devices.json. <c>Version</c> is the format: a file without one is version 1; a file of a newer version than this server knows is
 /// refused (an older server must not rewrite what it does not understand). When the format changes, files are migrated here, with a backup.</summary>
@@ -37,6 +38,8 @@ public sealed partial class Workspace : IDisposable
 	public string Path { get; }
 	public IReadOnlyDictionary<string, DeviceConfig> Devices { get; private set; }
 	public event Action? Changed;
+	/// <summary>The device list was changed through <see cref="Update"/> (the UI, a script), not by editing the file: nothing needs reloading, but those who care (the widgets of packages) can look again.</summary>
+	public event Action? Edited;
 	public bool HasDevicesFile => File.Exists(System.IO.Path.Combine(Path, "devices.json"));
 
 	private Workspace(string path, Dictionary<string, DeviceConfig> devices)
@@ -70,9 +73,9 @@ public sealed partial class Workspace : IDisposable
 		{
 			if (!SnakeCase().IsMatch(id))
 				throw new InvalidOperationException($"{file}: device id '{id}' must be snake_case (lowercase letters, digits, underscores)");
-			var kinds = (string.IsNullOrWhiteSpace(device.File) ? 0 : 1) + (string.IsNullOrWhiteSpace(device.Driver) ? 0 : 1) + (device.Remote == true ? 1 : 0);
+			var kinds = (string.IsNullOrWhiteSpace(device.File) ? 0 : 1) + (string.IsNullOrWhiteSpace(device.Driver) ? 0 : 1) + (device.Remote == true ? 1 : 0) + (string.IsNullOrWhiteSpace(device.Package) ? 0 : 1);
 			if (kinds != 1)
-				throw new InvalidOperationException($"{file}: device '{id}' needs exactly one of \"file\" (Python), \"driver\" (C#) or \"remote\": true (a worker on another machine)");
+				throw new InvalidOperationException($"{file}: device '{id}' needs exactly one of \"file\" (Python), \"package\" (an installed Python package), \"driver\" (C#) or \"remote\": true (a worker on another machine)");
 			devices[id] = device;
 		}
 		return devices;
@@ -92,6 +95,7 @@ public sealed partial class Workspace : IDisposable
 			File.Move(temporary, file, overwrite: true); // like an editor: write elsewhere, then rename
 			Devices = next;
 		}
+		Edited?.Invoke();
 	}
 
 	public void Watch(ILogger log)

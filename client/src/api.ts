@@ -11,6 +11,9 @@ export type DeviceEntry = {
 	description: string | null;
 	/** A worker on another machine provides this device. */
 	remote?: boolean;
+	/** A device that an installed Python package offers: the package (a pip requirement, or a folder) and the name of its entry point. */
+	package?: string | null;
+	entry?: string | null;
 };
 export type TokenInfo = { id: string; kind: string; device: string | null; label: string; created: number };
 export type CreatedToken = { token: string; id: string; device: string; label: string };
@@ -30,7 +33,15 @@ export type Scaffolded = { device: string; file: string; path: string; template:
 
 export type ScaffoldedWidget = { widget: string; name: string; file: string; path: string; template: string };
 
+export type PackageContents = {
+	devices: { name: string; value: string; package: string | null; version: string | null }[];
+	widgets: { name: string; package: string | null; file: string | null; error: string | null }[];
+	entry: string | null;
+	schema: Schema | null;
+};
+
 export const api = {
+	describePackage: (pkg: string, entry: string | null, python: string | null) => invokeHub<PackageContents>('describe_package', pkg, entry, python),
 	listWidgetTemplates: () => invokeHub<TemplateInfo[]>('list_widget_templates'),
 	scaffoldWidget: (template: string, name: string) => invokeHub<ScaffoldedWidget>('scaffold_widget', template, name),
 	listTemplates: () => invokeHub<TemplateInfo[]>('list_templates'),

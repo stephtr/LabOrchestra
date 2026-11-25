@@ -117,7 +117,7 @@ Track B, oscilloscope:
 - [x] Port widgets: oscilloscope, pressure, RF generator, stage, polarimeter, recording controls (locks are lab-internal; pumps and voltage outputs need profiles first)
 - [x] Device management: list, schema forms, logs, restart, **New device** from templates, remote workers with revocable tokens, views duplicate/rename/reorder (open: catalog of installable packages)
 - [x] Views: split tree with movable gutters + compact strip (S/M), edit mode with drag and drop, picker, several views, server-side files (phone layout dropped: not a priority)
-- [x] Runtime widgets of the workspace (`widgets/*.tsx`), widget SDK, error boundary, reload on change, server-built Tailwind stylesheet, New widget (open: widgets shipped by device packages via entry points, props schema per instance)
+- [x] Runtime widgets of the workspace (`widgets/*.tsx`), widget SDK, error boundary, reload on change, server-built Tailwind stylesheet, New widget ; settings (props) per widget instance; device packages with devices and widgets through entry points (open: catalog of installable packages, comes with publication)
 
 **Exit:** today's hard-coded dashboard is reproduced as a view without code changes. *(Reproduced with simulators as `workspace/views/dashboard.json`; open: the voltage output "X" as a `number` widget, the lock buttons, and checking the real devices on the lab PC.)*
 

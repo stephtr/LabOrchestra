@@ -170,6 +170,16 @@ public sealed class ControlHub(
 	public Dictionary<string, object?> DescribeDriver(string driver) =>
 		drivers.Find(driver) is { } type ? Drivers.DriverSchema.Build("describe", type) : throw new HubException(Errors.Json("LookupError", $"There is no driver '{driver}' (drivers: {string.Join(", ", drivers.Names)})"));
 
+	/// <summary>Looks inside a package (builds its environment the first time, which can take a while): the devices and widgets it offers, and the
+	/// options and actions of the chosen device.</summary>
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("describe_package")]
+	public async Task<Dictionary<string, object?>> DescribePackage(string package, string? entry, string? python)
+	{
+		try { return await catalog.DescribePackageAsync(package, entry, python, Context.ConnectionAborted); }
+		catch (Exception e) when (e is ArgumentException or InvalidOperationException) { throw new HubException(Errors.Json("ValueError", e.Message)); }
+	}
+
 	/// <summary>The runtime widgets (widgets/ in the workspace): name, version (changes with the code), build error; and the version of the stylesheet.</summary>
 	[Authorize(Roles = Roles.Client)]
 	[HubMethodName("list_widgets")]
@@ -246,7 +256,7 @@ public sealed class ControlHub(
 	public Dictionary<string, Dictionary<string, object?>> ListDeviceEntries() =>
 		workspace.Devices.ToDictionary(kv => kv.Key, kv => new Dictionary<string, object?>
 		{
-			["file"] = kv.Value.File, ["driver"] = kv.Value.Driver, ["python"] = kv.Value.Python, ["description"] = kv.Value.Description, ["remote"] = kv.Value.Remote == true,
+			["file"] = kv.Value.File, ["driver"] = kv.Value.Driver, ["python"] = kv.Value.Python, ["description"] = kv.Value.Description, ["remote"] = kv.Value.Remote == true, ["package"] = kv.Value.Package, ["entry"] = kv.Value.Entry,
 			["config"] = kv.Value.Config is null ? null : Plain.FromJson(System.Text.Json.JsonSerializer.SerializeToElement(kv.Value.Config)),
 		}.WithAutoRestart(kv.Value));
 
@@ -254,7 +264,7 @@ public sealed class ControlHub(
 	[HubMethodName("get_device_config")]
 	public Dictionary<string, object?> GetDeviceConfig(string id) =>
 		workspace.Devices.TryGetValue(id, out var d)
-			? new Dictionary<string, object?> { ["file"] = d.File, ["driver"] = d.Driver, ["python"] = d.Python, ["config"] = d.Config is null ? null : Plain.FromJson(System.Text.Json.JsonSerializer.SerializeToElement(d.Config)), ["description"] = d.Description, ["remote"] = d.Remote == true }.WithAutoRestart(d)
+			? new Dictionary<string, object?> { ["file"] = d.File, ["driver"] = d.Driver, ["python"] = d.Python, ["config"] = d.Config is null ? null : Plain.FromJson(System.Text.Json.JsonSerializer.SerializeToElement(d.Config)), ["description"] = d.Description, ["remote"] = d.Remote == true, ["package"] = d.Package, ["entry"] = d.Entry }.WithAutoRestart(d)
 			: throw new HubException(Errors.Json("LookupError", $"Device '{id}' is not in devices.json"));
 
 	[Authorize(Roles = Roles.Client)]

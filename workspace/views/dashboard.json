@@ -3,13 +3,9 @@
 	"title": "Dashboard",
 	"order": 0,
 	"root": {
-		"id": "n_root",
+		"id": "nmwvvuj5l36e1",
 		"kind": "split",
 		"dir": "column",
-		"sizes": [
-			50,
-			50
-		],
 		"children": [
 			{
 				"id": "n_acq",
@@ -29,6 +25,10 @@
 					"device": "acq2"
 				}
 			}
+		],
+		"sizes": [
+			50,
+			50
 		]
 	},
 	"strip": [

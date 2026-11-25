@@ -56,7 +56,7 @@ function WidgetView({ instance }: { instance: WidgetInstance }) {
 	const info = instance.device ? devices[instance.device] : undefined;
 	if (def?.needsDevice === false) return <def.component id={instance.id} device="" info={NO_DEVICE} props={instance.props ?? {}} />;
 	let problem: string | null = null;
-	if (!def) problem = instance.type.startsWith('ws:') && !runtimeWidgetsReady() ? 'Loading the widgets…' : `Unknown widget "${instance.type}".`;
+	if (!def) problem = /^(ws|pkg):/.test(instance.type) && !runtimeWidgetsReady() ? 'Loading the widgets…' : `Unknown widget "${instance.type}".`;
 	else if (!instance.device) problem = 'This widget needs a device.';
 	else if (!info) problem = `Device "${instance.device}" does not exist (any more).`;
 	else if (!def.accepts(info)) problem = `"${instance.device}" cannot be shown by the ${def.title} widget.`;

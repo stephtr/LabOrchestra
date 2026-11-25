@@ -148,3 +148,17 @@ export default function BigPressure({ device }: { device: string }) {
 Save the file: the server builds it (esbuild), the page loads the new version without a reload, a mistake is shown in place of the widget. It then appears under **Add widget**, next to every device its `profile` fits. Tailwind classes work (the server builds the stylesheet from your widgets and the client). `react` and `@laborchestra/widget` come from the page; other npm packages are bundled in, so install them next to the widget (`npm install` in `widgets/`). `widgets/laborchestra-widget.d.ts` gives your editor the types of the SDK. Building needs `esbuild`: in a checkout it is found in `client/node_modules` (`pnpm install` in `client/`).
 
 `pnpm build` and `pnpm dev` in `client/` first run `gen-shims.mjs` (the modules that let widgets share the page's React, and the Tailwind compiler the server uses): they are generated into `client/public/_lo/`, not committed.
+
+## Device packages
+
+A device does not have to be a file in the workspace: a Python package can offer devices and widgets through entry points.
+
+```toml
+[project.entry-points."laborchestra.devices"]
+elliptec = "laborchestra_elliptec:Elliptec"
+
+[project.entry-points."laborchestra.widgets"]
+elliptec_stage = "laborchestra_elliptec.widgets"   # the folder of this module holds elliptec_stage.js, a built ES module
+```
+
+Add it on the **Devices** page: **Add existing**, kind **Python package**, type a requirement (`laborchestra-elliptec==1.2`) or the folder of a package, **Look inside** shows what it offers and its options. In `devices.json`: `"elliptec": {"package": "laborchestra-elliptec==1.2", "entry": "elliptec", "config": {...}}`. The widgets of a package show up in **Add widget** like those of the workspace. `python/tests/packages/lab_test_pkg` is a complete small example.

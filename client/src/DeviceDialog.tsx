@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, DeviceFile, DriverInfo, PythonInfo } from './api';
+import { api, DeviceFile, DriverInfo, PackageContents, PythonInfo } from './api';
 import { Param, Schema } from './store';
 
 type OptionValue = { text: string; checked: boolean; touched: boolean; secret: string | null };
@@ -99,7 +99,7 @@ export function DeviceDialog({ deviceId, onClose }: { deviceId: string | null; o
 	const dialog = useRef<HTMLDialogElement>(null);
 	const saved = useRef<Record<string, unknown> | null>(null); // the options now in devices.json (when changing)
 	const [id, setId] = useState(deviceId ?? '');
-	const [kind, setKind] = useState<'file' | 'driver' | 'remote'>('file');
+	const [kind, setKind] = useState<'file' | 'driver' | 'remote' | 'package'>('file');
 	const [file, setFile] = useState('');
 	const [driver, setDriver] = useState('');
 	const [drivers, setDrivers] = useState<DriverInfo[]>([]);
@@ -114,6 +114,9 @@ export function DeviceDialog({ deviceId, onClose }: { deviceId: string | null; o
 	const [values, setValues] = useState<Record<string, OptionValue>>({});
 	const [error, setError] = useState<string | null>(null);
 	const [saving, setSaving] = useState(false);
+	const [pkg, setPkg] = useState('');
+	const [pkgEntry, setPkgEntry] = useState('');
+	const [contents, setContents] = useState<PackageContents | null>(null);
 
 	useEffect(() => {
 		dialog.current?.showModal();
@@ -127,7 +130,9 @@ export function DeviceDialog({ deviceId, onClose }: { deviceId: string | null; o
 				saved.current = entry.config;
 				setPython(entry.python ?? '');
 				setDescription(entry.description ?? '');
-				setKind(entry.remote ? 'remote' : entry.driver ? 'driver' : 'file');
+				setKind(entry.remote ? 'remote' : entry.package ? 'package' : entry.driver ? 'driver' : 'file');
+				setPkg(entry.package ?? '');
+				setPkgEntry(entry.entry ?? '');
 				setDriver(entry.driver ?? '');
 				setFile(entry.file ?? '');
 			}, (e: Error) => setError(e.message));
@@ -135,6 +140,30 @@ export function DeviceDialog({ deviceId, onClose }: { deviceId: string | null; o
 	}, [deviceId]);
 
 	const chosen = kind === 'file' ? file : kind === 'driver' ? driver : '';
+
+	/** Looks into the package: builds its environment the first time (that can take a while) and shows what it offers. */
+	async function lookInside(entry: string | null) {
+		setError(null);
+		setDescribing(true);
+		setSchema(null);
+		try {
+			const found = await api.describePackage(pkg.trim(), entry, python.trim() || null);
+			setContents(found);
+			setPkgEntry(found.entry ?? '');
+			if (found.schema) {
+				setSchema(found.schema);
+				setValues(initialValues(found.schema, editing && saved.current ? saved.current : null));
+			}
+		} catch (e) {
+			setContents(null);
+			setError((e as Error).message);
+		} finally {
+			setDescribing(false);
+		}
+	}
+	useEffect(() => {
+		if (kind === 'package' && editing && pkg && !contents) void lookInside(pkgEntry || null);
+	}, [kind, editing, pkg]); // eslint-disable-line react-hooks/exhaustive-deps
 	useEffect(() => {
 		if (!chosen) return;
 		let current = true;
@@ -165,14 +194,17 @@ export function DeviceDialog({ deviceId, onClose }: { deviceId: string | null; o
 	async function save() {
 		setError(null);
 		if (!SNAKE.test(id)) return setError('The id must be snake_case: lowercase letters, digits and underscores');
-		if (kind !== 'remote' && (!chosen || !schema)) return setError(kind === 'file' ? 'Choose a device file' : 'Choose a driver');
+		if (kind === 'package' && (!pkg.trim() || !pkgEntry || !schema)) return setError('Look inside the package and choose one of its devices');
+		if (kind !== 'remote' && kind !== 'package' && (!chosen || !schema)) return setError(kind === 'file' ? 'Choose a device file' : 'Choose a driver');
 		setSaving(true);
 		try {
 			const config = schema ? buildConfig(schema, values, kept) : {};
 			const entry =
 				kind === 'remote'
 					? { remote: true, description: description.trim() || null }
-					: {
+					: kind === 'package'
+						? { package: pkg.trim(), entry: pkgEntry, python: python.trim() || null, config: Object.keys(config).length ? config : null, description: description.trim() || null }
+						: {
 							...(kind === 'file' ? { file, python: python.trim() || null } : { driver }),
 							config: Object.keys(config).length ? config : null,
 							description: description.trim() || null,
@@ -213,11 +245,35 @@ export function DeviceDialog({ deviceId, onClose }: { deviceId: string | null; o
 					<label className="flex items-center gap-1">
 						<input type="radio" name="kind" data-testid="kind-driver" checked={kind === 'driver'} disabled={editing} onChange={() => { setKind('driver'); setSchema(null); }} /> C# driver
 					</label>
+					<label className="flex items-center gap-1" title="A device that an installed Python package offers (entry point laborchestra.devices)">
+						<input type="radio" name="kind" data-testid="kind-package" checked={kind === 'package'} disabled={editing} onChange={() => { setKind('package'); setSchema(null); }} /> Python package
+					</label>
 					<label className="flex items-center gap-1" title="The device runs in a worker on another machine, which connects with a token">
 						<input type="radio" name="kind" data-testid="kind-remote" checked={kind === 'remote'} disabled={editing} onChange={() => { setKind('remote'); setSchema(null); }} /> Remote worker
 					</label>
 				</div>
-				{kind === 'remote' ? (
+				{kind === 'package' ? (
+					<div className="flex flex-col gap-2">
+						<div className="flex flex-wrap items-center gap-2">
+							<label className="w-40 text-sm" htmlFor="device-package">Package</label>
+							<input id="device-package" data-testid="field-package" className={`${FIELD} w-72 font-mono`} value={pkg} disabled={editing} placeholder="laborchestra-elliptec==1.2, or a folder" onChange={(e) => { setPkg(e.target.value); setContents(null); setSchema(null); }} />
+							<button type="button" data-testid="look-inside" className="rounded bg-zinc-200 px-2 py-1 text-sm disabled:opacity-50 dark:bg-slate-800" disabled={!pkg.trim() || describing} onClick={() => void lookInside(null)}>Look inside</button>
+						</div>
+						{contents && (
+							<div className="flex flex-col gap-1 text-sm" data-testid="package-contents">
+								<div className="flex flex-wrap items-center gap-2">
+									<label className="w-40" htmlFor="device-entry">Device</label>
+									<select id="device-entry" data-testid="field-entry" className={`${FIELD} w-72`} value={pkgEntry} disabled={editing} onChange={(e) => { setPkgEntry(e.target.value); void lookInside(e.target.value); }}>
+										<option value="">choose…</option>
+										{contents.devices.map((d) => <option key={d.name} value={d.name}>{d.name} ({d.package} {d.version})</option>)}
+									</select>
+								</div>
+								{contents.devices.length === 0 && <p className="text-amber-700 dark:text-amber-400">This package offers no devices (entry point group laborchestra.devices).</p>}
+								{contents.widgets.length > 0 && <p className="text-zinc-500">It also brings widgets: {contents.widgets.map((w) => w.name).join(', ')}. They appear in the picker once the device is added.</p>}
+							</div>
+						)}
+					</div>
+				) : kind === 'remote' ? (
 					<p className="text-sm text-zinc-500">The device runs in a worker on another machine. After adding it, create a token for it under “Remote workers” on this page.</p>
 				) : kind === 'file' ? (
 					<div className="flex flex-wrap items-center gap-2">
@@ -245,7 +301,7 @@ export function DeviceDialog({ deviceId, onClose }: { deviceId: string | null; o
 						</select>
 					</div>
 				)}
-				{describing && <p className="text-sm text-zinc-500" data-testid="describing">Loading what the file offers… (the first time it may need to set up an environment)</p>}
+				{describing && <p className="text-sm text-zinc-500" data-testid="describing">Loading what {kind === 'package' ? 'the package' : 'the file'} offers… (the first time it may need to set up an environment)</p>}
 				{schema && (
 					<>
 						{schema.doc && <p className="text-sm text-zinc-500">{schema.doc}</p>}
@@ -268,7 +324,7 @@ export function DeviceDialog({ deviceId, onClose }: { deviceId: string | null; o
 						</div>
 					</>
 				)}
-				{kind === 'file' && (
+				{(kind === 'file' || kind === 'package') && (
 					<div className="flex flex-wrap items-center gap-2">
 						<label className="w-40 text-sm" htmlFor="device-python">Python (optional)</label>
 						<input id="device-python" list="pythons" className={`${FIELD} w-56`} value={python} placeholder='a version such as "3.12", or a path' onChange={(e) => setPython(e.target.value)} />
