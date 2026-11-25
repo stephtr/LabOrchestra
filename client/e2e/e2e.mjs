@@ -362,6 +362,65 @@ try {
 	assert.equal(await page.getByRole('separator').count(), 1);
 	ok('the layout survives a reload');
 
+	// compact widgets: a pressure readout (labelled), the recording bar
+	await page.getByTestId('edit-toggle').click();
+	await page.getByTestId('add-widget').click();
+	await page.getByTestId('add-pressure-pressure-0').click();
+	await page.getByTestId('add-widget').click();
+	await page.getByTestId('add-recording').click();
+	await page.getByTestId('pressure-value-pressure-0').waitFor();
+	assert.equal(await text('pressure-value-pressure-0'), await text('state-pressure-channels.0.pressure'));
+	page.once('dialog', (d) => d.accept('Vorvakuum'));
+	await page.getByTestId('strip-' + (await waitView((v) => v.strip.some((w) => w.type === 'pressure'), 'pressure widget')).strip.find((w) => w.type === 'pressure').id).getByLabel('Set label').click();
+	await page.getByTestId('pressure-pressure-0').getByText('Vorvakuum').waitFor();
+	script('lab.pressure.set_pressure(0, 0.0789)');
+	await waitText('pressure-value-pressure-0', '0.0789');
+	ok('pressure widget shows the profile\'s channel, follows it and takes a label');
+
+	await page.getByTestId('edit-toggle').click(); // Done
+	await page.getByTestId('record-start').isDisabled().then((d) => assert.ok(d, 'no recording without a name'));
+	await page.getByTestId('recording-name').fill('widget_test');
+	await page.getByTestId('record-start').click();
+	await page.getByTestId('record-stop').waitFor();
+	assert.ok(fs.existsSync(path.join(dir, 'data', 'recordings', 'widget_test.yaml')) || fs.readdirSync(path.join(dir, 'data', 'recordings')).some((f) => f.startsWith('widget_test')));
+	await page.getByTestId('record-stop').click();
+	await page.getByTestId('record-start').waitFor();
+	await page.getByTestId('recording-name').fill('widget_snap');
+	await page.getByTestId('snapshot').click();
+	await page.waitForFunction(() => !document.querySelector('[data-testid="recording-widget"]')?.getAttribute('title'));
+	ok('recording bar: record, stop, snapshot');
+
+	// stage and RF generator widgets, with the simulated drivers
+	for (const f of ['elliptec.py', 'rs_sma100b.py']) fs.copyFileSync(path.join(root, 'drivers', f), path.join(dir, 'workspace/devices', f));
+	const devicesJson = path.join(dir, 'workspace/devices.json');
+	const current = JSON.parse(fs.readFileSync(devicesJson, 'utf8'));
+	current.devices.stages = { file: 'devices/elliptec.py', config: { simulate: true, channels: [{ type: 'rotation', address: '0' }, { type: 'rotation', address: '1' }] } };
+	current.devices.rf = { file: 'devices/rs_sma100b.py', config: { simulate: true } };
+	fs.writeFileSync(devicesJson, JSON.stringify(current));
+	await page.getByTestId('edit-toggle').click();
+	await page.getByTestId('add-widget').click();
+	await page.getByTestId('add-positioner-stages-1').click();
+	await page.getByTestId('add-widget').click();
+	await page.getByTestId('add-frequency-rf-0').click();
+	const positionInput = page.getByTestId('positioner-input-stages-1');
+	await positionInput.fill('42.5');
+	await positionInput.press('Enter');
+	await page.waitForFunction(() => document.querySelector('[data-testid="positioner-input-stages-1"]')?.value === '42.5');
+	assert.equal(script("print(lab.stages.state['channels'][1]['target_position'])"), '42.5');
+	await page.getByLabel('Step up').click();
+	await page.waitForFunction(() => document.querySelector('[data-testid="positioner-input-stages-1"]')?.value === '43.5');
+	ok('stage widget: typed position and step buttons move the channel');
+
+	const frequencyInput = page.getByTestId('frequency-input-rf-0');
+	await frequencyInput.fill('1.5 MHz');
+	await frequencyInput.press('Enter');
+	await page.waitForFunction(() => document.querySelector('[data-testid="frequency-input-rf-0"]')?.value === '1.5 MHz');
+	assert.equal(script("print(lab.rf.state['channels'][0]['frequency'])"), '1500000.0');
+	await page.getByTestId('frequency-on-rf-0').click();
+	await page.waitForFunction(() => document.querySelector('[data-testid="frequency-on-rf-0"]')?.getAttribute('aria-pressed') === 'true');
+	ok('RF widget: frequency with SI suffix, output on');
+	await page.getByTestId('edit-toggle').click(); // Done
+
 	// a hand edit of the file reaches the open page; a missing device gives a placeholder
 	view = readView();
 	view.strip.push({ id: 'w_gone', type: 'summary', device: 'no_such_device' });

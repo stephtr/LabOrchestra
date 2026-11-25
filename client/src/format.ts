@@ -10,3 +10,12 @@ export function formatNumber(value: number): string {
 	if (abs >= 1e5 || abs < 1e-3) return value.toExponential(2);
 	return String(Number(value.toPrecision(5)));
 }
+
+const SI_PREFIX: Record<string, number> = { '': 1, k: 1e3, K: 1e3, M: 1e6, G: 1e9 };
+
+/** "867 kHz", "1.5MHz", "2e6" or "100" (Hz) -> Hz; NaN if it is not a frequency. */
+export function parseFrequency(text: string): number {
+	const match = /^\s*([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)\s*([kKMG]?)(?:Hz)?\s*$/.exec(text.replace(',', '.'));
+	if (!match) return NaN;
+	return Number(match[1]) * SI_PREFIX[match[2]!]!;
+}

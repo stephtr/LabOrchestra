@@ -13,6 +13,7 @@ import {
 	Node,
 	parseView,
 	removeWidget,
+	setProps,
 	Side,
 	setSizes,
 	swapMains,
@@ -27,6 +28,7 @@ import { OscilloscopeWidget } from './OscilloscopeWidget';
 import { COMPACT_HEIGHT, widgetDef, widgetDefs } from './widgets';
 
 const AUTO_ID = 'dashboard';
+const NO_DEVICE: DeviceInfo = { status: 'ready', error: null, schema: null, state: null, revision: 0 };
 
 type DropTarget = { pane: string; side: Side | 'swap' } | { strip: number } | null;
 type Ctx = {
@@ -47,6 +49,7 @@ function WidgetView({ instance }: { instance: WidgetInstance }) {
 	const def = widgetDef(instance.type);
 	const info = instance.device ? devices[instance.device] : undefined;
 	let problem: string | null = null;
+	if (def?.needsDevice === false) return <def.component id={instance.id} device="" info={NO_DEVICE} props={instance.props ?? {}} />;
 	if (!def) problem = `Unknown widget "${instance.type}".`;
 	else if (!instance.device) problem = 'This widget needs a device.';
 	else if (!info) problem = `Device "${instance.device}" does not exist (any more).`;
@@ -98,6 +101,14 @@ const HIGHLIGHT: Record<Side | 'swap', string> = {
 	swap: 'left-0 top-0 h-full w-full',
 };
 
+/** Asks for a name for one instance ("QWP", "Vorvakuum"); empty takes the name away. */
+function rename(ctx: Ctx, instance: WidgetInstance) {
+	const label = window.prompt('Label of this widget (empty: the default)', typeof instance.props?.label === 'string' ? instance.props.label : '');
+	if (label === null) return;
+	const { label: _old, ...rest } = instance.props ?? {};
+	ctx.apply((v) => setProps(v, instance.id, label.trim() ? { ...rest, label: label.trim() } : rest));
+}
+
 function Pane({ instance }: { instance: WidgetInstance }) {
 	const ctx = useContext(DashboardContext);
 	const over = ctx.drop && 'pane' in ctx.drop && ctx.drop.pane === instance.id ? ctx.drop.side : null;
@@ -109,6 +120,7 @@ function Pane({ instance }: { instance: WidgetInstance }) {
 						⠿ {instance.type}{instance.device ? ` · ${instance.device}` : ''}
 					</span>
 					<span className="flex-1" />
+					<button className="text-zinc-500 hover:text-brand" aria-label="Set label" onClick={() => rename(ctx, instance)}>✎</button>
 					<button className="text-zinc-500 hover:text-red-600" aria-label="Remove widget" onClick={() => ctx.apply((v) => removeWidget(v, instance.id))}>
 						✕
 					</button>
@@ -239,9 +251,10 @@ function Strip({ widgets }: { widgets: WidgetInstance[] }) {
 					>
 						<WidgetView instance={w} />
 						{ctx.editing && (
-							<button className="absolute right-1 top-0 text-xs text-zinc-500 hover:text-red-600" aria-label="Remove widget" onClick={() => ctx.apply((v) => removeWidget(v, w.id))}>
-								✕
-							</button>
+							<span className="absolute right-1 top-0 flex gap-1 text-xs text-zinc-500">
+								<button className="hover:text-brand" aria-label="Set label" onClick={() => rename(ctx, w)}>✎</button>
+								<button className="hover:text-red-600" aria-label="Remove widget" onClick={() => ctx.apply((v) => removeWidget(v, w.id))}>✕</button>
+							</span>
 						)}
 					</div>
 				);
@@ -253,22 +266,30 @@ function Strip({ widgets }: { widgets: WidgetInstance[] }) {
 function Picker({ onPick }: { onPick: (instance: WidgetInstance) => void }) {
 	const { devices } = useContext(DashboardContext);
 	const ids = Object.keys(devices).sort();
+	const button = 'rounded bg-zinc-200 px-2 py-0.5 text-xs hover:bg-brand hover:text-white dark:bg-slate-800';
 	return (
 		<div data-testid="picker" className="max-h-64 overflow-auto border-b border-zinc-300 bg-white p-2 text-sm dark:border-slate-700 dark:bg-slate-900">
+			<div className="flex flex-wrap items-center gap-2 py-0.5">
+				<span className="w-48 truncate text-zinc-500">whole server</span>
+				{widgetDefs.filter((d) => d.needsDevice === false).map((d) => (
+					<button key={d.type} data-testid={`add-${d.type}`} className={button} onClick={() => onPick(widget(d.type))}>{d.title}</button>
+				))}
+			</div>
 			{ids.length === 0 && <p className="text-zinc-500">There are no devices to show yet.</p>}
 			{ids.map((id) => (
 				<div key={id} className="flex flex-wrap items-center gap-2 py-0.5">
 					<span className="w-48 truncate font-mono">{id}</span>
 					{widgetDefs
-						.filter((d) => d.accepts(devices[id]!))
-						.map((d) => (
+						.filter((d) => d.needsDevice !== false && d.accepts(devices[id]!))
+						.flatMap((d) => (d.variants?.(devices[id]!) ?? [{ label: '' }]).map((v) => ({ d, v })))
+						.map(({ d, v }) => (
 							<button
-								key={d.type}
-								data-testid={`add-${d.type}-${id}`}
-								className="rounded bg-zinc-200 px-2 py-0.5 text-xs hover:bg-brand hover:text-white dark:bg-slate-800"
-								onClick={() => onPick(widget(d.type, id))}
+								key={`${d.type}${v.label}`}
+								data-testid={`add-${d.type}-${id}${v.props && 'channel' in v.props ? `-${v.props.channel}` : ''}`}
+								className={button}
+								onClick={() => onPick(widget(d.type, id, v.props))}
 							>
-								{d.title}
+								{d.title}{v.label ? ` · ${v.label}` : ''}
 							</button>
 						))}
 				</div>

@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react';
 import { DeviceCard, STATUS_STYLE } from './DeviceCard';
 import { formatNumber, unitFor } from './format';
+import { FrequencyWidget, PolarimeterWidget, PositionerWidget, PressureWidget, RecordingWidget } from './compact';
 import { OscilloscopeWidget } from './OscilloscopeWidget';
 import type { DeviceInfo } from './store';
 
@@ -16,6 +17,10 @@ export type WidgetDef = {
 	size: WidgetSize;
 	/** Whether the widget can show this device. */
 	accepts: (info: DeviceInfo) => boolean;
+	/** False for widgets of the whole server (recording): no device is chosen. */
+	needsDevice?: boolean;
+	/** What the picker offers for a device: one instance per channel (props {channel}); default one instance without props. */
+	variants?: (info: DeviceInfo) => { label: string; props?: Record<string, unknown> }[];
 	component: ComponentType<WidgetProps>;
 };
 
@@ -44,9 +49,20 @@ function Summary({ device, info }: WidgetProps) {
 	);
 }
 
+const hasProfile = (info: DeviceInfo, name: string) => info.schema?.profiles?.some((p) => p.name === name) ?? false;
+const perChannel = (info: DeviceInfo) => {
+	const channels = info.state?.channels;
+	return Array.isArray(channels) && channels.length > 0 ? channels.map((_, i) => ({ label: `channel ${i}`, props: { channel: i } })) : [{ label: 'channel 0', props: { channel: 0 } }];
+};
+
 const definitions: WidgetDef[] = [
 	{ type: 'oscilloscope', title: 'Oscilloscope', size: 'main', accepts: (i) => i.schema?.widget === 'oscilloscope', component: ({ device, info }) => <OscilloscopeWidget id={device} info={info} /> },
 	{ type: 'device_card', title: 'Device card', size: 'main', accepts: () => true, component: ({ device, info }) => <DeviceCard id={device} info={info} /> },
+	{ type: 'pressure', title: 'Pressure', size: 'S', accepts: (i) => hasProfile(i, 'pressure_sensor'), variants: perChannel, component: PressureWidget },
+	{ type: 'positioner', title: 'Stage', size: 'S', accepts: (i) => hasProfile(i, 'positioner'), variants: perChannel, component: PositionerWidget },
+	{ type: 'frequency', title: 'Frequency', size: 'S', accepts: (i) => hasProfile(i, 'frequency_generator'), variants: perChannel, component: FrequencyWidget },
+	{ type: 'polarimeter', title: 'Polarization', size: 'S', accepts: (i) => hasProfile(i, 'polarimeter'), component: PolarimeterWidget },
+	{ type: 'recording', title: 'Recording', size: 'S', needsDevice: false, accepts: () => false, component: RecordingWidget },
 	{ type: 'summary', title: 'Summary', size: 'S', accepts: () => true, component: Summary },
 ];
 

@@ -43,6 +43,8 @@ export type LogEntry = {
 	message: string;
 	traceback: string | null;
 };
+/** The recording in progress (active: false when none). */
+export type RecordingStatus = { active: boolean; name?: string; start_time?: string; elapsed_s?: number; events?: number };
 export type ServerInfo = { workspace: string; devices_file: boolean; version: string };
 type Store = {
 	info: ServerInfo | null;
@@ -51,12 +53,13 @@ type Store = {
 	logs: Record<string, LogEntry[]>;
 	/** The views of the dashboard by id, as the JSON text the server stores. */
 	views: Record<string, string>;
+	recording: RecordingStatus;
 	loginError: string | null;
 };
 
 const TOKEN_KEY = 'laborchestra.token';
 export const getToken = () => localStorage.getItem(TOKEN_KEY) ?? '';
-let store: Store = { info: null, connection: 'connecting', devices: {}, logs: {}, views: {}, loginError: null };
+let store: Store = { info: null, connection: 'connecting', devices: {}, logs: {}, views: {}, recording: { active: false }, loginError: null };
 const subscribedLogs = new Set<string>();
 const listeners = new Set<() => void>();
 let hub: HubConnection | null = null;
@@ -152,6 +155,7 @@ async function connect(token: string) {
 		const { [id]: _removed, ...rest } = store.devices;
 		set({ devices: rest });
 	});
+	connection.on('recording', (recording: RecordingStatus) => set({ recording }));
 	connection.on('views', (views: Record<string, string>) => set({ views }));
 	connection.on('log', (entry: LogEntry) => {
 		if (!subscribedLogs.has(entry.source)) return;
@@ -190,8 +194,12 @@ async function sync(connection: HubConnection) {
 	let devices: Record<string, DeviceInfo> = {};
 	for (const [id, info] of Object.entries(fetched)) devices = take(devices, id, info);
 	for (const [id, known] of Object.entries(store.devices)) if (id in fetched) devices = take(devices, id, known); // events that came while we asked
-	const [info, views] = await Promise.all([connection.invoke<ServerInfo>('get_info'), connection.invoke<Record<string, string>>('get_views')]);
-	set({ connection: 'connected', devices, info, views });
+	const [info, views, recording] = await Promise.all([
+		connection.invoke<ServerInfo>('get_info'),
+		connection.invoke<Record<string, string>>('get_views'),
+		connection.invoke<RecordingStatus>('get_recording'),
+	]);
+	set({ connection: 'connected', devices, info, views, recording });
 	await Promise.all([...subscribedLogs].map((source) => loadLogs(connection, source)));
 }
 
