@@ -16,6 +16,7 @@ static class DeviceEntryExtensions
 	public static Dictionary<string, object?> WithAutoRestart(this Dictionary<string, object?> map, DeviceConfig device)
 	{
 		if (device.AutoRestart is { } auto) map["auto_restart"] = auto;
+		if (device.Remote == true) map["remote"] = true;
 		return map;
 	}
 }
@@ -50,6 +51,7 @@ public sealed class ControlHub(
 	Workspace workspace,
 	EventBus bus,
 	EventLog eventLog,
+	TokenStore tokenStore,
 	IHubContext<DeviceHub> devices) : Hub
 {
 	public override Task OnConnectedAsync()
@@ -212,6 +214,32 @@ public sealed class ControlHub(
 		registry.Snapshot(device) ?? throw new HubException(Errors.Json("LookupError", $"Device '{device}' does not exist"));
 
 	/// <param name="source">"server", "device:pressure" or null for all; since = 0 returns the latest entries.</param>
+	/// <summary>Creates a token for a worker on another machine. It may register the one device (which must be configured with "remote": true)
+	/// and nothing else. The token is returned here once; only its hash is kept.</summary>
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("create_token")]
+	public Dictionary<string, object?> CreateToken(string device, string? label)
+	{
+		if (!workspace.Devices.TryGetValue(device, out var config) || config.Remote != true)
+			throw new HubException(Errors.Json("ValueError", $"'{device}' is not a remote device: add it to devices.json with \"remote\": true first"));
+		var (token, record) = tokenStore.Create("worker", device, string.IsNullOrWhiteSpace(label) ? $"worker of {device}" : label.Trim());
+		return new() { ["token"] = token, ["id"] = record.Id, ["device"] = device, ["label"] = record.Label };
+	}
+
+	/// <summary>The tokens that exist (never the tokens themselves).</summary>
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("list_tokens")]
+	public List<Dictionary<string, object?>> ListTokens() =>
+		tokenStore.List().Select(t => new Dictionary<string, object?> { ["id"] = t.Id, ["kind"] = t.Kind, ["device"] = t.Device, ["label"] = t.Label, ["created"] = t.Created.ToUnixTimeSeconds() }).ToList();
+
+	/// <summary>Revokes a token: it cannot connect again (a connection that is open stays until it drops or the device is restarted).</summary>
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("revoke_token")]
+	public void RevokeToken(string id)
+	{
+		if (!tokenStore.Revoke(id)) throw new HubException(Errors.Json("LookupError", $"There is no token '{id}'"));
+	}
+
 	/// <summary>What happened to devices, oldest first: actions with their caller and status changes. Persistent, also outside recordings.</summary>
 	[HubMethodName("get_events")]
 	public List<Dictionary<string, object?>> GetEvents(string? device, string? kind, double since, double until, int limit) =>

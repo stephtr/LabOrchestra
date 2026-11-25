@@ -246,8 +246,8 @@ class AsyncLab:
         return await self._hub.invoke("describe_device_file", file, timeout=180)
 
     @staticmethod
-    def _device_entry(file, config, python, description, driver=None) -> dict:
-        entry = {"file": file, "driver": driver, "config": config, "python": python, "description": description}
+    def _device_entry(file, config, python, description, driver=None, remote=None) -> dict:
+        entry = {"file": file, "driver": driver, "config": config, "python": python, "description": description, "remote": remote or None}
         return {k: v for k, v in entry.items() if v is not None}
 
     async def list_drivers(self) -> list[dict]:
@@ -257,9 +257,21 @@ class AsyncLab:
     async def describe_driver(self, driver: str) -> dict:
         return await self._hub.invoke("describe_driver", driver)
 
-    async def add_device(self, device_id: str, file: str | None = None, config: dict | None = None, python: str | None = None, description: str | None = None, driver: str | None = None) -> None:
-        """Add a device to devices.json and start it: a Python ``file`` or a C# ``driver``. ``config`` holds its options; a value ``{"secret": "name"}`` refers to a secret."""
-        await self._hub.invoke("add_device", device_id, self._device_entry(file, config, python, description, driver))
+    async def add_device(self, device_id: str, file: str | None = None, config: dict | None = None, python: str | None = None, description: str | None = None, driver: str | None = None, remote: bool = False) -> None:
+        """Add a device to devices.json and start it: a Python ``file``, a C# ``driver``, or ``remote=True`` for a worker on another machine
+        (then ``create_token`` gives that worker its token). ``config`` holds its options; a value ``{"secret": "name"}`` refers to a secret."""
+        await self._hub.invoke("add_device", device_id, self._device_entry(file, config, python, description, driver, remote))
+
+    async def create_token(self, device_id: str, label: str | None = None) -> dict:
+        """A token for a worker on another machine that runs the remote device ``device_id``. Returns ``{"token", "id", ...}``; the token is
+        shown only now. Start the worker with ``laborchestra-worker device.py --id <device_id> --url <server> --token <token>``."""
+        return await self._hub.invoke("create_token", device_id, label)
+
+    async def list_tokens(self) -> list[dict]:
+        return await self._hub.invoke("list_tokens")
+
+    async def revoke_token(self, token_id: str) -> None:
+        await self._hub.invoke("revoke_token", token_id)
 
     async def update_device(self, device_id: str, file: str | None = None, config: dict | None = None, python: str | None = None, description: str | None = None, driver: str | None = None) -> None:
         """Replace the entry of a device (it restarts if anything but the description changed)."""
@@ -475,8 +487,17 @@ class Lab:
     def describe_driver(self, driver: str) -> dict:
         return self._run(self._async.describe_driver(driver))
 
-    def add_device(self, device_id: str, file: str | None = None, config: dict | None = None, python: str | None = None, description: str | None = None, driver: str | None = None) -> None:
-        self._run(self._async.add_device(device_id, file, config, python, description, driver))
+    def add_device(self, device_id: str, file: str | None = None, config: dict | None = None, python: str | None = None, description: str | None = None, driver: str | None = None, remote: bool = False) -> None:
+        self._run(self._async.add_device(device_id, file, config, python, description, driver, remote))
+
+    def create_token(self, device_id: str, label: str | None = None) -> dict:
+        return self._run(self._async.create_token(device_id, label))
+
+    def list_tokens(self) -> list[dict]:
+        return self._run(self._async.list_tokens())
+
+    def revoke_token(self, token_id: str) -> None:
+        self._run(self._async.revoke_token(token_id))
 
     def update_device(self, device_id: str, file: str | None = None, config: dict | None = None, python: str | None = None, description: str | None = None, driver: str | None = None) -> None:
         self._run(self._async.update_device(device_id, file, config, python, description, driver))

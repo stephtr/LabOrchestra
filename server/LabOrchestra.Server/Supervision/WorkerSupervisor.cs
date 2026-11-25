@@ -140,7 +140,7 @@ public sealed class WorkerSupervisor(
 	private void StartRunner(string id, DeviceConfig device, string signature)
 	{
 		var cancel = CancellationTokenSource.CreateLinkedTokenSource(_stop);
-		_runners[id] = new Runner(device, signature, cancel, Task.Run(() => device.Driver is null ? SuperviseAsync(id, device, cancel.Token) : SuperviseDriverAsync(id, device, cancel.Token), CancellationToken.None));
+		_runners[id] = new Runner(device, signature, cancel, Task.Run(() => device.Remote == true ? SuperviseRemoteAsync(id, cancel.Token) : device.Driver is null ? SuperviseAsync(id, device, cancel.Token) : SuperviseDriverAsync(id, device, cancel.Token), CancellationToken.None));
 	}
 
 	private async Task StopRunnerAsync(string id)
@@ -179,6 +179,16 @@ public sealed class WorkerSupervisor(
 			delay = TimeSpan.FromMilliseconds(Math.Min(delay.TotalMilliseconds * 2, MaxDelay.TotalMilliseconds));
 			registry.Declare(id);
 		}
+		registry.SetStatus(id, "stopped");
+	}
+
+	/// <summary>A device whose worker runs on another machine: nothing to start here, the worker connects with a token (create_token).</summary>
+	private async Task SuperviseRemoteAsync(string id, CancellationToken stop)
+	{
+		registry.Declare(id);
+		registry.SetStatus(id, "waiting", "Waiting for a worker on another machine: create a token for this device and start the worker with it");
+		logs.Add($"device:{id}", "INFO", "supervisor", "Waiting for a remote worker");
+		try { await Task.Delay(Timeout.Infinite, stop); } catch (OperationCanceledException) { }
 		registry.SetStatus(id, "stopped");
 	}
 

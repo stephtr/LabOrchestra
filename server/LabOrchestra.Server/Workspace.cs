@@ -6,7 +6,7 @@ namespace LabOrchestra.Server;
 /// <summary>One entry of devices.json. <c>File</c> is relative to the workspace folder.</summary>
 /// <summary>A Python device names its <c>File</c>; a C# device names its <c>Driver</c> (a class with [Driver] in the server or in a plugin). With <c>auto_restart</c> a Python device starts again by itself when its file changes (off by default: a restart may touch hardware).</summary>
 public sealed record DeviceConfig(string? File = null, string? Python = null, Dictionary<string, JsonElement>? Config = null, string? Description = null, string? Driver = null,
-	[property: System.Text.Json.Serialization.JsonPropertyName("auto_restart")] bool? AutoRestart = null);
+	[property: System.Text.Json.Serialization.JsonPropertyName("auto_restart")] bool? AutoRestart = null, bool? Remote = null);
 
 public sealed record DevicesFile(Dictionary<string, DeviceConfig>? Devices);
 
@@ -63,8 +63,9 @@ public sealed partial class Workspace : IDisposable
 		{
 			if (!SnakeCase().IsMatch(id))
 				throw new InvalidOperationException($"{file}: device id '{id}' must be snake_case (lowercase letters, digits, underscores)");
-			if (string.IsNullOrWhiteSpace(device.File) == string.IsNullOrWhiteSpace(device.Driver))
-				throw new InvalidOperationException($"{file}: device '{id}' needs either a \"file\" (Python) or a \"driver\" (C#), not both");
+			var kinds = (string.IsNullOrWhiteSpace(device.File) ? 0 : 1) + (string.IsNullOrWhiteSpace(device.Driver) ? 0 : 1) + (device.Remote == true ? 1 : 0);
+			if (kinds != 1)
+				throw new InvalidOperationException($"{file}: device '{id}' needs exactly one of \"file\" (Python), \"driver\" (C#) or \"remote\": true (a worker on another machine)");
 			devices[id] = device;
 		}
 		return devices;

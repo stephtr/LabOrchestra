@@ -111,6 +111,7 @@ public sealed partial class DeviceCatalog(Workspace workspace, EnvironmentManage
 			if (drivers.Find(config.Driver) is null) throw new ArgumentException($"There is no driver '{config.Driver}' (drivers: {string.Join(", ", drivers.Names)})");
 			return;
 		}
+		if (config.Remote == true) return; // no file: the worker runs elsewhere
 		Resolve(Normalize(config.File!)); // must exist inside the workspace
 	}
 
@@ -118,12 +119,13 @@ public sealed partial class DeviceCatalog(Workspace workspace, EnvironmentManage
 	public static DeviceConfig Parse(object? input)
 	{
 		if (Plain.From(input) is not Dictionary<string, object?> map) throw new ArgumentException("The device needs to be an object with a 'file'");
-		var unknown = map.Keys.Except(["file", "driver", "python", "config", "description", "auto_restart"]).ToList();
+		var unknown = map.Keys.Except(["file", "driver", "python", "config", "description", "auto_restart", "remote"]).ToList();
 		if (unknown.Count > 0) throw new ArgumentException($"Unknown field(s): {string.Join(", ", unknown)}");
 		string? Text(string key) => map.TryGetValue(key, out var v) && v is not null ? v as string ?? throw new ArgumentException($"'{key}' must be text") : null;
 		var file = Text("file");
 		var driver = Text("driver");
-		if ((file is null) == (driver is null)) throw new ArgumentException("The device needs either a 'file' (Python) or a 'driver' (C#)");
+		var remote = map.TryGetValue("remote", out var r) && r is true;
+		if ((file is null ? 0 : 1) + (driver is null ? 0 : 1) + (remote ? 1 : 0) != 1) throw new ArgumentException("The device needs exactly one of 'file' (Python), 'driver' (C#) or 'remote' (a worker on another machine)");
 		Dictionary<string, JsonElement>? options = null;
 		if (map.TryGetValue("config", out var c) && c is not null)
 		{
@@ -131,6 +133,7 @@ public sealed partial class DeviceCatalog(Workspace workspace, EnvironmentManage
 			options = given.ToDictionary(kv => kv.Key, kv => JsonSerializer.SerializeToElement(kv.Value));
 		}
 		return new DeviceConfig(file is null ? null : Normalize(file), string.IsNullOrWhiteSpace(Text("python")) ? null : Text("python"), options is { Count: > 0 } ? options : null, string.IsNullOrWhiteSpace(Text("description")) ? null : Text("description"), driver,
-			map.TryGetValue("auto_restart", out var auto) && auto is not null ? auto as bool? ?? throw new ArgumentException("'auto_restart' must be true or false") : null);
+			map.TryGetValue("auto_restart", out var auto) && auto is not null ? auto as bool? ?? throw new ArgumentException("'auto_restart' must be true or false") : null,
+			remote ? true : null);
 	}
 }

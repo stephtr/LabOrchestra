@@ -183,3 +183,95 @@ def test_a_changed_device_file_is_noticed_and_restarts_only_when_asked(tmp_path)
         except subprocess.TimeoutExpired:
             server.kill()
         log.close()
+
+
+def test_a_worker_on_another_machine_connects_with_a_token_that_can_be_revoked(tmp_path):
+    build_server()
+    workspace, data = tmp_path / "workspace", tmp_path / "data"
+    workspace.mkdir()
+    (workspace / "devices.json").write_text(json.dumps({"devices": {"remote_counter": {"remote": True}}}))
+    url = f"http://127.0.0.1:{free_port()}"
+    server, log = launch(workspace, data, url)
+    workers = []
+
+    def start_worker(token):
+        process = subprocess.Popen(
+            [sys.executable, "-m", "laborchestra.worker", str(DEVICES / "counter.py"), "--id", "remote_counter", "--url", url, "--token", token],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        workers.append(process)
+        return process
+
+    try:
+        with laborchestra.connect(url, PASSPHRASE) as lab:
+            wait_for(lambda: lab.remote_counter.status == "waiting", 30, "the remote device to wait")
+            assert "Waiting for a worker" in lab.remote_counter.error
+            with pytest.raises(laborchestra.RemoteError, match="not a remote device"):
+                lab.create_token("no_such_device")
+
+            created = lab.create_token("remote_counter", "lab PC 2")
+            token = created["token"]
+            assert token.startswith("lo_") and created["device"] == "remote_counter"
+            assert [{k: v for k, v in t.items() if k != "created"} for t in lab.list_tokens()] == [{"id": created["id"], "kind": "worker", "device": "remote_counter", "label": "lab PC 2"}]
+            assert token not in (data / "tokens.json").read_text()  # only a hash is stored
+
+            first = start_worker(token)
+            wait_for(lambda: lab.remote_counter.status == "ready", 30, "the remote worker to register")
+            lab.remote_counter.increment()
+            assert lab.remote_counter.state["count"] == 1
+            first.terminate()
+            first.wait(10)
+            wait_for(lambda: lab.remote_counter.status == "reconnecting", 10, "the lost worker to be noticed")
+
+            lab.revoke_token(created["id"])
+            assert lab.list_tokens() == []
+            second = start_worker(token)
+            assert second.wait(30) != 0  # refused: the worker gives up instead of trying for ever
+            assert lab.remote_counter.status != "ready"
+            with pytest.raises(laborchestra.RemoteError, match="There is no token"):
+                lab.revoke_token(created["id"])
+    finally:
+        for worker in workers:
+            if worker.poll() is None:
+                worker.kill()
+        server.terminate()
+        try:
+            server.wait(15)
+        except subprocess.TimeoutExpired:
+            server.kill()
+        log.close()
+
+
+def test_workers_and_scripts_talk_to_a_server_over_tls(tmp_path):
+    import shutil as sh
+
+    if sh.which("openssl") is None:
+        pytest.skip("openssl is needed to make a test certificate")
+    build_server()
+    certificate, key = tmp_path / "cert.pem", tmp_path / "key.pem"
+    subprocess.run(
+        ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", str(key), "-out", str(certificate), "-days", "2",
+         "-subj", "/CN=localhost", "-addext", "subjectAltName=DNS:localhost,IP:127.0.0.1"], check=True, capture_output=True)
+    workspace, data = tmp_path / "workspace", tmp_path / "data"
+    (workspace / "devices").mkdir(parents=True)
+    shutil.copy(DEVICES / "counter.py", workspace / "devices" / "counter.py")
+    (workspace / "devices.json").write_text(json.dumps({"devices": {"counter": {"file": "devices/counter.py"}}}))
+    url = f"https://127.0.0.1:{free_port()}"
+    env = {"Kestrel__Certificates__Default__Path": str(certificate), "Kestrel__Certificates__Default__KeyPath": str(key), "LABORCHESTRA_CA_FILE": str(certificate)}
+    server, log = launch(workspace, data, url, env=env)
+    try:
+        with pytest.MonkeyPatch.context() as patch:
+            patch.setenv("LABORCHESTRA_CA_FILE", str(certificate))
+            with laborchestra.connect(url, PASSPHRASE) as lab:
+                lab.counter.wait_ready(30)  # the worker the server started connected over TLS too
+                lab.counter.increment()
+                assert lab.counter.state["count"] == 1
+            patch.delenv("LABORCHESTRA_CA_FILE")
+            with pytest.raises(Exception, match="not trusted"):  # a certificate nobody trusts is refused
+                laborchestra.connect(url, PASSPHRASE, timeout=5)
+    finally:
+        server.terminate()
+        try:
+            server.wait(15)
+        except subprocess.TimeoutExpired:
+            server.kill()
+        log.close()

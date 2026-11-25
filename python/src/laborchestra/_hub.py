@@ -12,6 +12,8 @@ import inspect
 import itertools
 import json
 import logging
+import os
+import ssl
 import traceback
 from typing import Any, Awaitable, Callable
 from urllib.parse import urlsplit, urlunsplit
@@ -63,6 +65,14 @@ def _ws_url(url: str) -> str:
     parts = urlsplit(url)
     scheme = {"http": "ws", "https": "wss"}.get(parts.scheme, parts.scheme)
     return urlunsplit((scheme, parts.netloc, parts.path, parts.query, ""))
+
+
+def _tls_context(url: str):
+    """For wss://: the system's trust, plus the certificate authority (or self-signed certificate) of the lab's server when
+    LABORCHESTRA_CA_FILE names it. None for ws:// (websockets then does not use TLS)."""
+    if not url.startswith("wss://"):
+        return None
+    return ssl.create_default_context(cafile=os.environ.get("LABORCHESTRA_CA_FILE") or None)
 
 
 def error_text(exc: BaseException) -> str:
@@ -151,7 +161,7 @@ class Hub:
             try:
                 headers = {"Authorization": f"Bearer {self.token}"} if self.token else None
                 async with websockets.connect(
-                    self.url, additional_headers=headers, max_size=None, compression=None, open_timeout=10
+                    self.url, additional_headers=headers, max_size=None, compression=None, open_timeout=10, ssl=_tls_context(self.url)
                 ) as ws:
                     await ws.send(json.dumps({"protocol": "messagepack", "version": 1}) + "\x1e")
                     raw = await ws.recv()
@@ -176,6 +186,13 @@ class Hub:
                     finally:
                         for task in background:
                             task.cancel()
+            except ssl.SSLCertVerificationError as e:  # waiting will not make the certificate trusted
+                self.fatal = ConnectionError(
+                    f"The server's certificate is not trusted ({e.verify_message}). If the lab uses its own certificate or authority, "
+                    "set LABORCHESTRA_CA_FILE to that certificate file."
+                )
+                self._connected.set()
+                return
             except InvalidStatus as e:
                 if e.response.status_code == 426:  # the server does not speak our protocol: no use in trying again
                     try:

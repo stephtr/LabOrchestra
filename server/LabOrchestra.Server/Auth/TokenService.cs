@@ -20,7 +20,13 @@ public sealed class TokenService
 	private readonly byte[] _passphrase;
 	private readonly ConcurrentDictionary<string, string> _deviceTokens = new();
 
-	public TokenService(string passphrase) => _passphrase = Encoding.UTF8.GetBytes(passphrase);
+	private readonly TokenStore _store;
+
+	public TokenService(string passphrase, TokenStore store)
+	{
+		_passphrase = Encoding.UTF8.GetBytes(passphrase);
+		_store = store;
+	}
 
 	public static string NewSecret() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(24)).Replace('+', '-').Replace('/', '_').TrimEnd('=');
 
@@ -57,6 +63,8 @@ public sealed class TokenService
 			return Principal(Roles.Client);
 		if (_deviceTokens.TryGetValue(token, out var deviceId))
 			return Principal(Roles.Device, new Claim("device_id", deviceId));
+		if (token.StartsWith("lo_") && _store.Find(token) is { Kind: "worker", Device: { } remoteDevice })
+			return Principal(Roles.Device, new Claim("device_id", remoteDevice)); // a worker on another machine: may register this device only
 		return null;
 	}
 

@@ -121,3 +121,13 @@ The oscilloscope plugin uses pffft (`native/pffft`, built by `native/build.sh` a
 ## Events, history and notes
 
 `events.db` (SQLite, in the data folder) keeps what happened, also when no recording ran: `lab.events("pressure", "action", since=...)` (actions with the caller, status changes), `lab.history("pressure", "channels.1.pressure", since=...)` (every numeric state field, one value per 10 s, 30 days; `history_interval_s` changes the interval), and notes (`lab.add_note("text", ["pressure"])`, `lab.notes("pressure")`). Recordings have an `id` in their header. Events are written by one background thread, so a slow disk never delays a device.
+
+## Workers on another machine, TLS
+
+A device that runs elsewhere is configured with `"remote": true` in `devices.json` (no file, no driver); the server shows it as `waiting`. `lab.create_token("remote_pressure", "lab PC 2")` returns a token (shown once, stored hashed, valid for that one device); on the other machine:
+
+```
+uvx --from laborchestra laborchestra-worker pressure.py --id remote_pressure --url https://lab-server:5095 --token lo_...
+```
+
+`lab.revoke_token(id)` stops a token from connecting again. For TLS give Kestrel a certificate, e.g. `Kestrel__Certificates__Default__Path` and `...__KeyPath` (PEM files) with an `https://` URL in `--urls`; a client that must trust the lab's own certificate or authority sets `LABORCHESTRA_CA_FILE`. Without that it says that the certificate is not trusted instead of waiting.
