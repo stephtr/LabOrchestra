@@ -35,6 +35,7 @@ catch (InvalidOperationException e)
 	return 2;
 }
 
+var clientDir = config["client_dir"] ?? FindClientDir();
 var logStore = new LogStore(Path.Combine(dataDir, "logs"));
 builder.Logging.AddProvider(new LogStoreProvider(logStore));
 builder.Services.AddSingleton(logStore);
@@ -60,6 +61,9 @@ builder.Services.AddSingleton(sp => new WorkerGuard(dataDir, sp.GetRequiredServi
 builder.Services.AddSingleton<WorkerSupervisor>();
 builder.Services.AddSingleton<DeviceCatalog>();
 builder.Services.AddSingleton<LabOrchestra.Server.Devices.Scaffolder>();
+builder.Services.AddSingleton(new LabOrchestra.Server.Widgets.ClientDirectory(clientDir is null ? null : Path.GetFullPath(clientDir)));
+builder.Services.AddSingleton<LabOrchestra.Server.Widgets.WidgetService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<LabOrchestra.Server.Widgets.WidgetService>());
 builder.Services.AddHostedService(sp => sp.GetRequiredService<WorkerSupervisor>());
 builder.Services.AddSignalR(o => o.MaximumReceiveMessageSize = 16 * 1024 * 1024).AddMessagePackProtocol();
 // SignalR runs the invocations of one connection one after the other by default: then a stop could not reach a device while a
@@ -107,7 +111,6 @@ app.MapHub<DeviceHub>("/hub/devices");
 app.MapHub<ControlHub>("/hub/control");
 app.MapHub<StreamHub>("/hub/streaming");
 
-var clientDir = config["client_dir"] ?? FindClientDir();
 if (clientDir is not null && Directory.Exists(clientDir))
 {
 	var files = new PhysicalFileProvider(Path.GetFullPath(clientDir));

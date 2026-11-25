@@ -5,6 +5,18 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<title>LabOrchestra</title>
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<!-- runtime widgets import these; the files re-export the host's own modules, so that there is one React (see gen-shims.mjs) -->
+		<script type="importmap">
+			{
+				"imports": {
+					"react": "/_lo/react.js",
+					"react/jsx-runtime": "/_lo/jsx-runtime.js",
+					"react-dom": "/_lo/react-dom.js",
+					"react-dom/client": "/_lo/react-dom-client.js",
+					"@laborchestra/widget": "/_lo/widget.js"
+				}
+			}
+		</script>
 	</head>
 	<body>
 		<div id="root"></div>

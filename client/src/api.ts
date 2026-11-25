@@ -28,7 +28,11 @@ export type PythonInfo = { version: string; path: string; implementation: string
 export type TemplateInfo = { id: string; title: string; description: string; profile: string | null; source: string };
 export type Scaffolded = { device: string; file: string; path: string; template: string };
 
+export type ScaffoldedWidget = { widget: string; name: string; file: string; path: string; template: string };
+
 export const api = {
+	listWidgetTemplates: () => invokeHub<TemplateInfo[]>('list_widget_templates'),
+	scaffoldWidget: (template: string, name: string) => invokeHub<ScaffoldedWidget>('scaffold_widget', template, name),
 	listTemplates: () => invokeHub<TemplateInfo[]>('list_templates'),
 	scaffoldDevice: (template: string, id: string, connection: string, python: string | null) => invokeHub<Scaffolded>('scaffold_device', template, id, connection, python),
 	listEnvironments: () => invokeHub<EnvironmentInfo[]>('list_environments'),

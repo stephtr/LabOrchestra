@@ -24,15 +24,17 @@ public sealed partial class Scaffolder(Workspace workspace, DeviceCatalog catalo
 
 	private sealed record Template(string Id, string Title, string Description, string? Profile, string Source, string Path);
 
-	private IEnumerable<Template> Templates()
+	/// <summary>The templates of a kind: "device" (*.py.tmpl) or "widget" (*.tsx.tmpl).</summary>
+	private IEnumerable<Template> Templates(string kind = "device")
 	{
+		var extension = kind == "widget" ? ".tsx.tmpl" : ".py.tmpl";
 		var found = new Dictionary<string, Template>();
-		foreach (var (folder, source) in new[] { (Path.Combine(AppContext.BaseDirectory, "templates", "device"), "built-in"), (Path.Combine(workspace.Path, "templates", "device"), "workspace") })
+		foreach (var (folder, source) in new[] { (Path.Combine(AppContext.BaseDirectory, "templates", kind), "built-in"), (Path.Combine(workspace.Path, "templates", kind), "workspace") })
 		{
 			if (!Directory.Exists(folder)) continue;
-			foreach (var file in Directory.EnumerateFiles(folder, "*.py.tmpl").Order())
+			foreach (var file in Directory.EnumerateFiles(folder, "*" + extension).Order())
 			{
-				var id = Path.GetFileName(file)[..^".py.tmpl".Length];
+				var id = Path.GetFileName(file)[..^extension.Length];
 				if (!SnakeCase().IsMatch(id)) continue;
 				var meta = Header(file);
 				found[id] = new Template(id, meta.GetValueOrDefault("title") ?? id, meta.GetValueOrDefault("description") ?? "", meta.GetValueOrDefault("profile"), source, file);
@@ -41,16 +43,17 @@ public sealed partial class Scaffolder(Workspace workspace, DeviceCatalog catalo
 		return found.Values.OrderBy(t => t.Id == "blank" ? 0 : 1).ThenBy(t => t.Title);
 	}
 
-	/// <summary>The first line of a template: <c># template {"title": "...", "description": "...", "profile": "..."}</c>.</summary>
+	/// <summary>The first line of a template: <c># template {"title": "...", "description": "...", "profile": "..."}</c> (<c>//</c> in TypeScript).</summary>
 	private static Dictionary<string, string> Header(string file)
 	{
 		var first = File.ReadLines(file).FirstOrDefault() ?? "";
-		if (!first.StartsWith("# template ")) return [];
-		try { return JsonSerializer.Deserialize<Dictionary<string, string>>(first["# template ".Length..]) ?? []; }
+		var start = first.StartsWith("# template ") || first.StartsWith("// template ") ? first.IndexOf('{') : -1;
+		if (start < 0) return [];
+		try { return JsonSerializer.Deserialize<Dictionary<string, string>>(first[start..]) ?? []; }
 		catch (JsonException) { return []; }
 	}
 
-	public List<Dictionary<string, object?>> List() => Templates()
+	public List<Dictionary<string, object?>> List(string kind = "device") => Templates(kind)
 		.Select(t => new Dictionary<string, object?> { ["id"] = t.Id, ["title"] = t.Title, ["description"] = t.Description, ["profile"] = t.Profile, ["source"] = t.Source })
 		.ToList();
 
@@ -86,6 +89,30 @@ public sealed partial class Scaffolder(Workspace workspace, DeviceCatalog catalo
 		}
 		log.LogInformation("Device {Device} created from the template {Template} ({File})", id, templateId, relative);
 		return new() { ["device"] = id, ["file"] = relative, ["path"] = full, ["template"] = templateId };
+	}
+
+	/// <summary>Creates <c>widgets/&lt;name&gt;.tsx</c> from a template (never overwrites), and puts the type file for the SDK next to it so that
+	/// editors know what <c>@laborchestra/widget</c> offers. The server builds the widget as soon as it appears.</summary>
+	public Task<Dictionary<string, object?>> CreateWidgetAsync(string templateId, string name)
+	{
+		if (!SnakeCase().IsMatch(name)) throw new ArgumentException($"The name '{name}' must be snake_case: lowercase letters, digits and underscores, starting with a letter (e.g. big_pressure)");
+		var template = Templates("widget").FirstOrDefault(t => t.Id == templateId) ?? throw new ArgumentException($"There is no widget template '{templateId}' (templates: {string.Join(", ", Templates("widget").Select(t => t.Id))})");
+		var folder = Path.Combine(workspace.Path, "widgets");
+		var full = Path.Combine(folder, name + ".tsx");
+		if (File.Exists(full) || Directory.Exists(Path.Combine(folder, name))) throw new ArgumentException($"widgets/{name}.tsx exists already; it is never overwritten. Choose another name");
+
+		var text = File.ReadAllText(template.Path);
+		text = text[(text.IndexOf('\n') + 1)..];
+		var title = char.ToUpper(name[0]) + name[1..].Replace('_', ' ');
+		text = text.Replace("{{class_name}}", ClassName(name)).Replace("{{title}}", title).Replace("{{name}}", name).Replace("\r\n", "\n");
+		Directory.CreateDirectory(folder);
+		using (var stream = new FileStream(full, FileMode.CreateNew, FileAccess.Write))
+			stream.Write(new UTF8Encoding(false).GetBytes(text));
+		var types = Path.Combine(AppContext.BaseDirectory, "templates", "widget", "laborchestra-widget.d.ts");
+		var typesTarget = Path.Combine(folder, "laborchestra-widget.d.ts");
+		if (File.Exists(types) && !File.Exists(typesTarget)) File.Copy(types, typesTarget);
+		log.LogInformation("Widget {Widget} created from the template {Template}", name, templateId);
+		return Task.FromResult<Dictionary<string, object?>>(new() { ["widget"] = $"ws:{name}", ["name"] = name, ["file"] = $"widgets/{name}.tsx", ["path"] = full, ["template"] = templateId });
 	}
 
 	private static string ClassName(string id) => string.Concat(id.Split('_').Select(w => char.ToUpper(w[0]) + w[1..]));

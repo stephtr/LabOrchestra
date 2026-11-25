@@ -67,13 +67,18 @@ public sealed class WorkerGuard : IDisposable
 		done.Task.GetAwaiter().GetResult();
 		try { if (_job != 0) WindowsJob.Add(_job, process); }
 		catch (Exception e) { _log.LogWarning("Worker of {Device} is not in the job object: {Message}", device, e.Message); }
+		int pid;
+		DateTime startTime;
+		try { (pid, startTime) = (process.Id, process.StartTime.ToUniversalTime()); }
+		catch (InvalidOperationException) { return; } // a worker that is gone already (a bad option makes it quit at once) has nothing left to guard
 		lock (_lock)
 		{
-			_entries.Add(new Entry(process.Id, process.StartTime.ToUniversalTime(), device));
+			_entries.Add(new Entry(pid, startTime, device));
 			Write(_entries);
 		}
-		process.Exited += (_, _) => Forget(process.Id);
-		if (process.HasExited) Forget(process.Id);
+		process.Exited += (_, _) => Forget(pid);
+		try { if (process.HasExited) Forget(pid); }
+		catch (InvalidOperationException) { Forget(pid); }
 	}
 
 	private void Forget(int pid)

@@ -58,6 +58,10 @@ type Store = {
 	loginError: string | null;
 };
 
+/** Called with the list of runtime widgets (see runtimeWidgets.tsx) after connecting and whenever the server announces a change. */
+let widgetsHandler: ((listing: unknown) => void) | null = null;
+export const setWidgetsHandler = (handler: (listing: unknown) => void) => void (widgetsHandler = handler);
+
 const TOKEN_KEY = 'laborchestra.token';
 export const getToken = () => localStorage.getItem(TOKEN_KEY) ?? '';
 let store: Store = { info: null, connection: 'connecting', devices: {}, logs: {}, views: {}, recording: { active: false }, loginError: null };
@@ -156,6 +160,7 @@ async function connect(token: string) {
 		const { [id]: _removed, ...rest } = store.devices;
 		set({ devices: rest });
 	});
+	connection.on('widgets', (listing: unknown) => widgetsHandler?.(listing));
 	connection.on('recording', (recording: RecordingStatus) => set({ recording }));
 	connection.on('views', (views: Record<string, string>) => set({ views }));
 	connection.on('log', (entry: LogEntry) => {
@@ -201,6 +206,7 @@ async function sync(connection: HubConnection) {
 		connection.invoke<RecordingStatus>('get_recording'),
 	]);
 	set({ connection: 'connected', devices, info, views, recording });
+	connection.invoke('list_widgets').then((listing) => widgetsHandler?.(listing), () => undefined);
 	await Promise.all([...subscribedLogs].map((source) => loadLogs(connection, source)));
 }
 

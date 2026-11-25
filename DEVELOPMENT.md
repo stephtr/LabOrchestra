@@ -131,3 +131,20 @@ uvx --from laborchestra laborchestra-worker pressure.py --id remote_pressure --u
 ```
 
 `lab.revoke_token(id)` stops a token from connecting again. For TLS give Kestrel a certificate, e.g. `Kestrel__Certificates__Default__Path` and `...__KeyPath` (PEM files) with an `https://` URL in `--urls`; a client that must trust the lab's own certificate or authority sets `LABORCHESTRA_CA_FILE`. Without that it says that the certificate is not trusted instead of waiting.
+
+## Widgets of your own
+
+A widget is a React component in `<workspace>/widgets/<name>.tsx` (or `<name>/index.tsx` with more files). Create one with **New widget…** in the dashboard's edit mode (**Edit**), or write the file yourself:
+
+```tsx
+import { Tile, useDevice } from '@laborchestra/widget';
+export const meta = { title: 'Big pressure', size: 'S', profile: 'pressure_sensor' };
+export default function BigPressure({ device }: { device: string }) {
+  const d = useDevice(device);
+  return <Tile label={device} testId="big"><span className="text-3xl font-bold text-fuchsia-600">{d?.state.channels?.[0]?.pressure}</span></Tile>;
+}
+```
+
+Save the file: the server builds it (esbuild), the page loads the new version without a reload, a mistake is shown in place of the widget. It then appears under **Add widget**, next to every device its `profile` fits. Tailwind classes work (the server builds the stylesheet from your widgets and the client). `react` and `@laborchestra/widget` come from the page; other npm packages are bundled in, so install them next to the widget (`npm install` in `widgets/`). `widgets/laborchestra-widget.d.ts` gives your editor the types of the SDK. Building needs `esbuild`: in a checkout it is found in `client/node_modules` (`pnpm install` in `client/`).
+
+`pnpm build` and `pnpm dev` in `client/` first run `gen-shims.mjs` (the modules that let widgets share the page's React, and the Tailwind compiler the server uses): they are generated into `client/public/_lo/`, not committed.

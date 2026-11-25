@@ -5,6 +5,7 @@ import { ButtonWidget, NumberWidget, ValueWidget } from './generic';
 import { FrequencyWidget, PolarimeterWidget, PositionerWidget, PressureWidget, RecordingWidget, TurboPumpWidget } from './compact';
 import { OscilloscopeWidget } from './OscilloscopeWidget';
 import type { DeviceInfo } from './store';
+import { RuntimeWidget, runtimeWidgets, useRuntimeWidgets, WidgetBoundary } from './runtimeWidgets';
 
 /**
  * The kinds of widget the client knows. A widget either fills a pane ("main") or sits in the strip as a compact widget of fixed height:
@@ -81,8 +82,44 @@ const definitions: WidgetDef[] = [
 	{ type: 'summary', title: 'Summary', size: 'S', accepts: () => true, component: Summary },
 ];
 
-export const widgetDefs: readonly WidgetDef[] = definitions;
-export const widgetDef = (type: string) => definitions.find((d) => d.type === type);
+/** A widget of the workspace (widgets/<name>.tsx) as an entry of the registry: its type is "ws:<name>". */
+function runtimeDef(w: RuntimeWidget): WidgetDef {
+	const meta = w.module?.meta;
+	const Module = w.module?.component;
+	return {
+		type: `ws:${w.name}`,
+		title: meta?.title ?? w.name,
+		size: meta?.size ?? 'S',
+		needsDevice: meta?.needsDevice,
+		accepts: (info) => !meta?.profile || hasProfile(info, meta.profile),
+		component: (props) =>
+			Module ? (
+				<WidgetBoundary key={w.version} name={w.name}>
+					<Module {...props} />
+				</WidgetBoundary>
+			) : (
+				<div data-testid={`widget-error-${w.name}`} className="h-full overflow-auto whitespace-pre-wrap rounded-lg border border-red-400 bg-red-50 p-2 font-mono text-xs text-red-800 dark:bg-red-950 dark:text-red-300">
+					{w.error}
+				</div>
+			),
+	};
+}
+
+/** The widgets that can be placed: the built-in ones and those of the workspace. */
+export function allWidgetDefs(): WidgetDef[] {
+	return [...definitions, ...Object.values(runtimeWidgets().widgets).map(runtimeDef)];
+}
+
+/** Like allWidgetDefs, for components: they render again when a widget is built or changed. */
+export function useWidgetDefs(): WidgetDef[] {
+	useRuntimeWidgets();
+	return allWidgetDefs();
+}
+
+export const widgetDef = (type: string) => allWidgetDefs().find((d) => d.type === type);
+
+/** Whether the workspace's widgets have been listed yet (before that "ws:..." is not unknown, just not here yet). */
+export const runtimeWidgetsReady = () => runtimeWidgets().ready;
 
 /** Pixel height of a compact widget: two sizes, so that the strip stays tidy. */
 export const COMPACT_HEIGHT: Record<'S' | 'M', number> = { S: 56, M: 116 };

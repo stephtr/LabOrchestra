@@ -1,0 +1,27 @@
+// template {"title": "Device with a control", "description": "Shows a number of a device and sets it with an action: a field to type into."}
+import { NumberField, Tile, useAction, useDevice } from '@laborchestra/widget';
+import type { WidgetMeta, WidgetProps } from '@laborchestra/widget';
+
+export const meta: WidgetMeta = { title: '{{title}}', size: 'S' };
+
+// TODO: the state field to show and the action that changes it (look at the device's card to see what it has)
+const FIELD = 'value';
+const ACTION = 'set_value';
+
+export default function {{class_name}}({ device }: WidgetProps) {
+	const d = useDevice(device);
+	const { run, error } = useAction(device); // run("action", ...arguments); error is the last failure, if any
+	const value = d?.state[FIELD];
+	return (
+		<Tile label={device} testId="{{name}}" problem={error}>
+			<NumberField
+				label={FIELD}
+				testId="{{name}}-input"
+				value={typeof value === 'number' ? value : null}
+				format={(v) => String(Number(v.toPrecision(5)))}
+				parse={Number}
+				onCommit={(v) => run(ACTION, v)}
+			/>
+		</Tile>
+	);
+}

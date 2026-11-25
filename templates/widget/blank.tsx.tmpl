@@ -1,0 +1,18 @@
+// template {"title": "Blank widget", "description": "A small tile for one device: its status and a state value. Save the file and the page updates by itself."}
+import { Tile, useDevice } from '@laborchestra/widget';
+import type { WidgetMeta, WidgetProps } from '@laborchestra/widget';
+
+// How the widget shows up in the picker. size: "S" or "M" are the two heights of the strip, "main" fills a pane.
+// profile: only offer it for devices of this kind, e.g. "pressure_sensor" (leave it out to allow any device).
+export const meta: WidgetMeta = { title: '{{title}}', size: 'S' };
+
+export default function {{class_name}}({ device, props }: WidgetProps) {
+	const d = useDevice(device); // status, live state, units and actions of the device the widget is placed for
+	if (!d) return <Tile label="{{title}}" testId="{{name}}">no device</Tile>;
+	return (
+		<Tile label={typeof props.label === 'string' ? props.label : d.id} testId="{{name}}">
+			{/* Tailwind classes work in widgets */}
+			<div className="font-mono text-lg">{d.status}</div>
+		</Tile>
+	);
+}

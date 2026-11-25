@@ -53,6 +53,7 @@ public sealed class ControlHub(
 	EventLog eventLog,
 	ViewStore views,
 	Devices.Scaffolder scaffolder,
+	Widgets.WidgetService widgets,
 	TokenStore tokenStore,
 	Supervision.EnvironmentManager environments,
 	IHubContext<DeviceHub> devices) : Hub
@@ -169,10 +170,42 @@ public sealed class ControlHub(
 	public Dictionary<string, object?> DescribeDriver(string driver) =>
 		drivers.Find(driver) is { } type ? Drivers.DriverSchema.Build("describe", type) : throw new HubException(Errors.Json("LookupError", $"There is no driver '{driver}' (drivers: {string.Join(", ", drivers.Names)})"));
 
+	/// <summary>The runtime widgets (widgets/ in the workspace): name, version (changes with the code), build error; and the version of the stylesheet.</summary>
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("list_widgets")]
+	public Dictionary<string, object?> ListWidgets() => widgets.List();
+
+	/// <summary>The compiled module of a widget (ES module text) or why it did not build.</summary>
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("get_widget")]
+	public Dictionary<string, object?> GetWidget(string name)
+	{
+		try { return widgets.Get(name); }
+		catch (ArgumentException e) { throw new HubException(Errors.Json("LookupError", e.Message)); }
+	}
+
+	/// <summary>The stylesheet of the host and all widgets.</summary>
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("get_widget_css")]
+	public string GetWidgetCss() => widgets.Css();
+
 	/// <summary>The templates for "New device": id, title, description, the profile it implements.</summary>
 	[Authorize(Roles = Roles.Client)]
 	[HubMethodName("list_templates")]
 	public List<Dictionary<string, object?>> ListTemplates() => scaffolder.List();
+
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("list_widget_templates")]
+	public List<Dictionary<string, object?>> ListWidgetTemplates() => scaffolder.List("widget");
+
+	/// <summary>Makes widgets/&lt;name&gt;.tsx from a template; the server builds it at once and it appears in the picker. Never overwrites.</summary>
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("scaffold_widget")]
+	public async Task<Dictionary<string, object?>> ScaffoldWidget(string template, string name)
+	{
+		try { return await scaffolder.CreateWidgetAsync(template, name); }
+		catch (ArgumentException e) { throw new HubException(Errors.Json("ValueError", e.Message)); }
+	}
 
 	/// <summary>Makes devices/&lt;id&gt;.py from a template, registers it and starts it (simulated). Never overwrites.</summary>
 	[Authorize(Roles = Roles.Client)]

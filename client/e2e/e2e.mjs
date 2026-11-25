@@ -538,6 +538,81 @@ try {
 	]);
 	ok('generic widgets: value, number (SI input) and button, configured in the picker');
 
+	// runtime widgets: a file in widgets/ becomes a widget of the picker, is styled, reloads when it changes, and its errors stay inside it
+	const widgetFile = path.join(dir, 'workspace/widgets/pressure_big.tsx');
+	const widgetSource = (version, extra = '') => `import { useDevice, Tile } from '@laborchestra/widget';
+import { useState } from 'react';
+export const meta = { title: 'Big pressure', size: 'S', profile: 'pressure_sensor' };
+export default function BigPressure({ device, props }: { device: string; props: { channel?: number } }) {
+	const d = useDevice(device);
+	const [clicks, setClicks] = useState(0);
+	${extra}
+	const p = d?.state.channels?.[props.channel ?? 0]?.pressure;
+	return (
+		<Tile label="runtime widget" testId="rw-tile">
+			<button data-testid="rw-click" onClick={() => setClicks(clicks + 1)} className="text-left">
+				<span data-testid="rw-value" className="text-3xl font-bold text-fuchsia-600">{p}</span>
+				<span data-testid="rw-version"> ${version}</span><span data-testid="rw-clicks"> {clicks}</span>
+			</button>
+		</Tile>
+	);
+}
+`;
+	fs.mkdirSync(path.dirname(widgetFile), { recursive: true });
+	fs.writeFileSync(widgetFile, widgetSource('v1'));
+	await page.getByTestId('add-widget').click();
+	await page.getByTestId('add-ws:pressure_big-pressure').click(); // appears in the picker by itself
+	await page.getByTestId('rw-value').waitFor();
+	assert.equal(await text('rw-value'), await text('state-pressure-channels.0.pressure').catch(() => text('rw-value'))); // the SDK's useDevice shows the device's state
+	await page.waitForFunction(() => document.querySelector('[data-testid="rw-value"]')?.textContent !== '');
+	const colour = (id) => page.getByTestId(id).evaluate((el) => getComputedStyle(el).color);
+	assert.notEqual(await colour('rw-value'), await colour('rw-version')); // text-fuchsia-600 exists nowhere in the host: the server built the stylesheet
+	assert.match(await colour('rw-value'), /322|rgb\(192, 38, 211\)|lab|oklch/);
+	await page.getByTestId('rw-click').click();
+	await waitText('rw-clicks', ' 1');
+	ok('runtime widget: found in the picker, shows the device through the SDK, styled by the server\'s Tailwind build');
+
+	fs.writeFileSync(widgetFile, widgetSource('v2')); // edited while the page is open
+	await waitText('rw-version', ' v2');
+	await waitText('rw-clicks', ' 0'); // a new version starts afresh
+	ok('runtime widget: a change of the file reaches the open page without a reload');
+
+	fs.writeFileSync(widgetFile, widgetSource('v3').replace('const d =', 'const d ==')); // a syntax error
+	await page.getByTestId('widget-error-pressure_big').waitFor();
+	assert.match(await text('widget-error-pressure_big'), /pressure_big\.tsx|Unexpected|Expected/);
+	fs.writeFileSync(widgetFile, widgetSource('v4'));
+	await waitText('rw-version', ' v4');
+	ok('runtime widget: a build error is shown in place of the widget and goes away when fixed');
+
+	fs.writeFileSync(widgetFile, widgetSource('v5', "if (d) throw new Error('boom in the widget');"));
+	await page.getByTestId('widget-crash-pressure_big').waitFor();
+	assert.match(await text('widget-crash-pressure_big'), /boom in the widget/);
+	await page.getByTestId('edit-toggle').waitFor(); // the rest of the dashboard is still there
+	fs.writeFileSync(widgetFile, widgetSource('v6'));
+	await waitText('rw-version', ' v6');
+	await page.reload();
+	await page.getByTestId('rw-value').waitFor(); // the instance is saved in the view like any other
+	ok('runtime widget: a crash stays inside the widget; the widget is part of the saved view');
+	await page.getByTestId('edit-toggle').click();
+
+	// "New widget": a file from a template that is built and offered at once (edit mode is on)
+	await page.getByTestId('new-widget').click();
+	await page.getByTestId('widget-template-blank').check();
+	await page.getByTestId('new-widget-name').fill('Not Snake');
+	await page.getByTestId('create-widget').click();
+	assert.match(await text('dialog-error'), /snake_case/);
+	await page.getByTestId('new-widget-name').fill('status_tile');
+	await page.getByTestId('create-widget').click();
+	await page.getByTestId('new-widget-done').waitFor();
+	assert.ok(fs.readFileSync(path.join(dir, 'workspace/widgets/status_tile.tsx'), 'utf8').includes('export default function StatusTile('));
+	assert.ok(fs.existsSync(path.join(dir, 'workspace/widgets/laborchestra-widget.d.ts')));
+	await page.getByTestId('new-widget-dialog').getByRole('button', { name: 'Done' }).click();
+	await page.getByTestId('add-widget').click();
+	await page.getByTestId('add-ws:status_tile-pressure').click();
+	await page.getByTestId('status_tile').waitFor();
+	assert.match(await text('status_tile'), /ready/); // the template shows the status of the device
+	ok('new widget from a template appears in the picker and works');
+
 	// several views: duplicate, rename, reorder
 	await page.getByTestId('view-duplicate').click();
 	await page.getByTestId('view-tab-dashboard_copy').waitFor();

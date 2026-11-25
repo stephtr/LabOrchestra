@@ -22,11 +22,12 @@ import {
 	WidgetInstance,
 } from './layout';
 import { CustomForm } from './generic';
+import { NewWidgetDialog } from './NewWidgetDialog';
 import { navigate, usePath } from './router';
 import { DeviceInfo, deleteView, saveView, useStore } from './store';
 import { DeviceCard } from './DeviceCard';
 import { OscilloscopeWidget } from './OscilloscopeWidget';
-import { COMPACT_HEIGHT, widgetDef, widgetDefs } from './widgets';
+import { COMPACT_HEIGHT, runtimeWidgetsReady, useWidgetDefs, widgetDef } from './widgets';
 
 const AUTO_ID = 'dashboard';
 const NO_DEVICE: DeviceInfo = { status: 'ready', error: null, schema: null, state: null, revision: 0 };
@@ -47,11 +48,12 @@ const DashboardContext = createContext<Ctx>(null as never);
 /** Shows a widget; a missing device or an unknown kind gives a placeholder instead of an error. */
 function WidgetView({ instance }: { instance: WidgetInstance }) {
 	const { devices } = useContext(DashboardContext);
+	useWidgetDefs(); // a widget of the workspace may be built or changed
 	const def = widgetDef(instance.type);
 	const info = instance.device ? devices[instance.device] : undefined;
-	let problem: string | null = null;
 	if (def?.needsDevice === false) return <def.component id={instance.id} device="" info={NO_DEVICE} props={instance.props ?? {}} />;
-	if (!def) problem = `Unknown widget "${instance.type}".`;
+	let problem: string | null = null;
+	if (!def) problem = instance.type.startsWith('ws:') && !runtimeWidgetsReady() ? 'Loading the widgets…' : `Unknown widget "${instance.type}".`;
 	else if (!instance.device) problem = 'This widget needs a device.';
 	else if (!info) problem = `Device "${instance.device}" does not exist (any more).`;
 	else if (!def.accepts(info)) problem = `"${instance.device}" cannot be shown by the ${def.title} widget.`;
@@ -268,6 +270,7 @@ function Strip({ widgets }: { widgets: WidgetInstance[] }) {
 
 function Picker({ onPick }: { onPick: (instance: WidgetInstance) => void }) {
 	const { devices } = useContext(DashboardContext);
+	const defs = useWidgetDefs();
 	const ids = Object.keys(devices).sort();
 	const button = 'rounded bg-zinc-200 px-2 py-0.5 text-xs hover:bg-brand hover:text-white dark:bg-slate-800';
 	const [custom, setCustom] = useState<{ type: 'value' | 'number' | 'button'; device: string } | null>(null);
@@ -281,7 +284,7 @@ function Picker({ onPick }: { onPick: (instance: WidgetInstance) => void }) {
 		<div data-testid="picker" className="max-h-64 overflow-auto border-b border-zinc-300 bg-white p-2 text-sm dark:border-slate-700 dark:bg-slate-900">
 			<div className="flex flex-wrap items-center gap-2 py-0.5">
 				<span className="w-48 truncate text-zinc-500">whole server</span>
-				{widgetDefs.filter((d) => d.needsDevice === false).map((d) => (
+				{defs.filter((d) => d.needsDevice === false).map((d) => (
 					<button key={d.type} data-testid={`add-${d.type}`} className={button} onClick={() => onPick(widget(d.type))}>{d.title}</button>
 				))}
 			</div>
@@ -289,7 +292,7 @@ function Picker({ onPick }: { onPick: (instance: WidgetInstance) => void }) {
 			{ids.map((id) => (
 				<div key={id} className="flex flex-wrap items-center gap-2 py-0.5">
 					<span className="w-48 truncate font-mono">{id}</span>
-					{widgetDefs
+					{defs
 						.filter((d) => d.needsDevice !== false && d.accepts(devices[id]!))
 						.flatMap((d) => (d.variants?.(devices[id]!) ?? [{ label: '' }]).map((v) => ({ d, v })))
 						.map(({ d, v }) => (
@@ -328,6 +331,7 @@ export function Dashboard() {
 	const path = usePath();
 	const [editing, setEditing] = useState(false);
 	const [picking, setPicking] = useState(false);
+	const [creatingWidget, setCreatingWidget] = useState(false);
 	const [dragging, setDragging] = useState<string | null>(null);
 	const [drop, setDrop] = useState<DropTarget>(null);
 	const [drafts, setDrafts] = useState<Record<string, View>>({});
@@ -465,6 +469,9 @@ export function Dashboard() {
 							<button data-testid="add-widget" className="rounded bg-zinc-200 px-2 py-0.5 dark:bg-slate-800" aria-expanded={picking} onClick={() => setPicking(!picking)}>
 								Add widget
 							</button>
+							<button data-testid="new-widget" className="rounded px-2 py-0.5 text-zinc-500 hover:text-brand" onClick={() => setCreatingWidget(true)}>
+								New widget…
+							</button>
 							{selected && (
 								<>
 									<button data-testid="view-left" aria-label="Move view left" className="rounded px-1 text-zinc-500 hover:text-brand disabled:opacity-30" disabled={parsed.list[0]?.id === id} onClick={() => moveView(-1)}>◀</button>
@@ -491,6 +498,7 @@ export function Dashboard() {
 						{noViews ? 'Edit layout' : editing ? 'Done' : 'Edit'}
 					</button>
 				</div>
+				{creatingWidget && <NewWidgetDialog onClose={() => setCreatingWidget(false)} />}
 				{editing && picking && (
 					<Picker
 						onPick={(instance) => {
