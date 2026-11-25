@@ -248,8 +248,11 @@ def test_the_signal_generator_is_a_frequency_generator_next_to_the_oscilloscope(
     try:
         osc.set_frequency(0, 150e3)
         assert osc.state["generator"]["channels"][0]["frequency"] == 150e3  # the state shows the effect when the action returns
-        position, height = peak(lab)
-        assert abs(position - 150e3) <= 500 and height > 40
+        def moved():
+            position, height = peak(lab, 0.2)
+            return abs(position - 150e3) <= 500 and height > 40
+
+        wait_for(moved, 20, "the tone to be at 150 kHz")  # the averaging shows the old tone for a while
         osc.set_on(0, False)
         assert osc.state["generator"]["channels"][0]["is_on"] is False
         wait_for(lambda: peak(lab, 0.2)[1] < 20, 20, "only noise to be left")  # the averaging forgets the tone within seconds

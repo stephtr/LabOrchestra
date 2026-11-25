@@ -631,7 +631,7 @@ export default function BigPressure({ device, props }: { device: string; props: 
 	await page.getByTestId('widget-settings').getByLabel('Gauge').fill('1');
 	await page.getByTestId('settings-save').click();
 	await page.waitForFunction(() => /e-8/.test(document.querySelector('[data-testid="rw-value"]')?.textContent ?? ''));
-	assert.equal(readView().strip.find((w) => w.id === runtimeId).props.channel, 1);
+	await waitView((v) => v.strip.find((w) => w.id === runtimeId).props?.channel === 1, 'the setting in the file');
 	ok('settings dialog: props declared by a widget (built-in or from the workspace) are edited and checked');
 
 	// a device from an installed package, added in the device dialog, and the widget the package brings
@@ -697,7 +697,7 @@ export default function BigPressure({ device, props }: { device: string; props: 
 		if (order[1] === 0 && order[0] === 1) break;
 		await new Promise((r) => setTimeout(r, 100));
 	}
-	assert.deepEqual(await page.locator('[data-testid^="view-tab-"]').evaluateAll((els) => els.map((e) => e.dataset.testid)), ['view-tab-dashboard_copy', 'view-tab-dashboard']);
+	await page.waitForFunction(() => [...document.querySelectorAll('[data-testid^="view-tab-"]')].map((e) => e.dataset.testid).join() === 'view-tab-dashboard_copy,view-tab-dashboard');
 	page.once('dialog', (d) => d.accept());
 	await page.getByText('Delete view').click();
 	await page.getByTestId('view-tab-dashboard_copy').waitFor({ state: 'detached' });

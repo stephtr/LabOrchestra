@@ -88,8 +88,8 @@ public sealed partial class ViewStore : IDisposable
 			File.WriteAllText(temporary, text);
 			File.Move(temporary, file, overwrite: true);
 			_views = new Dictionary<string, JsonNode>(_views) { [id] = JsonNode.Parse(text)! };
+			Changed?.Invoke(All()); // under the lock: calls run in parallel, and the last announcement must be the newest state
 		}
-		Changed?.Invoke(All());
 	}
 
 	public void Delete(string id)
@@ -101,8 +101,8 @@ public sealed partial class ViewStore : IDisposable
 			var next = new Dictionary<string, JsonNode>(_views);
 			next.Remove(id);
 			_views = next;
+			Changed?.Invoke(All());
 		}
-		Changed?.Invoke(All());
 	}
 
 	public void Watch()
@@ -128,9 +128,9 @@ public sealed partial class ViewStore : IDisposable
 			next = Read();
 			if (JsonSerializer.Serialize(next) == JsonSerializer.Serialize(_views)) return; // our own write
 			_views = next;
+			_log.LogInformation("views changed: {Count} view(s)", next.Count);
+			Changed?.Invoke(All());
 		}
-		_log.LogInformation("views changed: {Count} view(s)", next.Count);
-		Changed?.Invoke(All());
 	}
 
 	public void Dispose()

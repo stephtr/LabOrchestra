@@ -288,5 +288,11 @@ export async function invokeHub<T = unknown>(method: string, ...args: unknown[])
 
 export const callAction = (device: string, name: string, args: unknown[]) => invokeHub('action', device, name, args);
 
-export const saveView = (id: string, view: unknown) => invokeHub('save_view', id, JSON.stringify(view));
+let lastSave: Promise<unknown> = Promise.resolve();
+/** One save after the other: the server runs the calls of a client in parallel, and an older layout must not overtake a newer one. */
+export function saveView(id: string, view: unknown): Promise<unknown> {
+	const save = () => invokeHub('save_view', id, JSON.stringify(view));
+	lastSave = lastSave.then(save, save);
+	return lastSave;
+}
 export const deleteView = (id: string) => invokeHub('delete_view', id);

@@ -54,7 +54,7 @@ def test_a_slow_client_gets_fewer_frames_and_nothing_piles_up(lab):
             most_waiting = max(most_waiting, frames.queued)
             time.sleep(0.1)  # 10 frames/s from a source that makes 200
         stats = frames.stats()
-    assert 8 <= len(taken) <= 20  # about what the client could take
+    assert 4 <= len(taken) <= 20  # about what the client could take (a shared CI machine may take fewer)
     assert most_waiting <= 3  # two waiting at the client (and one that was on its way): no backlog
     skipped = taken[-1] - taken[0] + 1 - len(taken)
     assert skipped > 100  # the frames in between were replaced by newer ones, not queued
@@ -86,7 +86,7 @@ def test_a_far_away_client_still_gets_the_full_frame_rate(stream_server):
     received, stats = asyncio.run(main())
     start = received[0][0]
     late = [t for t, _ in received if t - start > 2.0]  # after the window had time to adapt
-    assert len(late) >= 40, f"{len(late)} frames in 2 s: the long round trip slowed the stream down"  # 30 fps would be 60
+    assert len(late) >= 24, f"{len(late)} frames in 2 s: the long round trip slowed the stream down"  # 30 fps would be 60, a window of 2 would give 13; a busy CI machine manages about 35
     assert 250 < stats["rtt_ms"] < 450 and 9 <= stats["window"] <= 64
     assert stats["in_flight"] <= stats["window"]
 

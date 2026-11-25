@@ -70,7 +70,7 @@ public sealed partial class Scaffolder(Workspace workspace, DeviceCatalog catalo
 		if (File.Exists(full)) throw new ArgumentException($"{relative} exists already; it is never overwritten. Choose another name, or add it as a device on the Devices page");
 
 		var title = char.ToUpper(id[0]) + id[1..].Replace('_', ' ');
-		var text = File.ReadAllText(template.Path);
+		var text = File.ReadAllText(template.Path).Replace("\r\n", "\n"); // a checkout on Windows has CRLF
 		text = text[(text.IndexOf('\n') + 1)..]; // the header line is not part of the device
 		text = text.Replace("{{options}}", options.TrimEnd('\n')).Replace("{{class_name}}", ClassName(id)).Replace("{{title}}", title).Replace("{{name}}", id);
 		text = Regex.Replace(text, @"\n{3,}(?=    (simulate|poll_s|channel_count))", "\n\n"); // no empty option block: no blank-line gap
@@ -101,7 +101,7 @@ public sealed partial class Scaffolder(Workspace workspace, DeviceCatalog catalo
 		var full = Path.Combine(folder, name + ".tsx");
 		if (File.Exists(full) || Directory.Exists(Path.Combine(folder, name))) throw new ArgumentException($"widgets/{name}.tsx exists already; it is never overwritten. Choose another name");
 
-		var text = File.ReadAllText(template.Path);
+		var text = File.ReadAllText(template.Path).Replace("\r\n", "\n"); // a checkout on Windows has CRLF
 		text = text[(text.IndexOf('\n') + 1)..];
 		var title = char.ToUpper(name[0]) + name[1..].Replace('_', ' ');
 		text = text.Replace("{{class_name}}", ClassName(name)).Replace("{{title}}", title).Replace("{{name}}", name).Replace("\r\n", "\n");
