@@ -212,7 +212,9 @@ function EdgeRails() {
 	);
 }
 
-function Gutter({ direction }: { direction: 'row' | 'column' }) {
+/** A movable boundary between two panels; `disabled`: nothing to move (an area beside it whose size is fixed by its widgets), so just a line. */
+function Gutter({ direction, disabled }: { direction: 'row' | 'column'; disabled?: boolean }) {
+	if (disabled) return <Separator disabled className={`flex-none bg-line ${direction === 'row' ? 'w-px' : 'h-px'}`} />;
 	return (
 		<Separator className={`group relative flex-none bg-line transition-colors hover:bg-accent data-[separator=active]:bg-accent ${direction === 'row' ? 'w-1 cursor-col-resize' : 'h-1 cursor-row-resize'}`}>
 			<span className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-faint group-hover:bg-white ${direction === 'row' ? 'h-8 w-0.5' : 'h-0.5 w-8'}`} />
@@ -306,7 +308,7 @@ function SplitView({ node }: { node: Extract<Node, { kind: 'split' }> }) {
 				}}
 			>
 				{node.children.flatMap((child, i) => [
-					...(i > 0 ? [<Gutter key={`g${child.id}`} direction={node.dir} />] : []),
+					...(i > 0 ? [<Gutter key={`g${child.id}`} direction={node.dir} disabled={locked(node.children[i - 1]!, node.dir, extent) || locked(child, node.dir, extent)} />] : []),
 					<Panel key={child.id} id={child.id} {...panelLimits(child, node.dir, extent[child.id])}>
 						<NodeView node={child} onMeasure={(id, e) => setExtent((all) => (JSON.stringify(all[id]) === JSON.stringify(e) ? all : { ...all, [id]: e }))} />
 					</Panel>,
@@ -322,6 +324,13 @@ function panelLimits(child: Node, dir: 'row' | 'column', e: Extent | undefined):
 	if (child.kind !== 'area') return { minSize: '8' };
 	if (!e) return { minSize: '4' };
 	return dir === 'column' ? { minSize: e.minHeight, maxSize: Math.max(e.minHeight, e.height) } : { minSize: e.minWidth, maxSize: Math.max(e.minWidth, e.maxWidth) };
+}
+
+/** An area whose limits leave (almost) no room: its size is what its widgets need, there is nothing to drag. */
+function locked(child: Node, dir: 'row' | 'column', extent: Record<string, Extent>): boolean {
+	const e = extent[child.id];
+	if (child.kind !== 'area' || !e) return false;
+	return dir === 'column' ? e.height - e.minHeight < 4 : e.maxWidth - e.minWidth < 4;
 }
 
 function NodeView({ node, onMeasure }: { node: Node; onMeasure?: (id: string, e: Extent) => void }) {

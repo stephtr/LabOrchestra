@@ -497,6 +497,8 @@ try {
 	};
 	let a = await areaBox();
 	let g = await separatorAbove(a.top);
+	// one row: its size is what its widgets need, so the boundary above it is a plain line, not a gutter
+	assert.equal(await page.evaluate((y) => [...document.querySelectorAll('[role=separator]')].find((e) => Math.abs(e.getBoundingClientRect().bottom - y) < 3)?.className.includes('cursor-row-resize'), a.top), false);
 	await page.mouse.move(g.x + g.width / 2, g.y + g.height / 2);
 	await page.mouse.down();
 	await page.mouse.move(g.x + g.width / 2, g.y - 300, { steps: 10 }); // up: the area would get taller
