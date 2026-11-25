@@ -200,6 +200,51 @@ try {
 	assert.ok(!('second_gauge' in devicesFile()) && 'pressure' in devicesFile());
 	ok('device removed');
 
+	// "New device": a file from a template, registered, running simulated
+	await page.getByTestId('new-device').click();
+	await page.getByTestId('template-frequency_generator').check();
+	await page.getByTestId('new-device-name').fill('Bad Name');
+	await page.getByTestId('create-device').click();
+	assert.match(await text('dialog-error'), /snake_case/);
+	await page.getByTestId('new-device-name').fill('gen_one');
+	await page.getByTestId('new-device-connection').selectOption('tcp');
+	await page.getByTestId('create-device').click();
+	await page.getByTestId('new-device-done').waitFor();
+	assert.match(await text('new-device-path'), /gen_one\.py$/);
+	const made = path.join(dir, 'workspace/devices/gen_one.py');
+	assert.ok(fs.existsSync(made) && fs.readFileSync(made, 'utf8').includes('class GenOne(Device)') && fs.readFileSync(made, 'utf8').includes('tcp_port'));
+	assert.equal(devicesFile().gen_one.file, 'devices/gen_one.py');
+	await page.getByRole('button', { name: 'Done' }).click();
+	await waitText('row-status-gen_one', 'ready');
+	ok('new device from a template: file written, registered, running simulated');
+	page.once('dialog', (d) => d.accept());
+	await page.getByTestId('remove-gen_one').click();
+	await page.getByTestId('row-gen_one').waitFor({ state: 'detached' });
+
+	// a device that runs on another machine: added without a file, a token for its worker
+	await page.getByTestId('add-device').click();
+	const remoteDialog = page.getByTestId('device-dialog');
+	await remoteDialog.getByTestId('kind-remote').check();
+	await remoteDialog.getByTestId('field-id').fill('far_gauge');
+	await remoteDialog.getByTestId('save-device').click();
+	await remoteDialog.waitFor({ state: 'detached' });
+	assert.equal(devicesFile().far_gauge.remote, true);
+	await waitText('row-status-far_gauge', 'waiting');
+	await page.getByTestId('token-label').fill('lab PC 2');
+	await page.getByTestId('token-create').click();
+	const command = await text('token-command');
+	assert.match(command, /--id far_gauge .*--token lo_/);
+	assert.ok(!fs.readFileSync(path.join(dir, 'data', 'tokens.json'), 'utf8').includes(command.split('--token ')[1].trim())); // only a hash is kept
+	const tokenRow = page.locator('[data-testid^="token-"]', { hasText: 'lab PC 2' }).first();
+	await tokenRow.waitFor();
+	page.once('dialog', (d) => d.accept());
+	await tokenRow.getByRole('button', { name: 'Revoke' }).click();
+	await tokenRow.waitFor({ state: 'detached' });
+	ok('remote worker: device without file, token shown once (hashed on disk), revoked');
+	page.once('dialog', (d) => d.accept());
+	await page.getByTestId('remove-far_gauge').click();
+	await page.getByTestId('row-far_gauge').waitFor({ state: 'detached' });
+
 	await page.getByTestId('environments').waitFor();
 	assert.ok(await page.getByTestId('env-cleanup').isVisible());
 	ok('environments are listed with their clean-up');
@@ -492,6 +537,28 @@ try {
 		{ action: 'reset_fft_storage' },
 	]);
 	ok('generic widgets: value, number (SI input) and button, configured in the picker');
+
+	// several views: duplicate, rename, reorder
+	await page.getByTestId('view-duplicate').click();
+	await page.getByTestId('view-tab-dashboard_copy').waitFor();
+	const copy = JSON.parse(fs.readFileSync(path.join(dir, 'workspace/views/dashboard_copy.json'), 'utf8'));
+	assert.equal(copy.title, 'Dashboard (copy)');
+	assert.equal(copy.strip.length, readView().strip.length); // the same widgets
+	page.once('dialog', (d) => d.accept('Second view'));
+	await page.getByTestId('view-rename').click();
+	await page.getByTestId('view-tab-dashboard_copy').getByText('Second view').waitFor();
+	await page.getByTestId('view-left').click();
+	for (let i = 0; i < 50; i++) {
+		const order = ['dashboard', 'dashboard_copy'].map((v) => JSON.parse(fs.readFileSync(path.join(dir, `workspace/views/${v}.json`), 'utf8')).order);
+		if (order[1] === 0 && order[0] === 1) break;
+		await new Promise((r) => setTimeout(r, 100));
+	}
+	assert.deepEqual(await page.locator('[data-testid^="view-tab-"]').evaluateAll((els) => els.map((e) => e.dataset.testid)), ['view-tab-dashboard_copy', 'view-tab-dashboard']);
+	page.once('dialog', (d) => d.accept());
+	await page.getByText('Delete view').click();
+	await page.getByTestId('view-tab-dashboard_copy').waitFor({ state: 'detached' });
+	await page.getByTestId('view-tab-dashboard').click();
+	ok('views: duplicate, rename, reorder, delete');
 	await page.getByTestId('edit-toggle').click(); // Done
 
 	// a hand edit of the file reaches the open page; a missing device gives a placeholder

@@ -99,7 +99,7 @@ export function DeviceDialog({ deviceId, onClose }: { deviceId: string | null; o
 	const dialog = useRef<HTMLDialogElement>(null);
 	const saved = useRef<Record<string, unknown> | null>(null); // the options now in devices.json (when changing)
 	const [id, setId] = useState(deviceId ?? '');
-	const [kind, setKind] = useState<'file' | 'driver'>('file');
+	const [kind, setKind] = useState<'file' | 'driver' | 'remote'>('file');
 	const [file, setFile] = useState('');
 	const [driver, setDriver] = useState('');
 	const [drivers, setDrivers] = useState<DriverInfo[]>([]);
@@ -127,14 +127,14 @@ export function DeviceDialog({ deviceId, onClose }: { deviceId: string | null; o
 				saved.current = entry.config;
 				setPython(entry.python ?? '');
 				setDescription(entry.description ?? '');
-				setKind(entry.driver ? 'driver' : 'file');
+				setKind(entry.remote ? 'remote' : entry.driver ? 'driver' : 'file');
 				setDriver(entry.driver ?? '');
 				setFile(entry.file ?? '');
 			}, (e: Error) => setError(e.message));
 		}
 	}, [deviceId]);
 
-	const chosen = kind === 'file' ? file : driver;
+	const chosen = kind === 'file' ? file : kind === 'driver' ? driver : '';
 	useEffect(() => {
 		if (!chosen) return;
 		let current = true;
@@ -165,15 +165,18 @@ export function DeviceDialog({ deviceId, onClose }: { deviceId: string | null; o
 	async function save() {
 		setError(null);
 		if (!SNAKE.test(id)) return setError('The id must be snake_case: lowercase letters, digits and underscores');
-		if (!chosen || !schema) return setError(kind === 'file' ? 'Choose a device file' : 'Choose a driver');
+		if (kind !== 'remote' && (!chosen || !schema)) return setError(kind === 'file' ? 'Choose a device file' : 'Choose a driver');
 		setSaving(true);
 		try {
-			const config = buildConfig(schema, values, kept);
-			const entry = {
-				...(kind === 'file' ? { file, python: python.trim() || null } : { driver }),
-				config: Object.keys(config).length ? config : null,
-				description: description.trim() || null,
-			};
+			const config = schema ? buildConfig(schema, values, kept) : {};
+			const entry =
+				kind === 'remote'
+					? { remote: true, description: description.trim() || null }
+					: {
+							...(kind === 'file' ? { file, python: python.trim() || null } : { driver }),
+							config: Object.keys(config).length ? config : null,
+							description: description.trim() || null,
+						};
 			await (editing ? api.updateDevice(id, entry) : api.addDevice(id, entry));
 			dialog.current?.close();
 		} catch (e) {
@@ -210,8 +213,13 @@ export function DeviceDialog({ deviceId, onClose }: { deviceId: string | null; o
 					<label className="flex items-center gap-1">
 						<input type="radio" name="kind" data-testid="kind-driver" checked={kind === 'driver'} disabled={editing} onChange={() => { setKind('driver'); setSchema(null); }} /> C# driver
 					</label>
+					<label className="flex items-center gap-1" title="The device runs in a worker on another machine, which connects with a token">
+						<input type="radio" name="kind" data-testid="kind-remote" checked={kind === 'remote'} disabled={editing} onChange={() => { setKind('remote'); setSchema(null); }} /> Remote worker
+					</label>
 				</div>
-				{kind === 'file' ? (
+				{kind === 'remote' ? (
+					<p className="text-sm text-zinc-500">The device runs in a worker on another machine. After adding it, create a token for it under “Remote workers” on this page.</p>
+				) : kind === 'file' ? (
 					<div className="flex flex-wrap items-center gap-2">
 						<label className="w-40 text-sm" htmlFor="device-file">Device file</label>
 						<select id="device-file" data-testid="field-file" className={`${FIELD} w-72`} value={file} disabled={editing} onChange={(e) => setFile(e.target.value)}>
@@ -280,7 +288,7 @@ export function DeviceDialog({ deviceId, onClose }: { deviceId: string | null; o
 					<button type="button" className="rounded px-3 py-1 text-sm hover:bg-zinc-100 dark:hover:bg-slate-800" onClick={() => dialog.current?.close()}>
 						Cancel
 					</button>
-					<button data-testid="save-device" className="rounded bg-brand px-3 py-1 text-sm text-white disabled:opacity-50" disabled={saving || describing || !schema}>
+					<button data-testid="save-device" className="rounded bg-brand px-3 py-1 text-sm text-white disabled:opacity-50" disabled={saving || describing || (kind !== 'remote' && !schema)}>
 						{editing ? 'Save' : 'Add device'}
 					</button>
 				</div>

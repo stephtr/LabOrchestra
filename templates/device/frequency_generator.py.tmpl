@@ -1,0 +1,51 @@
+# template {"title": "RF / signal generator", "description": "A generator with one or more outputs (profile FrequencyGenerator: frequency in Hz, power in dBm, output on/off).", "profile": "frequency_generator"}
+"""{{title}}: a signal generator. Frequencies are in Hz, powers in dBm."""
+
+from laborchestra import Device, action
+from laborchestra.profiles import FrequencyGenerator
+
+
+class {{class_name}}(Device):
+    """{{title}}."""
+
+    profiles = [FrequencyGenerator]
+
+{{options}}
+    simulate = True  # no hardware: the generator remembers what it is told. Set it to False when _send works.
+    channel_count = 1
+
+    state = {"simulated": False, "channels": []}
+
+    def connect(self):
+        self.state["simulated"] = self.simulate
+        if not self.simulate:
+            raise NotImplementedError("TODO: open the connection to the instrument, or keep 'simulate' on")
+        self.state["channels"] = [{"frequency": 1e6, "power": -10.0, "is_on": False} for _ in range(self.channel_count)]
+
+    def _send(self, channel: int, **changes):
+        """Programs the instrument; the state shows what it has afterwards. TODO for real hardware: send the changes, then read them back."""
+        if not self.simulate:
+            raise NotImplementedError("TODO: send the changes to the instrument")
+        self.state["channels"][channel].update(changes)
+
+    def _channel(self, channel: int):
+        if not 0 <= channel < len(self.state["channels"]):
+            raise ValueError(f"There is no channel {channel} (0 to {len(self.state['channels']) - 1})")
+
+    @action
+    def set_frequency(self, channel: int, frequency: float):
+        """Hz."""
+        self._channel(channel)
+        self._send(channel, frequency=frequency)
+
+    @action
+    def set_power(self, channel: int, power: float):
+        """dBm."""
+        self._channel(channel)
+        self._send(channel, power=power)
+
+    @action
+    def set_on(self, channel: int, is_on: bool):
+        """Switches the output on or off."""
+        self._channel(channel)
+        self._send(channel, is_on=is_on)

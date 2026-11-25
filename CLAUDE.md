@@ -223,12 +223,14 @@ Layered, so a Python-only device author gets a UI without touching JavaScript:
 - Own scripts/Jupyter: `pip install laborchestra`. Remote workers: `uvx --from laborchestra==<version> laborchestra-worker ...`; the UI shows the exact command, token supplied separately.
 - On request, create an editing venv (in app data) and set its path in the workspace's `.vscode/settings.json`.
 
-### Scaffolding ("New..." buttons)
+### Scaffolding ("New..." buttons) *(devices implemented: `Scaffolder.cs`, `templates/device/`, `NewDeviceDialog.tsx`; procedures and widgets still to do)*
 - **New device:** profile or blank + connection type (serial, VISA, TCP, none) + name + Python version. Creates `devices/<name>.py`, venv and editor settings, adds it to `devices.json`, starts it, opens the editor. Runs at once on simulated values, clearly marked as simulated in the UI.
 - **New procedure:** blank, parameter scan (device and parameter picked from dropdowns), post-recording analysis.
 - **Add custom widget** (`<name>.tsx` from the device's schema), **Duplicate**, **Open in editor**, **Show in folder**. The last two work only on the server PC; elsewhere show the path. No in-browser editor at first.
 - One implementation and template set for UI, CLI (`laborchestra new device`) and MCP. Built-in templates tested in CI; user templates in `templates/`. Never overwrite files. Requires `client`, or `mcp` in control mode.
 - Start with: blank device, one profile, blank procedure, scan procedure.
+- **Done for devices:** templates are `templates/device/<id>.py.tmpl` (first line `# template {"title", "description", "profile"}`; placeholders `{{class_name}}`, `{{title}}`, `{{options}}` for the connection); built-in ones are copied next to the server, `<workspace>/templates/device/` adds or overrides by id. Hub `list_templates`, `scaffold_device(template, id, connection, python)`; connections none/serial/tcp/visa only decide the option lines. Every template is a runnable, simulated device that fits its profile (blank, pressure_sensor, frequency_generator, positioner; tested by creating each through the server). A file is created with `CreateNew` (never overwritten) and removed again if registering the device fails.
+- Still open: venv + `.vscode/settings.json` for the editor, Open in editor / Show in folder (server PC only), Add custom widget, CLI and MCP front ends, procedure templates.
 
 ### AI-assisted development *(proposed)*
 - **Code is written by a coding agent in the workspace folder (Claude Code); MCP is for the running system** (state, actions, reload, logs, plots). MCP file tools exist for clients without file access (e.g. Claude Desktop), limited to workspace source folders.

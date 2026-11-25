@@ -52,6 +52,7 @@ public sealed class ControlHub(
 	EventBus bus,
 	EventLog eventLog,
 	ViewStore views,
+	Devices.Scaffolder scaffolder,
 	TokenStore tokenStore,
 	Supervision.EnvironmentManager environments,
 	IHubContext<DeviceHub> devices) : Hub
@@ -168,6 +169,20 @@ public sealed class ControlHub(
 	public Dictionary<string, object?> DescribeDriver(string driver) =>
 		drivers.Find(driver) is { } type ? Drivers.DriverSchema.Build("describe", type) : throw new HubException(Errors.Json("LookupError", $"There is no driver '{driver}' (drivers: {string.Join(", ", drivers.Names)})"));
 
+	/// <summary>The templates for "New device": id, title, description, the profile it implements.</summary>
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("list_templates")]
+	public List<Dictionary<string, object?>> ListTemplates() => scaffolder.List();
+
+	/// <summary>Makes devices/&lt;id&gt;.py from a template, registers it and starts it (simulated). Never overwrites.</summary>
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("scaffold_device")]
+	public async Task<Dictionary<string, object?>> ScaffoldDevice(string template, string id, string connection, string? python)
+	{
+		try { return await scaffolder.CreateAsync(template, id, connection, python); }
+		catch (ArgumentException e) { throw new HubException(Errors.Json("ValueError", e.Message)); }
+	}
+
 	[Authorize(Roles = Roles.Client)]
 	[HubMethodName("add_device")]
 	public async Task AddDevice(string id, object device)
@@ -198,7 +213,7 @@ public sealed class ControlHub(
 	public Dictionary<string, Dictionary<string, object?>> ListDeviceEntries() =>
 		workspace.Devices.ToDictionary(kv => kv.Key, kv => new Dictionary<string, object?>
 		{
-			["file"] = kv.Value.File, ["driver"] = kv.Value.Driver, ["python"] = kv.Value.Python, ["description"] = kv.Value.Description,
+			["file"] = kv.Value.File, ["driver"] = kv.Value.Driver, ["python"] = kv.Value.Python, ["description"] = kv.Value.Description, ["remote"] = kv.Value.Remote == true,
 			["config"] = kv.Value.Config is null ? null : Plain.FromJson(System.Text.Json.JsonSerializer.SerializeToElement(kv.Value.Config)),
 		}.WithAutoRestart(kv.Value));
 
@@ -206,7 +221,7 @@ public sealed class ControlHub(
 	[HubMethodName("get_device_config")]
 	public Dictionary<string, object?> GetDeviceConfig(string id) =>
 		workspace.Devices.TryGetValue(id, out var d)
-			? new Dictionary<string, object?> { ["file"] = d.File, ["driver"] = d.Driver, ["python"] = d.Python, ["config"] = d.Config is null ? null : Plain.FromJson(System.Text.Json.JsonSerializer.SerializeToElement(d.Config)), ["description"] = d.Description }.WithAutoRestart(d)
+			? new Dictionary<string, object?> { ["file"] = d.File, ["driver"] = d.Driver, ["python"] = d.Python, ["config"] = d.Config is null ? null : Plain.FromJson(System.Text.Json.JsonSerializer.SerializeToElement(d.Config)), ["description"] = d.Description, ["remote"] = d.Remote == true }.WithAutoRestart(d)
 			: throw new HubException(Errors.Json("LookupError", $"Device '{id}' is not in devices.json"));
 
 	[Authorize(Roles = Roles.Client)]

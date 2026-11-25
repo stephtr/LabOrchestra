@@ -1,0 +1,37 @@
+# template {"title": "Blank device", "description": "A device with one value, one action and a loop. Starting point for anything."}
+"""{{title}}. Runs on simulated values until you write the real thing (see the TODOs)."""
+
+import random
+
+from laborchestra import Device, action
+
+
+class {{class_name}}(Device):
+    """{{title}}."""
+
+{{options}}
+    simulate = True  # no hardware: values are made up. Set it to False in the device's options when the real code below works.
+
+    state = {"simulated": False, "value": 0.0}  # everything in here is shown live, and recorded when it changes
+
+    def connect(self):
+        """Called once when the device starts. Open the connection here; an exception shows up as the device's error."""
+        self.state["simulated"] = self.simulate
+        if not self.simulate:
+            raise NotImplementedError("TODO: open the connection to the instrument, or keep 'simulate' on")
+
+    @action
+    def set_value(self, value: float):
+        """An action is a method with @action. It can be called from the browser, from scripts and from other devices."""
+        if not self.simulate:
+            raise NotImplementedError("TODO: send the value to the instrument")
+        self.state["value"] = value
+
+    def run(self):
+        """The loop of the device: runs until the device is stopped. Read the instrument here and put the results into self.state."""
+        while self.running:
+            if self.simulate:
+                self.state["value"] += random.gauss(0, 0.01)
+            else:
+                pass  # TODO: self.state["value"] = read the instrument
+            self.sleep(1.0)  # waits, but wakes up at once when the device is stopped

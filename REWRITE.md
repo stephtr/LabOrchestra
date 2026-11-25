@@ -115,7 +115,7 @@ Track B, oscilloscope:
 ## Phase 4: client
 
 - [x] Port widgets: oscilloscope, pressure, RF generator, stage, polarimeter, recording controls (locks are lab-internal; pumps and voltage outputs need profiles first)
-- [ ] Device management: list, catalog, schema forms, logs, restart
+- [x] Device management: list, schema forms, logs, restart, **New device** from templates, remote workers with revocable tokens, views duplicate/rename/reorder (open: catalog of installable packages)
 - [x] Views: split tree with movable gutters + compact strip (S/M), edit mode with drag and drop, picker, several views, server-side files (phone layout dropped: not a priority)
 - [ ] Runtime widgets, widget SDK, error boundary, reload on change
 

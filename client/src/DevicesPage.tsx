@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { api, DeviceEntry } from './api';
 import { DeviceDialog } from './DeviceDialog';
+import { NewDeviceDialog } from './NewDeviceDialog';
 import { EnvironmentsPanel } from './EnvironmentsPanel';
+import { RemoteWorkersPanel } from './RemoteWorkersPanel';
 import { SecretsPanel } from './SecretsPanel';
 import { STATUS_STYLE } from './DeviceCard';
 import { navigate } from './router';
@@ -12,6 +14,7 @@ export function DevicesPage() {
 	const { devices } = useStore();
 	const [entries, setEntries] = useState<Record<string, DeviceEntry>>({});
 	const [dialog, setDialog] = useState<{ id: string | null } | null>(null);
+	const [creating, setCreating] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const ids = Object.keys(devices).sort();
 
@@ -34,8 +37,11 @@ export function DevicesPage() {
 			<div className="mb-3 flex items-center gap-3">
 				<h2 className="text-lg font-semibold">Devices</h2>
 				<span className="flex-1" />
-				<button data-testid="add-device" className="rounded bg-brand px-3 py-1 text-sm text-white" onClick={() => setDialog({ id: null })}>
-					Add device
+				<button data-testid="new-device" className="rounded bg-brand px-3 py-1 text-sm text-white" onClick={() => setCreating(true)}>
+					New device…
+				</button>
+				<button data-testid="add-device" className="rounded bg-zinc-200 px-3 py-1 text-sm dark:bg-slate-800" onClick={() => setDialog({ id: null })}>
+					Add existing
 				</button>
 			</div>
 			{error && <p role="alert" className="mb-2 text-sm text-red-600">{error}</p>}
@@ -90,8 +96,10 @@ export function DevicesPage() {
 					</tbody>
 				</table>
 			</div>
+			<RemoteWorkersPanel entries={entries} />
 			<EnvironmentsPanel />
 			<SecretsPanel />
+			{creating && <NewDeviceDialog onClose={() => setCreating(false)} />}
 			{dialog && <DeviceDialog key={dialog.id ?? '+'} deviceId={dialog.id} onClose={() => setDialog(null)} />}
 		</div>
 	);

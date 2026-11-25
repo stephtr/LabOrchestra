@@ -9,7 +9,11 @@ export type DeviceEntry = {
 	python: string | null;
 	config: Record<string, unknown> | null;
 	description: string | null;
+	/** A worker on another machine provides this device. */
+	remote?: boolean;
 };
+export type TokenInfo = { id: string; kind: string; device: string | null; label: string; created: number };
+export type CreatedToken = { token: string; id: string; device: string; label: string };
 
 export type EnvironmentInfo = {
 	key: string;
@@ -21,7 +25,12 @@ export type EnvironmentInfo = {
 };
 export type PythonInfo = { version: string; path: string; implementation: string | null };
 
+export type TemplateInfo = { id: string; title: string; description: string; profile: string | null; source: string };
+export type Scaffolded = { device: string; file: string; path: string; template: string };
+
 export const api = {
+	listTemplates: () => invokeHub<TemplateInfo[]>('list_templates'),
+	scaffoldDevice: (template: string, id: string, connection: string, python: string | null) => invokeHub<Scaffolded>('scaffold_device', template, id, connection, python),
 	listEnvironments: () => invokeHub<EnvironmentInfo[]>('list_environments'),
 	cleanupEnvironments: (days: number) => invokeHub<EnvironmentInfo[]>('cleanup_environments', days),
 	listPythons: () => invokeHub<PythonInfo[]>('list_pythons'),
@@ -35,6 +44,9 @@ export const api = {
 	updateDevice: (id: string, entry: Partial<DeviceEntry>) => invokeHub('update_device', id, entry),
 	removeDevice: (id: string) => invokeHub('remove_device', id),
 	restartDevice: (id: string) => invokeHub('restart_device', id),
+	createToken: (device: string, label: string) => invokeHub<CreatedToken>('create_token', device, label),
+	listTokens: () => invokeHub<TokenInfo[]>('list_tokens'),
+	revokeToken: (id: string) => invokeHub('revoke_token', id),
 	listSecrets: () => invokeHub<string[]>('list_secrets'),
 	setSecret: (name: string, value: string) => invokeHub('set_secret', name, value),
 	deleteSecret: (name: string) => invokeHub('delete_secret', name),

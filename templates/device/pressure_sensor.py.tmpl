@@ -1,0 +1,39 @@
+# template {"title": "Pressure gauge", "description": "A vacuum gauge controller with one or more gauges (profile PressureSensor: pressure in mbar per channel).", "profile": "pressure_sensor"}
+"""{{title}}: a vacuum gauge. Pressures are in mbar; a reading that is not valid is None with a status that says why, never 0."""
+
+import math
+import random
+import time
+
+from laborchestra import Device
+from laborchestra.profiles import PressureSensor
+
+
+class {{class_name}}(Device):
+    """{{title}}."""
+
+    profiles = [PressureSensor]
+
+{{options}}
+    simulate = True  # no hardware: pressures that drift. Set it to False when _read works.
+    poll_s = 1.0
+
+    state = {"simulated": False, "channels": []}
+
+    def connect(self):
+        self.state["simulated"] = self.simulate
+        if not self.simulate:
+            raise NotImplementedError("TODO: open the connection to the controller, or keep 'simulate' on")
+        self.state["channels"] = [{"pressure": None, "status": "starting"}, {"pressure": None, "status": "starting"}]
+
+    def _read(self) -> list[tuple[str, float]]:
+        """One (status, pressure in mbar) per gauge. The status is "ok" or says why the reading is not valid."""
+        if self.simulate:
+            t = time.monotonic()
+            return [("ok", 1e-6 * 10 ** (i + 0.3 * math.sin(t / 30 + i)) * (1 + random.gauss(0, 0.01))) for i in range(2)]
+        raise NotImplementedError("TODO: ask the controller for the pressures and convert them to mbar")
+
+    def run(self):
+        while self.running:
+            self.state["channels"] = [{"pressure": p if s == "ok" else None, "status": s} for s, p in self._read()]
+            self.sleep(self.poll_s)

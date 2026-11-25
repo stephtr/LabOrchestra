@@ -1,0 +1,40 @@
+# template {"title": "Motorized stage", "description": "One or more stages (profile Positioner): rotation in degrees, linear in micrometers.", "profile": "positioner"}
+"""{{title}}: motorized stages, one channel each. Rotation stages are in degrees, linear stages in micrometers."""
+
+from laborchestra import Device, action
+from laborchestra.profiles import Positioner
+
+STAGES = [{"type": "rotation", "unit": "deg"}]  # TODO: one entry per stage ("linear" stages have the unit "um")
+
+
+class {{class_name}}(Device):
+    """{{title}}."""
+
+    profiles = [Positioner]
+
+{{options}}
+    simulate = True  # no hardware: stages that get there instantly. Set it to False when _move works.
+
+    state = {"simulated": False, "channels": []}
+
+    def connect(self):
+        self.state["simulated"] = self.simulate
+        if not self.simulate:
+            raise NotImplementedError("TODO: open the connection to the controller, or keep 'simulate' on")
+        self.state["channels"] = [{**stage, "target_position": 0.0, "actual_position": 0.0, "status": "ok"} for stage in STAGES]
+
+    def _move(self, channel: int, position: float) -> float:
+        """Moves a stage and returns where it is when it has arrived."""
+        if not self.simulate:
+            raise NotImplementedError("TODO: move the stage and wait for it")
+        return position
+
+    @action
+    def set_position(self, channel: int, position: float):
+        """Moves a channel to a position and returns when it is there."""
+        if not 0 <= channel < len(self.state["channels"]):
+            raise ValueError(f"There is no channel {channel} (0 to {len(self.state['channels']) - 1})")
+        state = self.state["channels"][channel]
+        state["target_position"] = position
+        with self.lock:  # one move at a time on the bus
+            state["actual_position"] = self._move(channel, position)

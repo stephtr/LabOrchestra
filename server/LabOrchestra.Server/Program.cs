@@ -59,6 +59,7 @@ builder.Services.AddSingleton(sp => new RecordingService(recordingsDir, sp.GetRe
 builder.Services.AddSingleton(sp => new WorkerGuard(dataDir, sp.GetRequiredService<ILogger<WorkerGuard>>()));
 builder.Services.AddSingleton<WorkerSupervisor>();
 builder.Services.AddSingleton<DeviceCatalog>();
+builder.Services.AddSingleton<LabOrchestra.Server.Devices.Scaffolder>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<WorkerSupervisor>());
 builder.Services.AddSignalR(o => o.MaximumReceiveMessageSize = 16 * 1024 * 1024).AddMessagePackProtocol();
 // SignalR runs the invocations of one connection one after the other by default: then a stop could not reach a device while a

@@ -346,7 +346,10 @@ export function Dashboard() {
 				broken[id] = String(e);
 			}
 		}
-		list.sort((a, b) => (a.view.order ?? 1e9) - (b.view.order ?? 1e9) || a.view.title.localeCompare(b.view.title));
+		// a view without an `order` (a file written by hand) takes the place it has when sorted by title, so that new views go after it
+		list.sort((a, b) => a.view.title.localeCompare(b.view.title));
+		const place = new Map(list.map((v, i) => [v.id, v.view.order ?? i]));
+		list.sort((a, b) => place.get(a.id)! - place.get(b.id)! || a.view.title.localeCompare(b.view.title));
 		return { list, broken };
 	}, [views]);
 
@@ -386,6 +389,31 @@ export function Dashboard() {
 		persist(newId, { ...emptyView(title.trim()), order: parsed.list.length });
 		navigate(`/views/${newId}`);
 		setEditing(true);
+	}
+
+	function renameView() {
+		const title = window.prompt('Name of the view', view.title);
+		if (title?.trim()) apply((v) => ({ ...v, title: title.trim() }));
+	}
+
+	function duplicateView() {
+		let copy = `${id}_copy`;
+		for (let n = 2; views[copy]; n++) copy = `${id}_copy${n}`;
+		persist(copy, { ...view, title: `${view.title} (copy)`, order: parsed.list.length });
+		navigate(`/views/${copy}`);
+	}
+
+	/** Moves the view one place to the left or right among the tabs (the order is the `order` number of each view file). */
+	function moveView(by: -1 | 1) {
+		const at = parsed.list.findIndex((v) => v.id === id);
+		const other = parsed.list[at + by];
+		if (at < 0 || !other) return;
+		const order = parsed.list.map((v) => v.id);
+		[order[at], order[at + by]] = [order[at + by]!, order[at]!];
+		order.forEach((viewId, index) => {
+			const entry = parsed.list.find((v) => v.id === viewId)!;
+			if ((entry.view.order ?? -1) !== index) persist(viewId, { ...(viewId === id ? view : entry.view), order: index });
+		});
 	}
 
 	function removeView() {
@@ -438,9 +466,15 @@ export function Dashboard() {
 								Add widget
 							</button>
 							{selected && (
-								<button className="rounded px-2 py-0.5 text-zinc-500 hover:text-red-600" onClick={removeView}>
-									Delete view
-								</button>
+								<>
+									<button data-testid="view-left" aria-label="Move view left" className="rounded px-1 text-zinc-500 hover:text-brand disabled:opacity-30" disabled={parsed.list[0]?.id === id} onClick={() => moveView(-1)}>◀</button>
+									<button data-testid="view-right" aria-label="Move view right" className="rounded px-1 text-zinc-500 hover:text-brand disabled:opacity-30" disabled={parsed.list[parsed.list.length - 1]?.id === id} onClick={() => moveView(1)}>▶</button>
+									<button data-testid="view-rename" className="rounded px-2 py-0.5 text-zinc-500 hover:text-brand" onClick={renameView}>Rename</button>
+									<button data-testid="view-duplicate" className="rounded px-2 py-0.5 text-zinc-500 hover:text-brand" onClick={duplicateView}>Duplicate</button>
+									<button className="rounded px-2 py-0.5 text-zinc-500 hover:text-red-600" onClick={removeView}>
+										Delete view
+									</button>
+								</>
 							)}
 						</>
 					)}
