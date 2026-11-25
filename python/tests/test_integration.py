@@ -72,7 +72,12 @@ def reset_devices(server):
 @pytest.fixture()
 def lab(server):
     with laborchestra.connect(server.url, PASSPHRASE) as lab:
-        wait_for(lambda: lab.devices and lab.pressure.status == "ready", 40, "device ready")
+        try:
+            wait_for(lambda: lab.devices and lab.pressure.status == "ready", 40, "device ready")
+        except AssertionError as e:  # say what the device was doing: this has failed once in a while on a slow Linux runner
+            entries = "\n".join(f"  {x['level']} {x['logger']}: {x['message']}" for x in lab.pressure.logs()) if "pressure" in lab.devices else "(no device)"
+            server_log = "\n".join(f"  {x['level']} {x['message']}" for x in lab.logs("server", limit=60))
+            raise AssertionError(f"{e}\ndevices: {dict((k, lab[k].status) for k in lab.devices)}\npressure error: {lab.pressure.error if 'pressure' in lab.devices else None}\npressure log:\n{entries}\nserver log:\n{server_log}") from None
         yield lab
 
 
