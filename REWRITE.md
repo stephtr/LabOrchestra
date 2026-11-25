@@ -124,11 +124,12 @@ Track B, oscilloscope:
 ## Phase 5: procedures
 
 - [x] `@procedure`, generated form, progress, logs, pause/abort, reservations (Procedures page, run history, example `detuning_scan`)
-- [ ] Event bus, `@on("recording.finished")`
+- [x] Event bus and triggers: `@procedure(on="recording.finished")` (also `recording.discarded`, `snapshot.saved`, `device.error`), started after the files are closed, never blocks or fails the recording
+- [x] Background services (`Service`, own section on the Devices page, hidden from dashboards, restart on file change, header warning, templates)
 - [x] Port the detuning scan (generic, without the lab's phase-noise socket)
-- [ ] Port ParticleName, PressureUploader, TurboUploader, and the Slack remote control of the pumps (`bot start|stop|status <pump>`; was inside the pump device, now a procedure/trigger script using the `turbo_pump` profile)
+- [x] Port ParticleName, PressureUploader, TurboUploader, and the Slack remote control of the pumps as service templates (`particle_name`, `uploader`, `slack_pumps`, `slack_notifier`); untested against Slack/OpenAI and the real pumps
 
-**Exit:** aborting or killing a scan leaves the recording closed and devices in a defined state.
+**Exit (met):** aborting or killing a scan leaves the recording closed and devices in a defined state (tested: abort runs the cleanup, a killed or crashed run has its recording closed with `interrupted: true`).
 
 ## Phase 6: lab cutover
 
