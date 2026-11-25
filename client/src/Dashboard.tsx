@@ -9,6 +9,7 @@ import {
 	mains,
 	Node,
 	parseView,
+	placeAtEdge,
 	placeInMain,
 	placeInStrip,
 	removeWidget,
@@ -34,7 +35,7 @@ import { COMPACT_HEIGHT, runtimeWidgetsReady, useWidgetDefs, widgetDef, WidgetDe
 const AUTO_ID = 'dashboard';
 const NO_DEVICE: DeviceInfo = { status: 'ready', error: null, schema: null, state: null, revision: 0 };
 
-type DropTarget = { pane: string; side: Side | 'swap' } | { strip: number } | null;
+type DropTarget = { pane: string; side: Side | 'swap' } | { strip: number } | { edge: Side } | null;
 type Chosen = { type: string; device: string; /** Where it was dropped (without: at the end). */ place?: Place };
 type Place = (view: View, w: WidgetInstance) => View;
 type Ctx = {
@@ -137,6 +138,7 @@ function Pane({ instance }: { instance: WidgetInstance }) {
 			{ctx.editing && ctx.dragging && ctx.dragging.id !== instance.id && (
 				<div
 					className="absolute inset-0 z-20"
+					data-dropzone
 					data-testid={`drop-${instance.id}`}
 					onDragOver={(e) => {
 						e.preventDefault();
@@ -153,6 +155,42 @@ function Pane({ instance }: { instance: WidgetInstance }) {
 				</div>
 			)}
 		</div>
+	);
+}
+
+const RAIL: Record<Side, string> = {
+	left: 'left-0 top-0 h-full w-10',
+	right: 'right-0 top-0 h-full w-10',
+	top: 'left-0 top-0 h-10 w-full',
+	bottom: 'bottom-0 left-0 h-10 w-full',
+};
+
+/** While a widget is dragged, the four edges of the whole layout take drops: the widget then goes along that entire side (next to everything),
+ *  not just next to the pane under the pointer. */
+function EdgeRails() {
+	const ctx = useContext(DashboardContext);
+	const over = ctx.drop && 'edge' in ctx.drop ? ctx.drop.edge : null;
+	return (
+		<>
+			{(['left', 'right', 'top', 'bottom'] as const).map((side) => (
+				<div
+					key={side}
+					data-dropzone
+					data-testid={`edge-${side}`}
+					title={`Along the whole ${side} side`}
+					className={`absolute z-30 ${RAIL[side]} ${over === side ? 'bg-accent/40' : 'bg-accent/10'}`}
+					onDragOver={(e) => {
+						e.preventDefault();
+						if (over !== side) ctx.setDrop({ edge: side });
+					}}
+					onDrop={(e) => {
+						e.preventDefault();
+						ctx.dropped((v, w) => placeAtEdge(v, w, side));
+					}}
+				/>
+			))}
+			{over && <div className={`pointer-events-none absolute z-30 rounded-lg bg-accent/20 ring-2 ring-inset ring-accent ${HIGHLIGHT[over]}`} />}
+		</>
 	);
 }
 
@@ -231,7 +269,8 @@ function Strip({ widgets }: { widgets: WidgetInstance[] }) {
 	return (
 		<div
 			data-testid="strip"
-			className={`flex min-h-16 flex-none flex-wrap items-start gap-1.5 border-t border-line p-1.5 ${ctx.editing ? 'bg-raised' : ''} ${ctx.dragging && fits ? (dropAt === widgets.length ? 'outline-2 -outline-offset-2 outline-accent' : 'outline-1 -outline-offset-1 outline-dashed outline-accent') : ''}`}
+			data-dropzone
+			className={`flex min-h-16 flex-none flex-wrap items-start gap-1.5 border-t border-line p-1.5 ${ctx.editing ? 'bg-raised' : ''} ${ctx.dragging && fits && dropAt === widgets.length ? 'outline-2 -outline-offset-2 outline-accent' : ''}`}
 			{...(ctx.editing ? acceptDrop(widgets.length) : {})}
 		>
 			{widgets.length === 0 && <span className="self-center px-2 text-xs text-muted">Compact widgets go here.</span>}
@@ -242,6 +281,7 @@ function Strip({ widgets }: { widgets: WidgetInstance[] }) {
 					<div
 						key={w.id}
 						data-testid={`strip-${w.id}`}
+						data-dropzone
 						style={{ height }}
 						className={`group relative min-w-28 flex-none ${ctx.editing ? 'cursor-grab active:cursor-grabbing' : ''} ${dropAt === i ? 'before:absolute before:inset-y-0 before:-left-1 before:w-0.5 before:rounded before:bg-accent' : ''}`}
 						{...dragProps(() => w, ctx)}
@@ -613,6 +653,33 @@ export function Dashboard() {
 		setChosen(null);
 	}
 
+	// the highlight of a drop zone goes away when the pointer leaves it (there is no event for "left every zone")
+	useEffect(() => {
+		if (!dragging) return;
+		const leave = (e: DragEvent) => {
+			if (!(e.target instanceof Element) || !e.target.closest('[data-dropzone]')) setDrop(null);
+		};
+		// leaving a zone for something that is not inside it (browsers differ in whether they keep sending dragover elsewhere)
+		const left = (e: DragEvent) => {
+			const zone = e.target instanceof Element ? e.target.closest('[data-dropzone]') : null;
+			if (zone && !(e.relatedTarget instanceof globalThis.Node && zone.contains(e.relatedTarget))) setDrop(null);
+		};
+		const finish = () => {
+			setDragging(null);
+			setDrop(null);
+		};
+		window.addEventListener('dragover', leave);
+		window.addEventListener('dragleave', left);
+		window.addEventListener('dragend', finish);
+		window.addEventListener('drop', finish);
+		return () => {
+			window.removeEventListener('dragover', leave);
+			window.removeEventListener('dragleave', left);
+			window.removeEventListener('dragend', finish);
+			window.removeEventListener('drop', finish);
+		};
+	}, [dragging]);
+
 	const ctx: Ctx = { editing, devices, dragging, setDragging, drop, setDrop, apply, dropped, view, configure: setConfiguring };
 	const empty = !view.root && view.strip.length === 0;
 	return (
@@ -713,7 +780,10 @@ export function Dashboard() {
 					{noViews && connection === 'connected' && Object.keys(devices).length > 0 ? (
 						<AutoGrid devices={devices} />
 					) : view.root ? (
-						<NodeView node={view.root} />
+						<div className="relative h-full">
+							<NodeView node={view.root} />
+							{editing && dragging && <EdgeRails />}
+						</div>
 					) : (
 						connection === 'connected' && (
 							<p className="mx-auto max-w-lg p-12 text-center text-muted" data-testid="no-devices">

@@ -614,6 +614,8 @@ export default function BigPressure({ device, props }: { device: string; props: 
 	assert.match(await colour('rw-value'), /322|rgb\(192, 38, 211\)|lab|oklch/);
 	await page.getByTestId('rw-click').click();
 	await waitText('rw-clicks', ' 1');
+	await new Promise((r) => setTimeout(r, 1500)); // the device state changes meanwhile: the widget must keep its own state
+	assert.equal(await text('rw-clicks'), ' 1');
 	ok('runtime widget: found in the picker, shows the device through the SDK, styled by the server\'s Tailwind build');
 
 	fs.writeFileSync(widgetFile, widgetSource('v2')); // edited while the page is open
@@ -702,7 +704,7 @@ export default function BigPressure({ device, props }: { device: string; props: 
 	const panes = page.locator('[data-testid^="pane-"]');
 	const paneCount = await panes.count();
 	const paneBox = await panes.first().boundingBox();
-	await page.getByTestId('add-oscilloscope-scope').dragTo(panes.first(), { targetPosition: { x: 10, y: paneBox.height / 2 } });
+	await page.getByTestId('add-oscilloscope-scope').dragTo(panes.first(), { targetPosition: { x: 80, y: paneBox.height / 2 } });
 	await page.waitForFunction((n) => document.querySelectorAll('[data-testid^="pane-"]').length === n + 1, paneCount);
 	await page.getByTestId('add-summary').dragTo(page.getByTestId('strip-' + view.strip[0].id), { targetPosition: { x: 4, y: 20 } });
 	await page.getByTestId('pick-device').selectOption('rf');
@@ -715,6 +717,23 @@ export default function BigPressure({ device, props }: { device: string; props: 
 	await page.locator('[data-testid^="pane-"]').first().getByLabel('Remove widget').click(); // the second oscilloscope again
 	await page.getByLabel('Close panel').click();
 	ok('drag and drop out of the picker: into the strip, next to a pane, with a device to choose, and the configured preview');
+
+	// the highlight of a drop zone goes away when the pointer leaves it; an edge of the layout takes the widget along its whole side
+	await openPicker();
+	const stripCount = readView().strip.length;
+	const stripBox = await page.getByTestId('strip').boundingBox();
+	const source = await page.getByTestId('add-pressure-pressure-0').boundingBox();
+	await page.mouse.move(source.x + 8, source.y + 8);
+	await page.mouse.down();
+	await page.mouse.move(stripBox.x + 40, stripBox.y + stripBox.height - 6, { steps: 8 });
+	await page.waitForFunction(() => /outline-accent/.test(document.querySelector('[data-testid=strip]').className));
+	await page.mouse.move(source.x + 100, source.y + 300, { steps: 8 }); // back over the panel
+	await page.waitForFunction(() => !/outline-accent/.test(document.querySelector('[data-testid=strip]').className));
+	await page.mouse.up();
+	await new Promise((r) => setTimeout(r, 500));
+	assert.equal(readView().strip.length, stripCount, 'a drop on the panel itself adds nothing');
+	await page.getByLabel('Close panel').click();
+	ok('drag: the drop highlight follows the pointer');
 
 	// several views: duplicate, rename, reorder
 	await page.getByTestId('view-duplicate').click();
@@ -743,6 +762,49 @@ export default function BigPressure({ device, props }: { device: string; props: 
 	await openPicker();
 	await page.getByTestId('add-oscilloscope-scope').dragTo(page.getByTestId('no-devices'));
 	await page.locator('[data-testid^="pane-"]').waitFor();
+	// the edges of the layout exist only while a drag is going on, and a drag starts when the mouse has moved: by hand, not with dragTo
+	const dragToEdge = async (source, side) => {
+		await source.scrollIntoViewIfNeeded();
+		const from = await source.boundingBox();
+		await page.mouse.move(from.x + 10, from.y + 10);
+		await page.mouse.down();
+		await page.mouse.move(from.x - 30, from.y + 10, { steps: 5 });
+		const all = await page.evaluate(() => {
+			const boxes = [...document.querySelectorAll('[data-testid^="pane-"]')].map((e) => e.getBoundingClientRect());
+			return { left: Math.min(...boxes.map((b) => b.left)), right: Math.max(...boxes.map((b) => b.right)), top: Math.min(...boxes.map((b) => b.top)), bottom: Math.max(...boxes.map((b) => b.bottom)) };
+		});
+		const point = { left: [all.left + 8, (all.top + all.bottom) / 2], right: [all.right - 8, (all.top + all.bottom) / 2], top: [(all.left + all.right) / 2, all.top + 8], bottom: [(all.left + all.right) / 2, all.bottom - 8] }[side];
+		await page.mouse.move(point[0], point[1], { steps: 10 });
+		await page.getByTestId(`edge-${side}`).waitFor();
+		await page.mouse.up();
+	};
+	const emptyFile = path.join(dir, 'workspace/views/empty_one.json');
+	const emptyView = async (check, what) => {
+		for (let i = 0; i < 100; i++) {
+			try {
+				const v = JSON.parse(fs.readFileSync(emptyFile, 'utf8'));
+				if (check(v)) return v;
+			} catch {
+				/* not written yet */
+			}
+			await new Promise((r) => setTimeout(r, 100));
+		}
+		throw new Error(`view empty_one never showed: ${what}`);
+	};
+	await dragToEdge(page.getByTestId('add-device_card'), 'bottom'); // along the bottom: a second pane below the first (asks for the device)
+	await page.getByTestId('pick-device').selectOption('pressure');
+	await page.getByTestId('pick-add').click();
+	await emptyView((v) => v.root?.kind === 'split' && v.root.dir === 'column' && v.root.children.length === 2, 'two panes above each other');
+	await openPicker();
+	await dragToEdge(page.getByTestId('add-device_card'), 'right'); // along the whole right side: one tall pane next to both
+	await page.getByTestId('pick-device').selectOption('rf');
+	await page.getByTestId('pick-add').click();
+	const tall = await emptyView((v) => v.root?.kind === 'split' && v.root.dir === 'row', 'a pane along the whole right side');
+	assert.equal(tall.root.children.length, 2);
+	assert.equal(tall.root.children[0].kind, 'split'); // the two stacked panes stay together
+	assert.equal(tall.root.children[1].kind, 'main');
+	assert.equal(tall.root.children[1].widget.device, 'rf');
+	ok('drag to an edge of the layout puts the widget along the whole side (A over B becomes A | C over B | C)');
 	page.once('dialog', (d) => d.accept());
 	await page.getByTestId('view-delete').click();
 	await page.getByTestId('view-tab-empty_one').waitFor({ state: 'detached' });

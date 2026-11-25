@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { addMain, addToStrip, defaultView, emptyView, mains, parseView, placeInMain, placeInStrip, removeWidget, setSizes, swapMains, widget } from './layout.ts';
+import { addMain, addToStrip, defaultView, emptyView, mains, parseView, placeAtEdge, placeInMain, placeInStrip, removeWidget, setSizes, swapMains, widget } from './layout.ts';
 
 const ids = (v: ReturnType<typeof emptyView>) => mains(v.root).map((m) => m.widget.id);
 
@@ -109,4 +109,22 @@ test('a widget that is not in the view yet is added where it is dropped', () => 
 	const strip = addToStrip(addToStrip(emptyView(), widget('s')), widget('s'));
 	assert.equal(placeInStrip(strip, n, 1).strip[1]!.id, n.id);
 	assert.equal(placeInStrip(strip, n, 1).strip.length, 3);
+});
+
+test('a widget placed at an edge spans the whole layout', () => {
+	const [a, b, c] = [widget('x'), widget('x'), widget('x')] as const;
+	const stacked = addMain(addMain(emptyView(), a), b); // A over B
+	const right = placeAtEdge(stacked, c, 'right');
+	assert.equal(right.root?.kind === 'split' && right.root.dir, 'row'); // the stack next to one tall pane
+	assert.deepEqual(ids(right), [a.id, b.id, c.id]);
+	const [stack, tall] = right.root?.kind === 'split' ? right.root.children : [];
+	assert.equal(stack?.kind === 'split' && stack.dir, 'column');
+	assert.equal(tall?.kind === 'main' && tall.widget.id, c.id);
+	assert.deepEqual(right.root?.kind === 'split' && right.root.sizes, [70, 30]);
+	// the same direction as the layout adds a row instead of nesting
+	assert.equal(placeAtEdge(stacked, c, 'bottom').root?.kind === 'split' && (placeAtEdge(stacked, c, 'bottom').root as { children: unknown[] }).children.length, 3);
+	assert.deepEqual(ids(placeAtEdge(stacked, c, 'top')), [c.id, a.id, b.id]);
+	// an empty view, and a widget that is in the view already
+	assert.deepEqual(ids(placeAtEdge(emptyView(), c, 'left')), [c.id]);
+	assert.deepEqual(ids(placeAtEdge(stacked, a, 'bottom')), [b.id, a.id]);
 });

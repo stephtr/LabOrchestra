@@ -90,7 +90,16 @@ const definitions: WidgetDef[] = [
 ];
 
 /** A widget of the workspace (widgets/<name>.tsx) as an entry of the registry: its type is "ws:<name>". */
+const runtimeDefs = new WeakMap<RuntimeWidget, WidgetDef>();
+
+/** One definition per loaded version: a new component function on every call would make React remount the widget at every render. */
 function runtimeDef(w: RuntimeWidget): WidgetDef {
+	let def = runtimeDefs.get(w);
+	if (!def) runtimeDefs.set(w, (def = makeRuntimeDef(w)));
+	return def;
+}
+
+function makeRuntimeDef(w: RuntimeWidget): WidgetDef {
 	const meta = w.module?.meta;
 	const Module = w.module?.component;
 	return {

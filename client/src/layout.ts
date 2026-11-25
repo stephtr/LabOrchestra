@@ -122,6 +122,17 @@ export function placeInMain(view: View, w: WidgetInstance, target?: { id: string
 	return addMain(removeWidget(view, w.id), w, target);
 }
 
+/** Puts a widget along a whole side of the layout, next to everything (not just next to one pane): with A over B, "right" gives A | C over B | C
+ *  with C as one tall pane. One that is in the view already is moved. */
+export function placeAtEdge(view: View, w: WidgetInstance, side: Side): View {
+	const rest = removeWidget(view, w.id);
+	if (!rest.root) return { ...rest, root: main(w) };
+	const dir: Direction = side === 'left' || side === 'right' ? 'row' : 'column';
+	const added = main(w);
+	const first = side === 'left' || side === 'top';
+	return { ...rest, root: normalize({ id: newId(), kind: 'split', dir, children: first ? [added, rest.root] : [rest.root, added], sizes: first ? [30, 70] : [70, 30] }) };
+}
+
 /** Puts a widget into the strip at an index (it becomes a compact widget). One that is in the view already is moved. */
 export function placeInStrip(view: View, w: WidgetInstance, index: number): View {
 	const before = view.strip.findIndex((s) => s.id === w.id);
