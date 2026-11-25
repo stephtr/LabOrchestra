@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
+import { Button, Dialog, DialogBody, DialogFooter, ErrorText, FormRow, Input, Segmented, Select } from './ui';
 import { api, DeviceFile, DriverInfo, PackageContents, PythonInfo } from './api';
 import { Param, Schema } from './store';
 
 type OptionValue = { text: string; checked: boolean; touched: boolean; secret: string | null };
-const FIELD = 'rounded border border-zinc-300 bg-transparent px-2 py-1 text-sm dark:border-slate-700';
 const SNAKE = /^[a-z][a-z0-9]*(_[a-z0-9]+)*$/;
 
 const secretName = (v: unknown): string | null =>
@@ -52,42 +52,34 @@ function buildConfig(schema: Schema, values: Record<string, OptionValue>, kept: 
 
 function OptionField({ param, value, secrets, onChange }: { param: Param; value: OptionValue; secrets: string[]; onChange: (v: OptionValue) => void }) {
 	const placeholder = param.required ? 'required' : param.default === null || param.default === undefined ? 'default' : `default: ${JSON.stringify(param.default)}`;
-	return (
-		<div className="flex flex-wrap items-center gap-2" data-testid={`option-${param.name}`}>
-			<label className="w-40 font-mono text-sm" htmlFor={`opt-${param.name}`}>
+	const inputId = `opt-${param.name}`;
+	if (param.type === 'bool')
+		return (
+			<label className="flex items-center gap-2 h-8 self-end font-mono text-xs" data-testid={`option-${param.name}`}>
+				<input id={inputId} type="checkbox" className="size-4" checked={value.checked} onChange={(e) => onChange({ ...value, checked: e.target.checked, touched: true })} />
 				{param.name}
-				{param.required && <span title="required"> *</span>}
 			</label>
+		);
+	return (
+		<div className="flex min-w-0 flex-col gap-1" data-testid={`option-${param.name}`}>
+			<div className="flex items-baseline justify-between gap-2 text-xs">
+				<label className="truncate font-mono text-muted" htmlFor={inputId}>
+					{param.name}
+					{param.required && <span className="text-bad" title="required"> *</span>}
+				</label>
+				{(secrets.length > 0 || value.secret !== null) && (
+					<button type="button" className="flex-none text-faint hover:text-ink" onClick={() => onChange({ ...value, secret: value.secret === null ? '' : null })}>
+						{value.secret === null ? 'use a secret' : 'use a value'}
+					</button>
+				)}
+			</div>
 			{value.secret !== null ? (
-				<select id={`opt-${param.name}`} className={FIELD} value={value.secret} onChange={(e) => onChange({ ...value, secret: e.target.value })}>
+				<Select id={inputId} value={value.secret} onChange={(e) => onChange({ ...value, secret: e.target.value })}>
 					<option value="">choose a secret…</option>
-					{secrets.map((s) => (
-						<option key={s}>{s}</option>
-					))}
-				</select>
-			) : param.type === 'bool' ? (
-				<input id={`opt-${param.name}`} type="checkbox" checked={value.checked} onChange={(e) => onChange({ ...value, checked: e.target.checked, touched: true })} />
+					{secrets.map((s) => <option key={s}>{s}</option>)}
+				</Select>
 			) : (
-				<input
-					id={`opt-${param.name}`}
-					className={`${FIELD} w-56`}
-					type={param.type === 'int' || param.type === 'float' ? 'number' : 'text'}
-					step="any"
-					placeholder={placeholder}
-					value={value.text}
-					onChange={(e) => onChange({ ...value, text: e.target.value })}
-				/>
-			)}
-			{param.type !== 'bool' && (
-				<button
-					type="button"
-					className="text-xs text-zinc-500 hover:underline disabled:opacity-40"
-					disabled={value.secret === null && secrets.length === 0}
-					title={secrets.length === 0 ? 'Create a secret first (below the device list)' : undefined}
-					onClick={() => onChange({ ...value, secret: value.secret === null ? '' : null })}
-				>
-					{value.secret === null ? 'use a secret' : 'use a value'}
-				</button>
+				<Input id={inputId} type={param.type === 'int' || param.type === 'float' ? 'number' : 'text'} step="any" placeholder={placeholder} value={value.text} onChange={(e) => onChange({ ...value, text: e.target.value })} />
 			)}
 		</div>
 	);
@@ -96,7 +88,6 @@ function OptionField({ param, value, secrets, onChange }: { param: Param; value:
 /** Add a device (deviceId null) or change one: choose the file, fill in the options the file offers. */
 export function DeviceDialog({ deviceId, onClose }: { deviceId: string | null; onClose: () => void }) {
 	const editing = deviceId !== null;
-	const dialog = useRef<HTMLDialogElement>(null);
 	const saved = useRef<Record<string, unknown> | null>(null); // the options now in devices.json (when changing)
 	const [id, setId] = useState(deviceId ?? '');
 	const [kind, setKind] = useState<'file' | 'driver' | 'remote' | 'package'>('file');
@@ -119,7 +110,6 @@ export function DeviceDialog({ deviceId, onClose }: { deviceId: string | null; o
 	const [contents, setContents] = useState<PackageContents | null>(null);
 
 	useEffect(() => {
-		dialog.current?.showModal();
 		void Promise.all([api.listDeviceFiles(), api.listSecrets(), api.listDrivers()]).then(([f, s, d]) => {
 			setFiles(f);
 			setSecrets(s);
@@ -191,7 +181,7 @@ export function DeviceDialog({ deviceId, onClose }: { deviceId: string | null; o
 	// options in devices.json that the file does not offer are kept as they are
 	const kept = Object.fromEntries(Object.entries(saved.current ?? {}).filter(([k]) => schema && !schema.config.some((p) => p.name === k)));
 
-	async function save() {
+	async function save(close: () => void) {
 		setError(null);
 		if (!SNAKE.test(id)) return setError('The id must be snake_case: lowercase letters, digits and underscores');
 		if (kind === 'package' && (!pkg.trim() || !pkgEntry || !schema)) return setError('Look inside the package and choose one of its devices');
@@ -210,7 +200,7 @@ export function DeviceDialog({ deviceId, onClose }: { deviceId: string | null; o
 							description: description.trim() || null,
 						};
 			await (editing ? api.updateDevice(id, entry) : api.addDevice(id, entry));
-			dialog.current?.close();
+			close();
 		} catch (e) {
 			setError((e as Error).message);
 		} finally {
@@ -218,137 +208,95 @@ export function DeviceDialog({ deviceId, onClose }: { deviceId: string | null; o
 		}
 	}
 
+	const KINDS = [
+		{ value: 'file', label: 'Python file', title: 'A device file of the workspace', testId: 'kind-file' },
+		{ value: 'package', label: 'Package', title: 'A device that a Python package offers (entry point laborchestra.devices)', testId: 'kind-package' },
+		{ value: 'driver', label: 'C# driver', title: 'A driver of the server or of a plugin', testId: 'kind-driver' },
+		{ value: 'remote', label: 'Remote', title: 'The device runs in a worker on another machine, which connects with a token', testId: 'kind-remote' },
+	] as const;
 	return (
-		<dialog
-			ref={dialog}
-			data-testid="device-dialog"
-			onClose={onClose}
-			className="m-auto w-full max-w-xl rounded-lg bg-white p-5 text-zinc-900 shadow-xl backdrop:bg-black/40 dark:bg-slate-900 dark:text-zinc-100"
-		>
-			<form
-				className="flex flex-col gap-3"
-				onSubmit={(e) => {
-					e.preventDefault();
-					void save();
-				}}
-			>
-				<h2 className="text-lg font-semibold">{editing ? `Change ${deviceId}` : 'Add a device'}</h2>
-				<div className="flex flex-wrap items-center gap-2">
-					<label className="w-40 text-sm" htmlFor="device-id">Id</label>
-					<input id="device-id" data-testid="field-id" className={`${FIELD} w-56 font-mono`} value={id} disabled={editing} placeholder="e.g. vacuum_pressure" onChange={(e) => setId(e.target.value)} />
-				</div>
-				<div className="flex flex-wrap items-center gap-3 text-sm" role="radiogroup" aria-label="Kind of device">
-					<span className="w-40">Kind</span>
-					<label className="flex items-center gap-1">
-						<input type="radio" name="kind" data-testid="kind-file" checked={kind === 'file'} disabled={editing} onChange={() => { setKind('file'); setSchema(null); }} /> Python file
-					</label>
-					<label className="flex items-center gap-1">
-						<input type="radio" name="kind" data-testid="kind-driver" checked={kind === 'driver'} disabled={editing} onChange={() => { setKind('driver'); setSchema(null); }} /> C# driver
-					</label>
-					<label className="flex items-center gap-1" title="A device that an installed Python package offers (entry point laborchestra.devices)">
-						<input type="radio" name="kind" data-testid="kind-package" checked={kind === 'package'} disabled={editing} onChange={() => { setKind('package'); setSchema(null); }} /> Python package
-					</label>
-					<label className="flex items-center gap-1" title="The device runs in a worker on another machine, which connects with a token">
-						<input type="radio" name="kind" data-testid="kind-remote" checked={kind === 'remote'} disabled={editing} onChange={() => { setKind('remote'); setSchema(null); }} /> Remote worker
-					</label>
-				</div>
-				{kind === 'package' ? (
-					<div className="flex flex-col gap-2">
-						<div className="flex flex-wrap items-center gap-2">
-							<label className="w-40 text-sm" htmlFor="device-package">Package</label>
-							<input id="device-package" data-testid="field-package" className={`${FIELD} w-72 font-mono`} value={pkg} disabled={editing} placeholder="laborchestra-elliptec==1.2, or a folder" onChange={(e) => { setPkg(e.target.value); setContents(null); setSchema(null); }} />
-							<button type="button" data-testid="look-inside" className="rounded bg-zinc-200 px-2 py-1 text-sm disabled:opacity-50 dark:bg-slate-800" disabled={!pkg.trim() || describing} onClick={() => void lookInside(null)}>Look inside</button>
-						</div>
-						{contents && (
-							<div className="flex flex-col gap-1 text-sm" data-testid="package-contents">
-								<div className="flex flex-wrap items-center gap-2">
-									<label className="w-40" htmlFor="device-entry">Device</label>
-									<select id="device-entry" data-testid="field-entry" className={`${FIELD} w-72`} value={pkgEntry} disabled={editing} onChange={(e) => { setPkgEntry(e.target.value); void lookInside(e.target.value); }}>
-										<option value="">choose…</option>
-										{contents.devices.map((d) => <option key={d.name} value={d.name}>{d.name} ({d.package} {d.version})</option>)}
-									</select>
-								</div>
-								{contents.devices.length === 0 && <p className="text-amber-700 dark:text-amber-400">This package offers no devices (entry point group laborchestra.devices).</p>}
-								{contents.widgets.length > 0 && <p className="text-zinc-500">It also brings widgets: {contents.widgets.map((w) => w.name).join(', ')}. They appear in the picker once the device is added.</p>}
-							</div>
+		<Dialog title={editing ? `Change ${deviceId}` : 'Add a device'} testId="device-dialog" onClose={onClose}>
+			{(close) => (
+				<form className="flex min-h-0 flex-col" onSubmit={(e) => { e.preventDefault(); void save(close); }}>
+					<DialogBody>
+						{!editing && <Segmented label="Kind of device" value={kind} options={[...KINDS]} onChange={(k) => { setKind(k); setSchema(null); }} />}
+						{!editing && (
+							<FormRow label="Id" htmlFor="device-id">
+								<Input id="device-id" data-testid="field-id" value={id} placeholder="e.g. vacuum_pressure" onChange={(e) => setId(e.target.value)} />
+							</FormRow>
 						)}
-					</div>
-				) : kind === 'remote' ? (
-					<p className="text-sm text-zinc-500">The device runs in a worker on another machine. After adding it, create a token for it under “Remote workers” on this page.</p>
-				) : kind === 'file' ? (
-					<div className="flex flex-wrap items-center gap-2">
-						<label className="w-40 text-sm" htmlFor="device-file">Device file</label>
-						<select id="device-file" data-testid="field-file" className={`${FIELD} w-72`} value={file} disabled={editing} onChange={(e) => setFile(e.target.value)}>
-							<option value="">choose…</option>
-							{files.map((f) => (
-								<option key={f.file} value={f.file}>
-									{f.file}
-									{f.devices.length > 0 ? `  (used by ${f.devices.join(', ')})` : ''}
-								</option>
-							))}
-						</select>
-					</div>
-				) : (
-					<div className="flex flex-wrap items-center gap-2">
-						<label className="w-40 text-sm" htmlFor="device-driver">Driver</label>
-						<select id="device-driver" data-testid="field-driver" className={`${FIELD} w-72`} value={driver} disabled={editing} onChange={(e) => setDriver(e.target.value)}>
-							<option value="">choose…</option>
-							{drivers.map((d) => (
-								<option key={d.driver} value={d.driver} title={d.doc ?? undefined}>
-									{d.driver}
-								</option>
-							))}
-						</select>
-					</div>
-				)}
-				{describing && <p className="text-sm text-zinc-500" data-testid="describing">Loading what {kind === 'package' ? 'the package' : 'the file'} offers… (the first time it may need to set up an environment)</p>}
-				{schema && (
-					<>
-						{schema.doc && <p className="text-sm text-zinc-500">{schema.doc}</p>}
-						<div className="flex flex-col gap-2 border-l border-zinc-300 pl-3 dark:border-slate-700">
-							{schema.config.length === 0 && <p className="text-sm text-zinc-500">This device has no options.</p>}
-							{schema.config.map((p) => (
-								<OptionField
-									key={p.name}
-									param={p}
-									secrets={secrets}
-									value={values[p.name] ?? { text: '', checked: false, touched: false, secret: null }}
-									onChange={(v) => setValues({ ...values, [p.name]: v })}
-								/>
-							))}
-							{Object.keys(kept).length > 0 && (
-								<p className="text-xs text-amber-700 dark:text-amber-400">
-									Not offered by this file, kept as they are: {Object.keys(kept).join(', ')}
-								</p>
-							)}
-						</div>
-					</>
-				)}
-				{(kind === 'file' || kind === 'package') && (
-					<div className="flex flex-wrap items-center gap-2">
-						<label className="w-40 text-sm" htmlFor="device-python">Python (optional)</label>
-						<input id="device-python" list="pythons" className={`${FIELD} w-56`} value={python} placeholder='a version such as "3.12", or a path' onChange={(e) => setPython(e.target.value)} />
-						<datalist id="pythons">
-							{pythons.map((p) => (
-								<option key={p.path} value={p.path}>{`${p.implementation ?? 'Python'} ${p.version}`}</option>
-							))}
-						</datalist>
-					</div>
-				)}
-				<div className="flex flex-wrap items-center gap-2">
-					<label className="w-40 text-sm" htmlFor="device-description">Description (optional)</label>
-					<input id="device-description" className={`${FIELD} w-72`} value={description} onChange={(e) => setDescription(e.target.value)} />
-				</div>
-				{error && <p role="alert" data-testid="dialog-error" className="whitespace-pre-wrap text-sm text-red-600">{error}</p>}
-				<div className="mt-2 flex justify-end gap-2">
-					<button type="button" className="rounded px-3 py-1 text-sm hover:bg-zinc-100 dark:hover:bg-slate-800" onClick={() => dialog.current?.close()}>
-						Cancel
-					</button>
-					<button data-testid="save-device" className="rounded bg-brand px-3 py-1 text-sm text-white disabled:opacity-50" disabled={saving || describing || (kind !== 'remote' && !schema)}>
-						{editing ? 'Save' : 'Add device'}
-					</button>
-				</div>
-			</form>
-		</dialog>
+						{kind === 'remote' && <p className="text-sm text-muted">The device runs in a worker on another machine. After adding it, create a token for it under “Remote workers”.</p>}
+						{kind === 'file' && (
+							<FormRow label="Device file" htmlFor="device-file">
+								<Select id="device-file" data-testid="field-file" value={file} disabled={editing} onChange={(e) => setFile(e.target.value)}>
+									<option value="">choose…</option>
+									{files.map((f) => <option key={f.file} value={f.file}>{f.file}{f.devices.length > 0 ? `  (used by ${f.devices.join(', ')})` : ''}</option>)}
+								</Select>
+							</FormRow>
+						)}
+						{kind === 'driver' && (
+							<FormRow label="Driver" htmlFor="device-driver">
+								<Select id="device-driver" data-testid="field-driver" value={driver} disabled={editing} onChange={(e) => setDriver(e.target.value)}>
+									<option value="">choose…</option>
+									{drivers.map((d) => <option key={d.driver} value={d.driver} title={d.doc ?? undefined}>{d.driver}</option>)}
+								</Select>
+							</FormRow>
+						)}
+						{kind === 'package' && (
+							<>
+								<FormRow label="Package" htmlFor="device-package">
+									<span className="flex gap-2">
+										<Input id="device-package" data-testid="field-package" className="flex-1 font-mono" value={pkg} disabled={editing} placeholder="laborchestra-elliptec==1.2, or a folder" onChange={(e) => { setPkg(e.target.value); setContents(null); setSchema(null); }} />
+										<Button type="button" data-testid="look-inside" icon="search" disabled={!pkg.trim() || describing} onClick={() => void lookInside(null)}>Look inside</Button>
+									</span>
+								</FormRow>
+								{contents && (
+									<div className="flex flex-col gap-2 text-sm" data-testid="package-contents">
+										<FormRow label="Device" htmlFor="device-entry">
+											<Select id="device-entry" data-testid="field-entry" value={pkgEntry} disabled={editing} onChange={(e) => { setPkgEntry(e.target.value); void lookInside(e.target.value); }}>
+												<option value="">choose…</option>
+												{contents.devices.map((d) => <option key={d.name} value={d.name}>{d.name} ({d.package} {d.version})</option>)}
+											</Select>
+										</FormRow>
+										{contents.devices.length === 0 && <p className="text-warn">This package offers no devices (entry point group laborchestra.devices).</p>}
+										{contents.widgets.length > 0 && <p className="text-xs text-faint">It also brings widgets: {contents.widgets.map((w) => w.name).join(', ')}. You find them under “Add widget” once the device is added.</p>}
+									</div>
+								)}
+							</>
+						)}
+						{describing && <p className="text-sm text-muted" data-testid="describing">Loading what {kind === 'package' ? 'the package' : 'the file'} offers… (the first time it may need to set up an environment)</p>}
+						{schema && (
+							<fieldset className="flex flex-col gap-3 rounded-lg border border-line p-4">
+								<legend className="px-1.5 text-xs text-muted">Options</legend>
+								{schema.doc && <p className="text-sm text-muted">{schema.doc}</p>}
+								{schema.config.length === 0 && <p className="text-sm text-faint">This device has no options.</p>}
+								<div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
+									{schema.config.map((p) => (
+										<OptionField key={p.name} param={p} secrets={secrets} value={values[p.name] ?? { text: '', checked: false, touched: false, secret: null }} onChange={(v) => setValues({ ...values, [p.name]: v })} />
+									))}
+								</div>
+								{Object.keys(kept).length > 0 && <p className="text-xs text-warn">Not offered by this file, kept as they are: {Object.keys(kept).join(', ')}</p>}
+							</fieldset>
+						)}
+						{(kind === 'file' || kind === 'package') && (
+							<FormRow label="Python (optional)" htmlFor="device-python">
+								<Input id="device-python" list="pythons" value={python} placeholder='a version such as "3.12", or a path' onChange={(e) => setPython(e.target.value)} />
+								<datalist id="pythons">
+									{pythons.map((p) => <option key={p.path} value={p.path}>{`${p.implementation ?? 'Python'} ${p.version}`}</option>)}
+								</datalist>
+							</FormRow>
+						)}
+						<FormRow label="Description (optional)" htmlFor="device-description">
+							<Input id="device-description" value={description} onChange={(e) => setDescription(e.target.value)} />
+						</FormRow>
+						{error && <ErrorText testId="dialog-error">{error}</ErrorText>}
+					</DialogBody>
+					<DialogFooter>
+						<Button type="button" variant="ghost" onClick={close}>Cancel</Button>
+						<Button variant="primary" data-testid="save-device" disabled={saving || describing || (kind !== 'remote' && !schema)}>{editing ? 'Save' : 'Add device'}</Button>
+					</DialogFooter>
+				</form>
+			)}
+		</Dialog>
 	);
 }

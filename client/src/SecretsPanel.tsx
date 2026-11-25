@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from './api';
+import { Section } from './Section';
+import { Button, IconButton, Input } from './ui';
 
 /** Secrets (API keys, tokens) are stored by the server, outside the workspace. Their values are never shown again. */
 export function SecretsPanel() {
@@ -24,43 +26,26 @@ export function SecretsPanel() {
 	}
 
 	return (
-		<section className="mt-8" data-testid="secrets">
-			<h2 className="mb-1 text-lg font-semibold">Secrets</h2>
-			<p className="mb-3 text-sm text-zinc-500">
-				A device option can use a secret instead of a value, so that keys stay out of devices.json. Devices that use a
-				secret restart when it changes.
-			</p>
-			<ul className="mb-3 flex flex-col gap-1">
-				{names.length === 0 && <li className="text-sm text-zinc-500">No secrets yet.</li>}
-				{names.map((n) => (
-					<li key={n} className="flex items-center gap-2 text-sm" data-testid={`secret-${n}`}>
-						<span className="font-mono">{n}</span>
-						<span className="text-zinc-400">••••••••</span>
-						<button
-							className="text-red-600 hover:underline"
-							onClick={() => void api.deleteSecret(n).then(refresh, (e: Error) => setError(e.message))}
-						>
-							Delete
-						</button>
-					</li>
-				))}
-			</ul>
+		<Section testId="secrets" title="Secrets" description="A device option can use a secret instead of a value, so that keys stay out of devices.json. Devices that use a secret restart when it changes.">
+			{names.map((n) => (
+				<div key={n} className="flex items-center gap-4 border-b border-line py-1 pl-4 pr-2 text-sm" data-testid={`secret-${n}`}>
+					<span className="font-mono text-xs">{n}</span>
+					<span className="flex-1 text-faint">••••••••</span>
+					<IconButton icon="trash" variant="danger" label={`Delete ${n}`} onClick={() => void api.deleteSecret(n).then(refresh, (e: Error) => setError(e.message))} />
+				</div>
+			))}
 			<form
-				className="flex flex-wrap items-center gap-2"
+				className="flex flex-wrap items-center gap-2 px-4 py-3"
 				onSubmit={(e) => {
 					e.preventDefault();
 					void save();
 				}}
 			>
-				<input aria-label="Secret name" placeholder="name, e.g. openai_key" className={FIELD} value={name} onChange={(e) => setName(e.target.value)} />
-				<input aria-label="Secret value" placeholder="value" type="password" className={FIELD} value={value} onChange={(e) => setValue(e.target.value)} />
-				<button className="rounded bg-brand px-3 py-1 text-sm text-white disabled:opacity-50" disabled={!name.trim() || !value}>
-					Save secret
-				</button>
+				<Input aria-label="Secret name" placeholder="Name, e.g. openai_key" className="w-56" value={name} onChange={(e) => setName(e.target.value)} />
+				<Input aria-label="Secret value" placeholder="Value" type="password" className="w-56" value={value} onChange={(e) => setValue(e.target.value)} />
+				<Button disabled={!name.trim() || !value}>Save secret</Button>
+				{error && <span role="alert" className="text-sm text-bad">{error}</span>}
 			</form>
-			{error && <p role="alert" className="mt-2 text-sm text-red-600">{error}</p>}
-		</section>
+		</Section>
 	);
 }
-
-const FIELD = 'rounded border border-zinc-300 bg-transparent px-2 py-1 text-sm dark:border-slate-700';

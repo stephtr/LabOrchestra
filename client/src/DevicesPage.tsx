@@ -6,8 +6,9 @@ import { NewDeviceDialog } from './NewDeviceDialog';
 import { EnvironmentsPanel } from './EnvironmentsPanel';
 import { RemoteWorkersPanel } from './RemoteWorkersPanel';
 import { SecretsPanel } from './SecretsPanel';
-import { STATUS_STYLE } from './DeviceCard';
-import { navigate } from './router';
+import { Header } from './Header';
+import { Section, TABLE } from './Section';
+import { Button, ErrorText, IconButton, StatusBadge } from './ui';
 import { useStore } from './store';
 
 /** Add, change, restart and remove the devices of the workspace (devices.json), and manage secrets. */
@@ -34,75 +35,69 @@ export function DevicesPage() {
 	}
 
 	return (
-		<div>
-			<div className="mb-3 flex items-center gap-3">
-				<h2 className="text-lg font-semibold">Devices</h2>
-				<span className="flex-1" />
-				<button data-testid="new-device" className="rounded bg-brand px-3 py-1 text-sm text-white" onClick={() => setCreating(true)}>
-					New device…
-				</button>
-				<button data-testid="add-device" className="rounded bg-zinc-200 px-3 py-1 text-sm dark:bg-slate-800" onClick={() => setDialog({ id: null })}>
-					Add existing
-				</button>
-			</div>
-			{error && <p role="alert" className="mb-2 text-sm text-red-600">{error}</p>}
-			<div className="overflow-x-auto rounded-lg bg-white shadow dark:bg-slate-900">
-				<table className="w-full text-left text-sm">
-					<thead className="text-zinc-500">
-						<tr>
-							<th className="p-2">Id</th>
-							<th className="p-2">Class</th>
-							<th className="p-2">Status</th>
-							<th className="p-2">File or driver</th>
-							<th className="p-2" />
-						</tr>
-					</thead>
-					<tbody>
-						{ids.map((id) => {
-							const info = devices[id]!;
-							return (
-								<tr key={id} data-testid={`row-${id}`} className="border-t border-zinc-200 dark:border-slate-800">
-									<td className="p-2 font-mono">
-										<a href="/" className="hover:underline" onClick={(e) => { e.preventDefault(); navigate('/'); }}>{id}</a>
-									</td>
-									<td className="p-2">{info.schema?.class ?? ''}</td>
-									<td className="p-2">
-										<span data-testid={`row-status-${id}`} className={`rounded-full px-2 py-0.5 text-xs ${STATUS_STYLE[info.status] ?? STATUS_STYLE.stopped}`} title={info.error ?? undefined}>
-											{info.status}
-										</span>
-										{info.changed && <span data-testid={`row-changed-${id}`} className="ml-2 text-xs text-sky-700 dark:text-sky-300">file changed</span>}
-									</td>
-									<td className="p-2 font-mono text-xs text-zinc-500">{sourceOf(id)}</td>
-									<td className="flex justify-end gap-3 p-2">
-										{entries[id]?.file && <OpenFileButtons file={entries[id]!.file!} compact />}
-										<button data-testid={`restart-${id}`} className="hover:underline" onClick={() => void run(api.restartDevice(id))}>Restart</button>
-										<button data-testid={`edit-${id}`} className="hover:underline" onClick={() => setDialog({ id })}>Change</button>
-										<button
-											data-testid={`remove-${id}`}
-											className="text-red-600 hover:underline"
-											onClick={() => {
-												if (window.confirm(`Remove the device "${id}" from devices.json? Its saved settings stay.`)) void run(api.removeDevice(id));
-											}}
-										>
-											Remove
-										</button>
-									</td>
-								</tr>
-							);
-						})}
-						{ids.length === 0 && (
-							<tr>
-								<td colSpan={5} className="p-3 text-zinc-500">No devices yet.</td>
-							</tr>
-						)}
-					</tbody>
-				</table>
-			</div>
-			<RemoteWorkersPanel entries={entries} />
-			<EnvironmentsPanel />
-			<SecretsPanel />
+		<>
+			<Header />
+			<main className="min-h-0 flex-1 overflow-y-auto">
+				<div className="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-6">
+					{error && <ErrorText>{error}</ErrorText>}
+					<Section
+						title="Devices"
+						actions={
+							<span className="flex gap-2">
+								<Button data-testid="add-device" onClick={() => setDialog({ id: null })}>Add existing…</Button>
+								<Button data-testid="new-device" variant="primary" icon="plus" onClick={() => setCreating(true)}>New device…</Button>
+							</span>
+						}
+					>
+						<table className={TABLE}>
+							<thead>
+								<tr><th>Device</th><th>Status</th><th>Source</th><th /></tr>
+							</thead>
+							<tbody>
+								{ids.map((id) => {
+									const info = devices[id]!;
+									return (
+										<tr key={id} data-testid={`row-${id}`}>
+											<td>
+												<div className="font-medium">{id}</div>
+												<div className="text-xs text-faint">{info.schema?.class ?? ''}</div>
+											</td>
+											<td>
+												<StatusBadge status={info.status} testId={`row-status-${id}`} title={info.error ?? undefined} />
+												{info.changed && <div data-testid={`row-changed-${id}`} className="text-xs text-accent">file changed</div>}
+												{info.error && <div className="max-w-64 truncate text-xs text-bad" title={info.error}>{info.error.split('\n').filter(Boolean).at(-1)}</div>}
+											</td>
+											<td className="break-all font-mono text-xs text-muted">{sourceOf(id)}</td>
+											<td>
+												<div className="flex items-center justify-end">
+													{entries[id]?.file && <OpenFileButtons file={entries[id]!.file!} compact />}
+													<IconButton icon="restart" label={`Restart ${id}`} data-testid={`restart-${id}`} onClick={() => void run(api.restartDevice(id))} />
+													<IconButton icon="edit" label={`Change ${id}`} data-testid={`edit-${id}`} onClick={() => setDialog({ id })} />
+													<IconButton
+														icon="trash"
+														variant="danger"
+														label={`Remove ${id}`}
+														data-testid={`remove-${id}`}
+														onClick={() => {
+															if (window.confirm(`Remove the device "${id}" from devices.json? Its saved settings stay.`)) void run(api.removeDevice(id));
+														}}
+													/>
+												</div>
+											</td>
+										</tr>
+									);
+								})}
+							</tbody>
+						</table>
+						{ids.length === 0 && <p className="border-t border-line px-4 py-8 text-center text-sm text-muted">No devices yet. Start with “New device…”.</p>}
+					</Section>
+					<RemoteWorkersPanel entries={entries} />
+					<EnvironmentsPanel />
+					<SecretsPanel />
+				</div>
+			</main>
 			{creating && <NewDeviceDialog onClose={() => setCreating(false)} />}
 			{dialog && <DeviceDialog key={dialog.id ?? '+'} deviceId={dialog.id} onClose={() => setDialog(null)} />}
-		</div>
+		</>
 	);
 }

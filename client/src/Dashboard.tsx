@@ -1,4 +1,4 @@
-import { createContext, ReactNode, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Group, Panel, Separator, useGroupRef } from 'react-resizable-panels';
 import {
 	addMain,
@@ -22,6 +22,8 @@ import {
 	WidgetInstance,
 } from './layout';
 import { CustomForm } from './generic';
+import { Header } from './Header';
+import { Button, Dialog, DialogBody, DialogFooter, FormRow, Icon, IconButton, Input } from './ui';
 import { NewWidgetDialog } from './NewWidgetDialog';
 import { WidgetSettingsDialog } from './WidgetSettingsDialog';
 import { navigate, usePath } from './router';
@@ -62,7 +64,7 @@ function WidgetView({ instance }: { instance: WidgetInstance }) {
 	else if (!def.accepts(info)) problem = `"${instance.device}" cannot be shown by the ${def.title} widget.`;
 	if (problem || !def || !info || !instance.device)
 		return (
-			<div data-testid={`placeholder-${instance.id}`} className="flex h-full items-center justify-center rounded-lg border border-dashed border-zinc-400 p-2 text-center text-xs text-zinc-500">
+			<div data-testid={`placeholder-${instance.id}`} className="flex h-full items-center justify-center rounded-lg border border-dashed border-line p-2 text-center text-xs text-muted">
 				{problem}
 			</div>
 		);
@@ -113,15 +115,12 @@ function Pane({ instance }: { instance: WidgetInstance }) {
 	return (
 		<div data-testid={`pane-${instance.id}`} className="relative flex h-full flex-col">
 			{ctx.editing && (
-				<div className="z-10 flex flex-none items-center gap-2 bg-zinc-200/90 px-2 py-0.5 text-xs dark:bg-slate-800/90">
-					<span {...dragProps(instance.id, ctx)} className="cursor-grab select-none" title="Drag to move" data-testid={`handle-${instance.id}`}>
-						⠿ {instance.type}{instance.device ? ` · ${instance.device}` : ''}
+				<div className="z-10 flex flex-none items-center gap-1 border-b border-line bg-panel px-1 py-0.5 text-xs text-muted">
+					<span {...dragProps(instance.id, ctx)} className="flex flex-1 cursor-grab select-none items-center gap-1 active:cursor-grabbing" title="Drag to move" data-testid={`handle-${instance.id}`}>
+						<Icon name="grip" /> {widgetDef(instance.type)?.title ?? instance.type}{instance.device ? ` · ${instance.device}` : ''}
 					</span>
-					<span className="flex-1" />
-					<button data-testid={`settings-${instance.id}`} className="text-zinc-500 hover:text-brand" aria-label="Widget settings" onClick={() => ctx.configure(instance)}>⚙</button>
-					<button className="text-zinc-500 hover:text-red-600" aria-label="Remove widget" onClick={() => ctx.apply((v) => removeWidget(v, instance.id))}>
-						✕
-					</button>
+					<IconButton small icon="settings" label="Widget settings" data-testid={`settings-${instance.id}`} onClick={() => ctx.configure(instance)} />
+					<IconButton small icon="close" variant="danger" label="Remove widget" onClick={() => ctx.apply((v) => removeWidget(v, instance.id))} />
 				</div>
 			)}
 			<div className="min-h-0 flex-1 overflow-auto">
@@ -145,7 +144,7 @@ function Pane({ instance }: { instance: WidgetInstance }) {
 						ctx.setDrop(null);
 					}}
 				>
-					{over && <div className={`pointer-events-none absolute bg-sky-500/30 ring-2 ring-sky-500 ${HIGHLIGHT[over]}`} />}
+					{over && <div className={`pointer-events-none absolute rounded-lg bg-accent/20 ring-2 ring-inset ring-accent ${HIGHLIGHT[over]}`} />}
 				</div>
 			)}
 		</div>
@@ -154,10 +153,8 @@ function Pane({ instance }: { instance: WidgetInstance }) {
 
 function Gutter({ direction }: { direction: 'row' | 'column' }) {
 	return (
-		<Separator
-			className={`group relative flex-none bg-zinc-300 transition-colors hover:bg-brand data-[separator=active]:bg-brand dark:bg-slate-800 ${direction === 'row' ? 'w-1 cursor-col-resize' : 'h-1 cursor-row-resize'}`}
-		>
-			<span className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded bg-zinc-500 group-hover:bg-white ${direction === 'row' ? 'h-8 w-0.5' : 'h-0.5 w-8'}`} />
+		<Separator className={`group relative flex-none bg-line transition-colors hover:bg-accent data-[separator=active]:bg-accent ${direction === 'row' ? 'w-1 cursor-col-resize' : 'h-1 cursor-row-resize'}`}>
+			<span className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-faint group-hover:bg-white ${direction === 'row' ? 'h-8 w-0.5' : 'h-0.5 w-8'}`} />
 		</Separator>
 	);
 }
@@ -233,10 +230,10 @@ function Strip({ widgets }: { widgets: WidgetInstance[] }) {
 	return (
 		<div
 			data-testid="strip"
-			className={`flex min-h-16 flex-none flex-wrap items-start gap-2 bg-zinc-100 p-2 dark:bg-slate-950 ${ctx.editing ? 'outline-1 -outline-offset-4 outline-dashed outline-zinc-400' : ''}`}
+			className={`flex min-h-16 flex-none flex-wrap items-start gap-1.5 border-t border-line p-1.5 ${ctx.editing ? 'bg-raised' : ''}`}
 			{...(ctx.editing ? acceptDrop(widgets.length) : {})}
 		>
-			{widgets.length === 0 && <span className="self-center text-xs text-zinc-500">Compact widgets go here.</span>}
+			{widgets.length === 0 && <span className="self-center px-2 text-xs text-muted">Compact widgets go here.</span>}
 			{widgets.map((w, i) => {
 				const size = widgetDef(w.type)?.size;
 				const height = COMPACT_HEIGHT[size === 'M' ? 'M' : 'S'];
@@ -245,15 +242,15 @@ function Strip({ widgets }: { widgets: WidgetInstance[] }) {
 						key={w.id}
 						data-testid={`strip-${w.id}`}
 						style={{ height }}
-						className={`relative min-w-40 flex-none ${dropAt === i ? 'border-l-4 border-sky-500' : ''}`}
+						className={`group relative min-w-28 flex-none ${ctx.editing ? 'cursor-grab active:cursor-grabbing' : ''} ${dropAt === i ? 'before:absolute before:inset-y-0 before:-left-1 before:w-0.5 before:rounded before:bg-accent' : ''}`}
 						{...dragProps(w.id, ctx)}
 						{...(ctx.editing ? acceptDrop(i) : {})}
 					>
 						<WidgetView instance={w} />
 						{ctx.editing && (
-							<span className="absolute right-1 top-0 flex gap-1 text-xs text-zinc-500">
-								<button data-testid={`settings-${w.id}`} className="hover:text-brand" aria-label="Widget settings" onClick={() => ctx.configure(w)}>⚙</button>
-								<button className="hover:text-red-600" aria-label="Remove widget" onClick={() => ctx.apply((v) => removeWidget(v, w.id))}>✕</button>
+							<span className="absolute right-px top-px flex rounded-tr-lg bg-panel opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+								<IconButton small icon="settings" label="Widget settings" data-testid={`settings-${w.id}`} onClick={() => ctx.configure(w)} />
+								<IconButton small icon="close" variant="danger" label="Remove widget" onClick={() => ctx.apply((v) => removeWidget(v, w.id))} />
 							</span>
 						)}
 					</div>
@@ -263,46 +260,112 @@ function Strip({ widgets }: { widgets: WidgetInstance[] }) {
 	);
 }
 
-function Picker({ onPick }: { onPick: (instance: WidgetInstance) => void }) {
+/** The panel next to the view with everything that can be placed, by device: what its profiles offer first, what fits any device below. */
+function Picker({ onPick, onClose, onNewWidget }: { onPick: (instance: WidgetInstance) => void; onClose: () => void; onNewWidget: () => void }) {
 	const { devices } = useContext(DashboardContext);
 	const defs = useWidgetDefs();
-	const ids = Object.keys(devices).sort();
-	const button = 'rounded bg-zinc-200 px-2 py-0.5 text-xs hover:bg-brand hover:text-white dark:bg-slate-800';
+	const [search, setSearch] = useState('');
 	const [custom, setCustom] = useState<{ type: 'value' | 'number' | 'button'; device: string } | null>(null);
-	if (custom && devices[custom.device])
-		return (
-			<div data-testid="picker" className="border-b border-zinc-300 bg-white p-2 text-sm dark:border-slate-700 dark:bg-slate-900">
-				<CustomForm type={custom.type} device={custom.device} info={devices[custom.device]!} onCreate={onPick} onCancel={() => setCustom(null)} />
-			</div>
-		);
+	const ids = Object.keys(devices).sort();
+	const matches = (...texts: string[]) => texts.some((t) => t.toLowerCase().includes(search.trim().toLowerCase()));
+	const chip = 'inline-flex h-7 items-center gap-1 rounded-md transition-colors';
+	const entries = (id: string, generic: boolean) =>
+		defs
+			.filter((d) => d.needsDevice !== false && Boolean(d.generic) === generic && d.accepts(devices[id]!))
+			.flatMap((d) => (d.variants?.(devices[id]!) ?? [{ label: '' }]).map((v) => ({ d, v })))
+			.filter(({ d, v }) => matches(id, d.title, v.label));
+	const add = (id: string, { d, v }: ReturnType<typeof entries>[number]) => (
+		<button
+			key={`${d.type}${v.label}`}
+			data-testid={`add-${d.type}-${id}${v.props && 'channel' in v.props ? `-${v.props.channel}` : ''}`}
+			className={`${chip} ${d.generic ? 'px-1.5 text-xs text-muted hover:bg-raised hover:text-ink' : 'bg-raised px-2 text-sm hover:bg-hover'}`}
+			onClick={() => (d.configure ? setCustom({ type: d.type as 'value' | 'number' | 'button', device: id }) : onPick(widget(d.type, id, v.props)))}
+		>
+			{d.title}{v.label && (d.variants?.(devices[id]!).length ?? 0) > 1 ? <span className="text-faint">{v.label.replace('channel ', '')}</span> : null}{d.configure ? '…' : ''}
+		</button>
+	);
 	return (
-		<div data-testid="picker" className="max-h-64 overflow-auto border-b border-zinc-300 bg-white p-2 text-sm dark:border-slate-700 dark:bg-slate-900">
-			<div className="flex flex-wrap items-center gap-2 py-0.5">
-				<span className="w-48 truncate text-zinc-500">whole server</span>
-				{defs.filter((d) => d.needsDevice === false).map((d) => (
-					<button key={d.type} data-testid={`add-${d.type}`} className={button} onClick={() => onPick(widget(d.type))}>{d.title}</button>
-				))}
+		<aside data-testid="picker" aria-label="Add widget" className="flex w-92 flex-none flex-col border-l border-line bg-panel">
+			<div className="flex flex-none items-center gap-1 border-b border-line py-1.5 pl-4 pr-2">
+				<h2 className="flex-1 truncate text-sm font-semibold">{custom ? `${widgetDef(custom.type)?.title} · ${custom.device}` : 'Add widget'}</h2>
+				<IconButton icon="close" label="Close panel" onClick={onClose} />
 			</div>
-			{ids.length === 0 && <p className="text-zinc-500">There are no devices to show yet.</p>}
-			{ids.map((id) => (
-				<div key={id} className="flex flex-wrap items-center gap-2 py-0.5">
-					<span className="w-48 truncate font-mono">{id}</span>
-					{defs
-						.filter((d) => d.needsDevice !== false && d.accepts(devices[id]!))
-						.flatMap((d) => (d.variants?.(devices[id]!) ?? [{ label: '' }]).map((v) => ({ d, v })))
-						.map(({ d, v }) => (
-							<button
-								key={`${d.type}${v.label}`}
-								data-testid={`add-${d.type}-${id}${v.props && 'channel' in v.props ? `-${v.props.channel}` : ''}`}
-								className={button}
-								onClick={() => (d.configure ? setCustom({ type: d.type as 'value' | 'number' | 'button', device: id }) : onPick(widget(d.type, id, v.props)))}
-							>
-								{d.title}{v.label ? ` · ${v.label}` : ''}
-							</button>
-						))}
+			{custom && devices[custom.device] ? (
+				<div className="overflow-y-auto p-4">
+					<CustomForm
+						type={custom.type}
+						device={custom.device}
+						info={devices[custom.device]!}
+						onCreate={(w) => {
+							onPick(w);
+							setCustom(null);
+						}}
+						onCancel={() => setCustom(null)}
+					/>
 				</div>
-			))}
-		</div>
+			) : (
+				<>
+					<div className="relative flex-none px-4 pt-3">
+						<Icon name="search" size={14} className="absolute left-6.5 top-5.5 text-faint" />
+						<Input type="search" aria-label="Search widgets" placeholder="Search" className="w-full !pl-8" value={search} onChange={(e) => setSearch(e.target.value)} />
+					</div>
+					<div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+						{ids.length === 0 && <p className="text-sm text-muted">There are no devices to show yet.</p>}
+						{ids.map((id) => {
+							const [specific, generic] = [entries(id, false), entries(id, true)];
+							if (specific.length + generic.length === 0) return null;
+							return (
+								<section key={id} className="flex flex-col gap-1">
+									<h3 className="flex items-baseline gap-2 text-sm font-medium">{id}<span className="truncate text-xs font-normal text-faint">{devices[id]!.schema?.class}</span></h3>
+									{specific.length > 0 && <div className="flex flex-wrap gap-1">{specific.map((e) => add(id, e))}</div>}
+									{generic.length > 0 && <div className="-ml-1.5 flex flex-wrap">{generic.map((e) => add(id, e))}</div>}
+								</section>
+							);
+						})}
+						<section className="flex flex-col gap-1">
+							<h3 className="text-sm font-medium">Whole server</h3>
+							<div className="flex flex-wrap gap-1">
+								{defs.filter((d) => d.needsDevice === false && matches(d.title)).map((d) => (
+									<button key={d.type} data-testid={`add-${d.type}`} className={`${chip} bg-raised px-2 text-sm hover:bg-hover`} onClick={() => onPick(widget(d.type))}>{d.title}</button>
+								))}
+							</div>
+						</section>
+					</div>
+					<div className="flex-none border-t border-line p-3">
+						<Button data-testid="new-widget" variant="ghost" icon="plus" className="w-full" title="Write a widget of your own" onClick={onNewWidget}>New widget…</Button>
+					</div>
+				</>
+			)}
+		</aside>
+	);
+}
+
+/** Asks for the name of a view. */
+function NameDialog({ title, initial, onSave, onClose }: { title: string; initial: string; onSave: (name: string) => void; onClose: () => void }) {
+	const [name, setName] = useState(initial);
+	return (
+		<Dialog title={title} testId="name-dialog" width="max-w-sm" onClose={onClose}>
+			{(close) => (
+				<form
+					onSubmit={(e) => {
+						e.preventDefault();
+						if (!name.trim()) return;
+						onSave(name.trim());
+						close();
+					}}
+				>
+					<DialogBody>
+						<FormRow label="Name" htmlFor="view-name">
+							<Input id="view-name" data-testid="name-input" autoFocus value={name} onChange={(e) => setName(e.target.value)} />
+						</FormRow>
+					</DialogBody>
+					<DialogFooter>
+						<Button type="button" variant="ghost" onClick={close}>Cancel</Button>
+						<Button variant="primary" data-testid="name-save" disabled={!name.trim()}>Save</Button>
+					</DialogFooter>
+				</form>
+			)}
+		</Dialog>
 	);
 }
 
@@ -313,7 +376,7 @@ function slug(title: string): string {
 /** Before the first view exists: every device as a card, as the dashboard always was. */
 function AutoGrid({ devices }: { devices: Record<string, DeviceInfo> }) {
 	return (
-		<div className="grid gap-4 p-2 md:grid-cols-2" data-testid="auto-grid">
+		<div className="mx-auto grid max-w-6xl items-start gap-3 p-3 md:grid-cols-2" data-testid="auto-grid">
 			{Object.keys(devices).sort().map((id) =>
 				devices[id]!.schema?.widget === 'oscilloscope' ? <div key={id} className="h-96 md:col-span-2"><OscilloscopeWidget id={id} info={devices[id]!} /></div> : <DeviceCard key={id} id={id} info={devices[id]!} />,
 			)}
@@ -327,6 +390,7 @@ export function Dashboard() {
 	const [editing, setEditing] = useState(false);
 	const [picking, setPicking] = useState(false);
 	const [creatingWidget, setCreatingWidget] = useState(false);
+	const [naming, setNaming] = useState<'new' | 'rename' | null>(null);
 	const [configuring, setConfiguring] = useState<WidgetInstance | null>(null);
 	const [dragging, setDragging] = useState<string | null>(null);
 	const [drop, setDrop] = useState<DropTarget>(null);
@@ -378,22 +442,15 @@ export function Dashboard() {
 		if (!equal(next, view)) persist(id, next);
 	};
 
-	function newView() {
-		const title = window.prompt('Name of the new view');
-		if (!title?.trim()) return;
+	function newView(title: string) {
 		const newId = slug(title);
 		if (!newId || views[newId]) {
 			setError(newId ? `A view "${newId}" exists already.` : 'Use letters or digits in the name.');
 			return;
 		}
-		persist(newId, { ...emptyView(title.trim()), order: parsed.list.length });
+		persist(newId, { ...emptyView(title), order: parsed.list.length });
 		navigate(`/views/${newId}`);
 		setEditing(true);
-	}
-
-	function renameView() {
-		const title = window.prompt('Name of the view', view.title);
-		if (title?.trim()) apply((v) => ({ ...v, title: title.trim() }));
 	}
 
 	function duplicateView() {
@@ -431,15 +488,48 @@ export function Dashboard() {
 	const empty = !view.root && view.strip.length === 0;
 	return (
 		<DashboardContext.Provider value={ctx}>
-			<div className="flex min-h-0 flex-1 flex-col">
-				<div className="flex flex-none items-center gap-1 px-2 py-1 text-sm">
+			<Header
+				actions={
+					<>
+						{error && <span role="alert" className="text-xs text-bad">{error}</span>}
+						{editing && (
+							<>
+								{selected && (
+									<span className="flex items-center" role="group" aria-label="This view">
+										<IconButton icon="chevron-left" label="Move view left" data-testid="view-left" disabled={parsed.list[0]?.id === id} onClick={() => moveView(-1)} />
+										<IconButton icon="chevron-right" label="Move view right" data-testid="view-right" disabled={parsed.list[parsed.list.length - 1]?.id === id} onClick={() => moveView(1)} />
+										<IconButton icon="edit" label="Rename view" data-testid="view-rename" onClick={() => setNaming('rename')} />
+										<IconButton icon="copy" label="Duplicate view" data-testid="view-duplicate" onClick={duplicateView} />
+										<IconButton icon="trash" variant="danger" label="Delete view" data-testid="view-delete" onClick={removeView} />
+									</span>
+								)}
+								<Button data-testid="add-widget" icon="plus" aria-expanded={picking} onClick={() => setPicking(!picking)}>Add widget</Button>
+							</>
+						)}
+						<Button
+							data-testid="edit-toggle"
+							aria-pressed={editing}
+							variant={editing ? 'primary' : 'ghost'}
+							icon={editing ? 'check' : 'edit'}
+							onClick={() => {
+								if (noViews) return createFirstView();
+								setEditing(!editing);
+								setPicking(false);
+							}}
+						>
+							{noViews ? 'Edit layout' : editing ? 'Done' : 'Edit'}
+						</Button>
+					</>
+				}
+			>
+				<nav className="flex flex-wrap items-center gap-0.5" aria-label="Views">
 					{parsed.list.map((v) => (
 						<a
 							key={v.id}
 							href={`/views/${v.id}`}
 							data-testid={`view-tab-${v.id}`}
 							aria-current={v.id === id ? 'page' : undefined}
-							className={`rounded px-2 py-0.5 ${v.id === id ? 'bg-zinc-300 dark:bg-slate-700' : 'text-zinc-600 hover:bg-zinc-200 dark:text-zinc-300 dark:hover:bg-slate-800'}`}
+							className={`inline-flex h-8 items-center border-b-2 px-2.5 text-sm ${v.id === id ? 'border-accent text-ink' : 'border-transparent text-muted hover:text-ink'}`}
 							onClick={(e) => {
 								e.preventDefault();
 								navigate(`/views/${v.id}`);
@@ -449,51 +539,22 @@ export function Dashboard() {
 						</a>
 					))}
 					{Object.entries(parsed.broken).map(([bid, why]) => (
-						<span key={bid} className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-800 dark:bg-red-950 dark:text-red-300" title={why}>
-							{bid}.json is not valid
+						<span key={bid} className="inline-flex items-center gap-1 rounded-md bg-bad/10 px-2 py-1 text-xs text-bad" title={why}>
+							<Icon name="warning" size={12} /> {bid}.json is not valid
 						</span>
 					))}
-					{editing && (
-						<button data-testid="new-view" className="rounded px-2 py-0.5 text-zinc-500 hover:bg-zinc-200 dark:hover:bg-slate-800" onClick={newView}>
-							+ View
-						</button>
-					)}
-					<span className="flex-1" />
-					{error && <span role="alert" className="text-xs text-red-600">{error}</span>}
-					{editing && (
-						<>
-							<button data-testid="add-widget" className="rounded bg-zinc-200 px-2 py-0.5 dark:bg-slate-800" aria-expanded={picking} onClick={() => setPicking(!picking)}>
-								Add widget
-							</button>
-							<button data-testid="new-widget" className="rounded px-2 py-0.5 text-zinc-500 hover:text-brand" onClick={() => setCreatingWidget(true)}>
-								New widget…
-							</button>
-							{selected && (
-								<>
-									<button data-testid="view-left" aria-label="Move view left" className="rounded px-1 text-zinc-500 hover:text-brand disabled:opacity-30" disabled={parsed.list[0]?.id === id} onClick={() => moveView(-1)}>◀</button>
-									<button data-testid="view-right" aria-label="Move view right" className="rounded px-1 text-zinc-500 hover:text-brand disabled:opacity-30" disabled={parsed.list[parsed.list.length - 1]?.id === id} onClick={() => moveView(1)}>▶</button>
-									<button data-testid="view-rename" className="rounded px-2 py-0.5 text-zinc-500 hover:text-brand" onClick={renameView}>Rename</button>
-									<button data-testid="view-duplicate" className="rounded px-2 py-0.5 text-zinc-500 hover:text-brand" onClick={duplicateView}>Duplicate</button>
-									<button className="rounded px-2 py-0.5 text-zinc-500 hover:text-red-600" onClick={removeView}>
-										Delete view
-									</button>
-								</>
-							)}
-						</>
-					)}
-					<button
-						data-testid="edit-toggle"
-						aria-pressed={editing}
-						className={`rounded px-2 py-0.5 ${editing ? 'bg-brand text-white' : 'bg-zinc-200 dark:bg-slate-800'}`}
-						onClick={() => {
-							if (noViews) return createFirstView();
-							setEditing(!editing);
-							setPicking(false);
-						}}
-					>
-						{noViews ? 'Edit layout' : editing ? 'Done' : 'Edit'}
-					</button>
-				</div>
+					{editing && <IconButton icon="plus" label="New view" data-testid="new-view" onClick={() => setNaming('new')} />}
+				</nav>
+			</Header>
+			<div className="flex min-h-0 flex-1 flex-col">
+				{naming && (
+					<NameDialog
+						title={naming === 'new' ? 'New view' : 'Rename view'}
+						initial={naming === 'new' ? '' : view.title}
+						onSave={(name) => (naming === 'new' ? newView(name) : apply((v) => ({ ...v, title: name })))}
+						onClose={() => setNaming(null)}
+					/>
+				)}
 				{configuring && (
 					<WidgetSettingsDialog
 						key={configuring.id}
@@ -505,15 +566,8 @@ export function Dashboard() {
 					/>
 				)}
 				{creatingWidget && <NewWidgetDialog onClose={() => setCreatingWidget(false)} />}
-				{editing && picking && (
-					<Picker
-						onPick={(instance) => {
-							const size = widgetDef(instance.type)?.size ?? 'main';
-							apply((v) => (size === 'main' ? addMain(v, instance) : addToStrip(v, instance)));
-							setPicking(false);
-						}}
-					/>
-				)}
+				<div className="flex min-h-0 flex-1">
+					<div className="flex min-w-0 flex-1 flex-col">
 				<div className={`min-h-0 flex-1 ${noViews ? 'overflow-auto' : 'overflow-hidden'}`}>
 					{noViews && connection === 'connected' && Object.keys(devices).length > 0 ? (
 						<AutoGrid devices={devices} />
@@ -521,7 +575,7 @@ export function Dashboard() {
 						<NodeView node={view.root} />
 					) : (
 						connection === 'connected' && (
-							<p className="p-4 text-zinc-500" data-testid="no-devices">
+							<p className="mx-auto max-w-lg p-12 text-center text-muted" data-testid="no-devices">
 								{Object.keys(devices).length === 0 ? (
 									<>
 										No devices configured. The workspace is <code className="font-mono">{info?.workspace}</code>
@@ -536,10 +590,20 @@ export function Dashboard() {
 						)
 					)}
 				</div>
-				{!noViews && <Strip widgets={view.strip} />}
+						{!noViews && <Strip widgets={view.strip} />}
+					</div>
+					{editing && picking && (
+						<Picker
+							onPick={(instance) => {
+								const size = widgetDef(instance.type)?.size ?? 'main';
+								apply((v) => (size === 'main' ? addMain(v, instance) : addToStrip(v, instance)));
+							}}
+							onClose={() => setPicking(false)}
+							onNewWidget={() => setCreatingWidget(true)}
+						/>
+					)}
+				</div>
 			</div>
 		</DashboardContext.Provider>
 	);
 }
-
-export type { ReactNode };

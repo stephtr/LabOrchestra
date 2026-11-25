@@ -1,13 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { OpenFileButtons } from './OpenFileButtons';
+import { Button, Dialog, DialogBody, DialogFooter, ErrorText, FormRow, Input } from './ui';
 import { api, ScaffoldedWidget, TemplateInfo } from './api';
 
-const FIELD = 'rounded border border-zinc-300 bg-transparent px-2 py-1 text-sm dark:border-slate-700';
 const SNAKE = /^[a-z][a-z0-9]*(_[a-z0-9]+)*$/;
 
 /** "New widget": the server writes widgets/<name>.tsx from a template and builds it; it then shows up in the picker by itself. */
 export function NewWidgetDialog({ onClose }: { onClose: () => void }) {
-	const dialog = useRef<HTMLDialogElement>(null);
 	const [templates, setTemplates] = useState<TemplateInfo[]>([]);
 	const [template, setTemplate] = useState('blank');
 	const [name, setName] = useState('');
@@ -15,7 +14,6 @@ export function NewWidgetDialog({ onClose }: { onClose: () => void }) {
 	const [made, setMade] = useState<ScaffoldedWidget | null>(null);
 
 	useEffect(() => {
-		dialog.current?.showModal();
 		void api.listWidgetTemplates().then(setTemplates, (e: Error) => setError(e.message));
 	}, []);
 
@@ -30,44 +28,48 @@ export function NewWidgetDialog({ onClose }: { onClose: () => void }) {
 	}
 
 	return (
-		<dialog ref={dialog} data-testid="new-widget-dialog" onClose={onClose} className="m-auto w-full max-w-lg rounded-lg bg-white p-5 text-zinc-900 shadow-xl backdrop:bg-black/40 dark:bg-slate-900 dark:text-zinc-100">
-			{made ? (
-				<div className="flex flex-col gap-3" data-testid="new-widget-done">
-					<h2 className="text-lg font-semibold">Widget “{made.name}” created</h2>
-					<p className="text-sm">
-						Open the file in your editor. Every time you save it the page updates by itself, and a mistake is shown in the widget. It is in the picker under “Add widget”, next to the device it should show.
-					</p>
-					<p className="break-all rounded bg-zinc-100 p-2 font-mono text-xs dark:bg-slate-800" data-testid="new-widget-path">{made.path}</p>
-					<OpenFileButtons file={made.file} />
-					<div className="flex justify-end">
-						<button className="rounded bg-brand px-3 py-1 text-sm text-white" onClick={() => dialog.current?.close()}>Done</button>
+		<Dialog title={made ? `Widget “${made.name}” created` : 'New widget'} testId="new-widget-dialog" width="max-w-lg" onClose={onClose}>
+			{(close) =>
+				made ? (
+					<div className="flex min-h-0 flex-col" data-testid="new-widget-done">
+						<DialogBody>
+							<p className="text-sm text-muted">
+								Every time you save the file the page updates by itself, and a mistake is shown in the widget. You find it under “Add widget”, next to the device it should show.
+							</p>
+							<p className="break-all rounded-md bg-ground p-2.5 font-mono text-xs" data-testid="new-widget-path">{made.path}</p>
+							<OpenFileButtons file={made.file} />
+						</DialogBody>
+						<DialogFooter>
+							<Button variant="primary" onClick={close}>Done</Button>
+						</DialogFooter>
 					</div>
-				</div>
-			) : (
-				<form className="flex flex-col gap-3" onSubmit={(e) => { e.preventDefault(); void create(); }}>
-					<h2 className="text-lg font-semibold">New widget</h2>
-					<fieldset className="flex flex-col gap-1" aria-label="Kind of widget">
-						{templates.map((t) => (
-							<label key={t.id} className={`flex cursor-pointer gap-2 rounded border p-2 text-sm ${template === t.id ? 'border-brand bg-emerald-50 dark:bg-emerald-950' : 'border-zinc-200 dark:border-slate-700'}`}>
-								<input type="radio" name="widget-template" data-testid={`widget-template-${t.id}`} checked={template === t.id} onChange={() => setTemplate(t.id)} />
+				) : (
+					<form className="flex min-h-0 flex-col" onSubmit={(e) => { e.preventDefault(); void create(); }}>
+						<DialogBody>
+							<fieldset className="flex flex-col gap-1.5" aria-label="Kind of widget">
+								{templates.map((t) => (
+							<label key={t.id} className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm ${template === t.id ? 'border-accent bg-accent/10' : 'border-line hover:bg-raised'}`}>
+								<input type="radio" name="widget-template" data-testid={`widget-template-${t.id}`} className="mt-0.5" checked={template === t.id} onChange={() => setTemplate(t.id)} />
 								<span>
 									<span className="font-medium">{t.title}</span>
-									<span className="block text-xs text-zinc-500">{t.description}</span>
+									{t.source === 'workspace' && <span className="ml-2 rounded bg-raised px-1.5 text-xs text-muted">your template</span>}
+									<span className="block text-xs text-muted">{t.description}</span>
 								</span>
 							</label>
-						))}
-					</fieldset>
-					<div className="flex flex-wrap items-center gap-2">
-						<label className="w-24 text-sm" htmlFor="new-widget-name">Name</label>
-						<input id="new-widget-name" data-testid="new-widget-name" autoFocus className={`${FIELD} w-56 font-mono`} value={name} placeholder="e.g. big_pressure" onChange={(e) => setName(e.target.value)} />
-					</div>
-					{error && <p role="alert" data-testid="dialog-error" className="whitespace-pre-wrap text-sm text-red-600">{error}</p>}
-					<div className="flex justify-end gap-2">
-						<button type="button" className="rounded px-3 py-1 text-sm hover:bg-zinc-100 dark:hover:bg-slate-800" onClick={() => dialog.current?.close()}>Cancel</button>
-						<button data-testid="create-widget" className="rounded bg-brand px-3 py-1 text-sm text-white disabled:opacity-50" disabled={templates.length === 0}>Create</button>
-					</div>
-				</form>
-			)}
-		</dialog>
+								))}
+							</fieldset>
+						<FormRow label="Name" htmlFor="new-widget-name">
+							<Input id="new-widget-name" data-testid="new-widget-name" autoFocus value={name} placeholder="e.g. big_pressure" onChange={(e) => setName(e.target.value)} />
+						</FormRow>
+							{error && <ErrorText testId="dialog-error">{error}</ErrorText>}
+						</DialogBody>
+						<DialogFooter>
+							<Button type="button" variant="ghost" onClick={close}>Cancel</Button>
+							<Button variant="primary" data-testid="create-widget" disabled={templates.length === 0}>Create</Button>
+						</DialogFooter>
+					</form>
+				)
+			}
+		</Dialog>
 	);
 }

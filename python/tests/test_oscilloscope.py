@@ -39,11 +39,12 @@ def lab(osc_server):
 
 
 def frame_with(frames, condition, timeout=15):
-    """The first frame (from now on) that satisfies the condition."""
+    """The first frame (from now on) with channel 0 that satisfies the condition. (Right after a reset a frame has only the channels that
+    already have a spectrum, as its `channels` say.)"""
     end = time.time() + timeout
     while time.time() < end:
         frame = frames.next(5)
-        if condition(frame):
+        if frame.meta["channels"][0] == 0 and condition(frame):
             return frame
     raise AssertionError("no frame like that")
 

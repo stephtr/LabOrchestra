@@ -113,7 +113,7 @@ export class WidgetBoundary extends Component<{ name: string; children: ReactNod
 	render() {
 		if (!this.state.error) return this.props.children;
 		return (
-			<div role="alert" data-testid={`widget-crash-${this.props.name}`} className="h-full overflow-auto rounded-lg border border-red-400 bg-red-50 p-2 text-xs text-red-800 dark:bg-red-950 dark:text-red-300">
+			<div role="alert" data-testid={`widget-crash-${this.props.name}`} className="h-full overflow-auto rounded-lg border border-bad/40 bg-bad/10 p-2 text-xs text-bad">
 				The widget “{this.props.name}” failed: {String(this.state.error.message)}
 			</div>
 		);

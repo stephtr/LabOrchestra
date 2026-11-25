@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from './api';
 import { formatNumber, unitFor } from './format';
+import { Button, Input, StatusBadge } from './ui';
 import {
 	ActionSchema,
 	callAction,
@@ -12,13 +13,7 @@ import {
 	useStore,
 } from './store';
 
-const LEVEL_STYLE: Record<string, string> = {
-	DEBUG: 'text-zinc-400',
-	INFO: 'text-zinc-600 dark:text-zinc-300',
-	WARNING: 'text-amber-700 dark:text-amber-400',
-	ERROR: 'text-red-700 dark:text-red-400',
-	CRITICAL: 'text-red-700 dark:text-red-400 font-bold',
-};
+const LEVEL_STYLE: Record<string, string> = { DEBUG: 'text-faint', INFO: 'text-muted', WARNING: 'text-warn', ERROR: 'text-bad', CRITICAL: 'text-bad font-bold' };
 
 function LogView({ source }: { source: string }) {
 	const entries = useStore().logs[source] ?? [];
@@ -27,14 +22,14 @@ function LogView({ source }: { source: string }) {
 		return () => unsubscribeLogs(source);
 	}, [source]);
 	return (
-		<div data-testid={`logs-${source}`} className="mt-1 max-h-48 overflow-auto font-mono text-xs">
-			{entries.length === 0 && <p className="text-zinc-500">No entries yet.</p>}
+		<div data-testid={`logs-${source}`} className="mt-2 max-h-48 overflow-auto rounded-md bg-ground p-2 font-mono text-xs">
+			{entries.length === 0 && <p className="text-muted">No entries yet.</p>}
 			{entries.map((e) => (
 				<div key={e.seq} className={LEVEL_STYLE[e.level]}>
-					<span className="text-zinc-400">{e.time.slice(11, 19)}</span> {e.level} {e.message}
+					<span className="text-muted">{e.time.slice(11, 19)}</span> {e.level} {e.message}
 					{e.traceback && (
 						<details>
-							<summary className="cursor-pointer text-zinc-500">Traceback</summary>
+							<summary className="cursor-pointer text-muted">Traceback</summary>
 							<pre className="overflow-x-auto">{e.traceback}</pre>
 						</details>
 					)}
@@ -44,25 +39,14 @@ function LogView({ source }: { source: string }) {
 	);
 }
 
-export const STATUS_STYLE: Record<string, string> = {
-	ready: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
-	waiting: 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300',
-	preparing: 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300',
-	starting: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
-	reconnecting: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
-	degraded: 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300',
-	error: 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300',
-	stopped: 'bg-zinc-200 text-zinc-700 dark:bg-slate-800 dark:text-zinc-300',
-};
-
 function Value({ id, path, value, units }: { id: string; path: string; value: unknown; units?: Record<string, string> }) {
 	if (value !== null && typeof value === 'object') {
 		const entries = Array.isArray(value) ? value.map((v, i) => [String(i), v] as const) : Object.entries(value);
 		return (
-			<dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 border-l border-zinc-300 pl-3 dark:border-slate-700">
+			<dl className={`grid grid-cols-[auto_1fr] gap-x-4 gap-y-0.5 ${path ? 'border-l border-line pl-3' : ''}`}>
 				{entries.map(([key, item]) => (
 					<div key={key} className="contents">
-						<dt className="text-zinc-500">{key}</dt>
+						<dt className="text-muted">{key}</dt>
 						<dd>
 							<Value id={id} path={path ? `${path}.${key}` : key} value={item} units={units} />
 						</dd>
@@ -75,10 +59,10 @@ function Value({ id, path, value, units }: { id: string; path: string; value: un
 	const unit = typeof value === 'number' ? unitFor(units, path) : undefined;
 	return (
 		<>
-			<span data-testid={`state-${id}-${path}`} className="font-mono tabular-nums">
+			<span data-testid={`state-${id}-${path}`} className="tabular-nums">
 				{text}
 			</span>
-			{unit && <span className="ml-1 text-zinc-500" data-testid={`unit-${id}-${path}`}>{unit}</span>}
+			{unit && <span className="ml-1 text-muted" data-testid={`unit-${id}-${path}`}>{unit}</span>}
 		</>
 	);
 }
@@ -133,46 +117,40 @@ function ActionRow({ device, action }: { device: string; action: ActionSchema })
 				void run();
 			}}
 		>
-			<span className="font-mono text-sm" title={action.doc ?? undefined}>
+			<span className="min-w-36 font-mono text-xs text-muted" title={action.doc ?? undefined}>
 				{action.name}
 			</span>
 			{action.params.map((p) =>
 				p.type === 'bool' ? (
-					<label key={p.name} className="flex items-center gap-1 text-sm">
-						<input
-							type="checkbox"
-							checked={Boolean(values[p.name])}
-							onChange={(e) => setValues({ ...values, [p.name]: e.target.checked })}
-						/>
+					<label key={p.name} className="flex items-center gap-1.5 text-sm">
+						<input type="checkbox" className="size-4" checked={Boolean(values[p.name])} onChange={(e) => setValues({ ...values, [p.name]: e.target.checked })} />
 						{p.name}
 					</label>
 				) : (
-					<input
+					<Input
 						key={p.name}
 						aria-label={p.name}
 						placeholder={p.name}
 						type={p.type === 'int' || p.type === 'float' ? 'number' : 'text'}
 						step="any"
-						className="w-28 rounded border border-zinc-300 bg-transparent px-2 py-1 text-sm dark:border-slate-700"
+						className="w-28"
 						value={String(values[p.name] ?? '')}
 						onChange={(e) => setValues({ ...values, [p.name]: e.target.value })}
 					/>
 				),
 			)}
-			<button className="rounded bg-brand px-3 py-1 text-sm text-white disabled:opacity-50" disabled={busy}>
-				Run
-			</button>
+			<Button disabled={busy}>Run</Button>
 			{outcome && (
 				<span
 					role="status"
 					data-testid={`result-${device}-${action.name}`}
-					className={`text-sm ${outcome.ok ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}
+					className={`text-sm ${outcome.ok ? 'text-good' : 'text-bad'}`}
 				>
 					{outcome.text}
 				</span>
 			)}
 			{outcome?.details && (
-				<details className="w-full text-xs text-zinc-500">
+				<details className="w-full text-xs text-muted">
 					<summary>Traceback</summary>
 					<pre className="overflow-x-auto">{outcome.details}</pre>
 				</details>
@@ -186,36 +164,26 @@ export function DeviceCard({ id, info }: { id: string; info: DeviceInfo }) {
 	const ready = info.status === 'ready' || info.status === 'degraded';
 	const [logsOpen, setLogsOpen] = useState(false);
 	return (
-		<section data-testid={`device-${id}`} className="rounded-lg bg-white p-4 shadow dark:bg-slate-900">
-			<div className="mb-2 flex items-center gap-2">
-				<h2 className="font-mono text-lg">{id}</h2>
-				{info.schema && <span className="text-sm text-zinc-500">{info.schema.class}</span>}
+		<section data-testid={`device-${id}`} className="h-full overflow-auto rounded-lg border border-line bg-panel p-4">
+			<div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+				<h2 className="font-semibold">{id}</h2>
+				{info.schema && <span className="text-sm text-muted">{info.schema.class}</span>}
 				{info.schema?.profiles?.map((p) => (
-					<span key={p.name} data-testid={`profile-${id}-${p.name}`} className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-600 dark:bg-slate-800 dark:text-zinc-300" title={`Conforms to the profile ${p.name}, version ${p.version}`}>
+					<span key={p.name} data-testid={`profile-${id}-${p.name}`} className="rounded bg-raised px-1.5 py-0.5 text-xs text-muted" title={`Conforms to the profile ${p.name}, version ${p.version}`}>
 						{p.name}
 					</span>
 				))}
 				<span className="flex-1" />
-				<span
-					data-testid={`status-${id}`}
-					className={`rounded-full px-2 py-0.5 text-xs ${STATUS_STYLE[info.status] ?? STATUS_STYLE.stopped}`}
-				>
-					{info.status}
-				</span>
 				{info.changed && (
-					<button
-						data-testid={`changed-${id}`}
-						className="rounded-full bg-sky-100 px-2 py-0.5 text-xs text-sky-800 hover:underline dark:bg-sky-950 dark:text-sky-300"
-						title="The device file changed after the device started. Click to restart it with the new file."
-						onClick={() => void api.restartDevice(id)}
-					>
+					<Button data-testid={`changed-${id}`} className="!h-6 !px-2 text-xs" icon="restart" title="The device file changed after the device started. Click to restart it with the new file." onClick={() => void api.restartDevice(id)}>
 						changed · restart
-					</button>
+					</Button>
 				)}
+				<StatusBadge status={info.status} testId={`status-${id}`} />
 			</div>
-			{info.schema?.doc && <p className="mb-2 text-sm text-zinc-500">{info.schema.doc}</p>}
+			{info.schema?.doc && <p className="mb-2 text-sm text-muted">{info.schema.doc}</p>}
 			{info.error && (
-				<pre data-testid={`error-${id}`} className="mb-2 overflow-x-auto rounded bg-red-50 p-2 text-xs text-red-800 dark:bg-red-950 dark:text-red-300">
+				<pre data-testid={`error-${id}`} className="mb-2 overflow-x-auto rounded-md bg-bad/10 p-2 text-xs text-bad">
 					{info.error}
 				</pre>
 			)}
@@ -230,7 +198,7 @@ export function DeviceCard({ id, info }: { id: string; info: DeviceInfo }) {
 				))}
 			</div>
 			<details className="mt-3 text-sm" onToggle={(e) => setLogsOpen(e.currentTarget.open)}>
-				<summary className="cursor-pointer text-zinc-500">Log</summary>
+				<summary className="cursor-pointer text-muted">Log</summary>
 				{logsOpen && <LogView source={`device:${id}`} />}
 			</details>
 		</section>

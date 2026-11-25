@@ -1,20 +1,22 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { formatNumber, parseFrequency } from './format';
+import { useRecordingTime } from './Header';
 import { formatSI } from './OscilloscopeWidget';
 import { callAction, invokeHub, useStore } from './store';
+import { Button, Icon, IconButton, Input } from './ui';
 import { profileState, type WidgetProps } from './widgets';
 
 /** The compact widgets: small, for the strip, bound to profiles (so any driver of the profile works) and to one channel each. */
 
-const INPUT = 'min-w-0 rounded border border-zinc-300 bg-transparent px-1 text-right font-mono text-sm tabular-nums dark:border-slate-700';
-const BUTTON_BASE = 'rounded px-1.5 text-sm disabled:opacity-40';
-const BUTTON = `${BUTTON_BASE} bg-zinc-200 hover:bg-brand hover:text-white dark:bg-slate-800`;
-
+/** The small card every compact widget sits in: a label, the content in one row below. A problem outlines it and is its tooltip. */
 export function Tile({ label, testId, children, problem }: { label: string; testId: string; children: ReactNode; problem?: string | null }) {
 	return (
-		<div data-testid={testId} title={problem ?? undefined} className={`flex h-full flex-col justify-center rounded-lg bg-white px-3 py-1 shadow dark:bg-slate-900 ${problem ? 'ring-1 ring-amber-500' : ''}`}>
-			<div className="truncate text-xs text-zinc-500">{label}</div>
-			{children}
+		<div data-testid={testId} title={problem ?? undefined} className={`flex h-full flex-col justify-center gap-0.5 rounded-lg border bg-panel px-3 ${problem ? 'border-warn' : 'border-line'}`}>
+			<div className="flex items-center gap-1 text-xs leading-4 text-muted">
+				<span className="truncate">{label}</span>
+				{problem && <Icon name="warning" size={12} className="text-warn" />}
+			</div>
+			<div className="flex min-h-7 items-center">{children}</div>
 		</div>
 	);
 }
@@ -34,7 +36,7 @@ export function useRun(device: string) {
 }
 
 /** A number the user can type: shows the device's value until the user starts editing, applies on Enter or when leaving the field. */
-export function Field({ value, format, parse, onCommit, testId, label }: { value: number | null | undefined; format: (v: number) => string; parse: (text: string) => number; onCommit: (v: number) => void; testId: string; label: string }) {
+export function Field({ value, format, parse, onCommit, testId, label, suffix, className = 'w-24 rounded-md' }: { value: number | null | undefined; format: (v: number) => string; parse: (text: string) => number; onCommit: (v: number) => void; testId: string; label: string; suffix?: string; className?: string }) {
 	const [draft, setDraft] = useState<string | null>(null);
 	const shown = draft ?? (typeof value === 'number' ? format(value) : '—');
 	const commit = () => {
@@ -44,22 +46,25 @@ export function Field({ value, format, parse, onCommit, testId, label }: { value
 		if (Number.isFinite(parsed) && parsed !== value) onCommit(parsed);
 	};
 	return (
-		<input
-			data-testid={testId}
-			aria-label={label}
-			className={`${INPUT} w-28`}
-			value={shown}
-			onChange={(e) => setDraft(e.target.value)}
-			onFocus={(e) => e.target.select()}
-			onBlur={commit}
-			onKeyDown={(e) => {
-				if (e.key === 'Enter') e.currentTarget.blur();
-				if (e.key === 'Escape') {
-					setDraft(null);
-					e.currentTarget.blur();
-				}
-			}}
-		/>
+		<span className={`inline-flex h-7 items-center border border-line bg-field px-2 focus-within:border-accent ${className}`}>
+			<input
+				data-testid={testId}
+				aria-label={label}
+				className="w-full min-w-0 bg-transparent text-right text-sm tabular-nums outline-none"
+				value={shown}
+				onChange={(e) => setDraft(e.target.value)}
+				onFocus={(e) => e.target.select()}
+				onBlur={commit}
+				onKeyDown={(e) => {
+					if (e.key === 'Enter') e.currentTarget.blur();
+					if (e.key === 'Escape') {
+						setDraft(null);
+						e.currentTarget.blur();
+					}
+				}}
+			/>
+			{suffix && <span className="flex-none pl-1 text-xs text-faint">{suffix}</span>}
+		</span>
 	);
 }
 
@@ -75,12 +80,12 @@ export function PressureWidget(p: WidgetProps) {
 	const bad = c && c.status !== 'ok';
 	return (
 		<Tile label={labelOf(p, channel, channels.length > 1)} testId={`pressure-${p.device}-${channel}`} problem={!c ? `no channel ${channel}` : bad ? c.status : null}>
-			<div className="flex items-baseline gap-1">
-				<span data-testid={`pressure-value-${p.device}-${channel}`} className="font-mono text-lg tabular-nums">
+			<div className="flex items-baseline gap-1.5 whitespace-nowrap">
+				<span data-testid={`pressure-value-${p.device}-${channel}`} className="text-lg leading-7 tabular-nums">
 					{c && typeof c.pressure === 'number' ? formatNumber(c.pressure) : '—'}
 				</span>
-				<span className="text-xs text-zinc-500">{unit}</span>
-				{bad && <span className="text-xs text-amber-600">{c.status}</span>}
+				<span className="text-xs text-faint">{unit}</span>
+				{bad && <span className="text-xs text-warn">{c.status}</span>}
 			</div>
 		</Tile>
 	);
@@ -98,12 +103,11 @@ export function PositionerWidget(p: WidgetProps) {
 	const move = (to: number) => run('set_position', channel, to);
 	const problem = error ?? (!c ? `no channel ${channel}` : c.status !== 'ok' ? c.status : null);
 	return (
-		<Tile label={`${labelOf(p, channel, channels.length > 1)}${c ? ` · ${c.type}` : ''}`} testId={`positioner-${p.device}-${channel}`} problem={problem}>
-			<div className="flex items-center gap-1">
-				<button className={BUTTON} aria-label="Step down" disabled={!c} onClick={() => move((c?.target_position ?? position ?? 0) - step)}>−</button>
-				<Field value={position} format={(v) => String(Number(v.toFixed(3)))} parse={Number} onCommit={move} testId={`positioner-input-${p.device}-${channel}`} label="Position" />
-				<button className={BUTTON} aria-label="Step up" disabled={!c} onClick={() => move((c?.target_position ?? position ?? 0) + step)}>+</button>
-				<span className="w-8 text-xs text-zinc-500">{POSITION_UNIT[c?.unit ?? 'none']}</span>
+		<Tile label={labelOf(p, channel, channels.length > 1)} testId={`positioner-${p.device}-${channel}`} problem={problem}>
+			<div className="flex items-center">
+				<IconButton icon="minus" label="Step down" small variant="default" className="!h-7 rounded-r-none" disabled={!c} onClick={() => move((c?.target_position ?? position ?? 0) - step)} />
+				<Field value={position} format={(v) => String(Number(v.toFixed(3)))} parse={Number} onCommit={move} testId={`positioner-input-${p.device}-${channel}`} label="Position" suffix={POSITION_UNIT[c?.unit ?? 'none']} className="w-20 border-x-0" />
+				<IconButton icon="plus" label="Step up" small variant="default" className="!h-7 rounded-l-none" disabled={!c} onClick={() => move((c?.target_position ?? position ?? 0) + step)} />
 			</div>
 		</Tile>
 	);
@@ -118,15 +122,16 @@ export function FrequencyWidget(p: WidgetProps) {
 		<Tile label={labelOf(p, channel, channels.length > 1)} testId={`frequency-${p.device}-${channel}`} problem={error ?? (!c ? `no channel ${channel}` : null)}>
 			<div className="flex items-center gap-1">
 				<Field value={c?.frequency} format={(v) => formatSI(v, 'Hz')} parse={parseFrequency} onCommit={(v) => run('set_frequency', channel, v)} testId={`frequency-input-${p.device}-${channel}`} label="Frequency" />
-				<button
+				<Button
 					data-testid={`frequency-on-${p.device}-${channel}`}
 					aria-pressed={c?.is_on ?? false}
 					disabled={!c}
-					className={c?.is_on ? `${BUTTON_BASE} bg-emerald-600 text-white` : BUTTON}
+					className={`!h-7 w-11 !px-0 ${c?.is_on ? '!bg-good !text-white dark:!text-ground' : ''}`}
+					title={c?.is_on ? 'The output is on: switch it off' : 'The output is off: switch it on'}
 					onClick={() => run('set_on', channel, !c?.is_on)}
 				>
 					{c?.is_on ? 'On' : 'Off'}
-				</button>
+				</Button>
 			</div>
 		</Tile>
 	);
@@ -137,7 +142,7 @@ export function PolarimeterWidget(p: WidgetProps) {
 	const deg = (v: unknown) => (typeof v === 'number' ? `${Number(((v * 180) / Math.PI).toFixed(1))}°` : '—');
 	return (
 		<Tile label={labelOf(p, 0, false)} testId={`polarimeter-${p.device}`} problem={s.status && s.status !== 'ok' ? String(s.status) : null}>
-			<div className="flex gap-3 font-mono text-sm tabular-nums">
+			<div className="flex gap-3 whitespace-nowrap text-sm tabular-nums">
 				<span title="azimuth">θ {deg(s.theta)}</span>
 				<span title="ellipticity">η {deg(s.eta)}</span>
 				<span title="degree of polarization">{typeof s.dop === 'number' ? `${Math.round(s.dop * 100)} %` : '—'}</span>
@@ -148,16 +153,11 @@ export function PolarimeterWidget(p: WidgetProps) {
 }
 
 /** Start and stop a recording, take a snapshot: the recording of the whole server, not of one device. */
-export function RecordingWidget(_: WidgetProps) {
+export function RecordingWidget({ props }: WidgetProps) {
 	const { recording } = useStore();
 	const [name, setName] = useState('');
 	const [error, setError] = useState<string | null>(null);
-	const [now, setNow] = useState(Date.now());
-	useEffect(() => {
-		if (!recording.active) return;
-		const timer = setInterval(() => setNow(Date.now()), 500);
-		return () => clearInterval(timer);
-	}, [recording.active]);
+	const time = useRecordingTime();
 	const call = async (method: string, ...args: unknown[]) => {
 		try {
 			await invokeHub(method, ...args);
@@ -166,30 +166,27 @@ export function RecordingWidget(_: WidgetProps) {
 			setError(e instanceof Error ? e.message : String(e));
 		}
 	};
-	const elapsed = recording.active && recording.start_time ? Math.max(0, Math.round((now - Date.parse(recording.start_time)) / 1000)) : 0;
 	return (
-		<Tile label="Recording" testId="recording-widget" problem={error}>
+		<Tile label={typeof props.label === 'string' && props.label ? props.label : 'Recording'} testId="recording-widget" problem={error}>
 			<div className="flex items-center gap-1">
-				<input
+				<Input
 					data-testid="recording-name"
 					aria-label="Filename"
 					placeholder="Filename"
-					className="w-40 rounded border border-zinc-300 bg-transparent px-1 text-sm dark:border-slate-700"
+					className="!h-7 w-28"
 					value={recording.active ? (recording.name ?? '') : name}
 					disabled={recording.active}
 					onChange={(e) => setName(e.target.value)}
 				/>
-				<button className={BUTTON} data-testid="snapshot" disabled={!name.trim() && !recording.active} onClick={() => call('snapshot', name.trim() || recording.name, null)}>Snapshot</button>
 				{recording.active ? (
 					<>
-						<button className={`${BUTTON_BASE} bg-red-600 text-white`} data-testid="record-stop" onClick={() => call('stop_recording')}>
-							■ {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}
-						</button>
-						<button className={BUTTON} data-testid="record-discard" title="Stop and delete the recording" onClick={() => call('abort_recording', true)}>Discard</button>
+						<Button className="!h-7 !bg-bad/15 !px-2 tabular-nums !text-bad" icon="stop" data-testid="record-stop" title="Stop the recording" onClick={() => call('stop_recording')}>{time}</Button>
+						<IconButton className="!size-7" icon="trash" variant="danger" label="Stop and delete the recording" data-testid="record-discard" onClick={() => window.confirm('Stop and delete this recording?') && call('abort_recording', true)} />
 					</>
 				) : (
-					<button className={BUTTON} data-testid="record-start" disabled={!name.trim()} onClick={() => call('start_recording', name.trim(), null)}>● Record</button>
+					<Button className="!h-7 !px-2" icon="record" data-testid="record-start" disabled={!name.trim()} onClick={() => call('start_recording', name.trim(), null)}>Record</Button>
 				)}
+				<IconButton className="!size-7" icon="camera" variant="default" label="Snapshot" data-testid="snapshot" disabled={!name.trim() && !recording.active} onClick={() => call('snapshot', name.trim() || recording.name, null)} />
 			</div>
 		</Tile>
 	);
@@ -210,13 +207,23 @@ type Pump = {
 };
 
 function pumpMode(c: Pump): { text: string; color: string } {
-	if (c.status !== 'ok') return { text: '? NO DATA', color: 'text-zinc-500' };
-	if (c.error_code) return { text: '⚠ ERROR', color: 'text-red-600' };
-	if (c.is_running) return { text: c.is_standby ? '▶ STANDBY' : '▶ RUN', color: c.is_standby ? 'text-yellow-600' : 'text-emerald-600' };
-	return { text: '■ STOP', color: 'text-orange-600' };
+	if (c.status !== 'ok') return { text: 'No data', color: 'text-faint' };
+	if (c.error_code) return { text: 'Error', color: 'text-bad' };
+	if (c.is_running) return c.is_standby ? { text: 'Standby', color: 'text-warn' } : { text: 'Running', color: 'text-good' };
+	return { text: 'Stopped', color: 'text-warn' };
 }
 
 const number = (v: number | null, digits = 0) => (typeof v === 'number' ? v.toFixed(digits) : '—');
+
+function Mode({ c, testId }: { c: Pump; testId: string }) {
+	const mode = pumpMode(c);
+	return (
+		<span className={`inline-flex items-center gap-1.5 ${mode.color}`}>
+			<span className="size-2 rounded-full bg-current" />
+			<span data-testid={testId}>{mode.text}</span>
+		</span>
+	);
+}
 
 function PumpPanel({ p, channel, c, onClose }: { p: WidgetProps; channel: number; c: Pump; onClose: () => void }) {
 	const { run, error } = useRun(p.device);
@@ -226,66 +233,65 @@ function PumpPanel({ p, channel, c, onClose }: { p: WidgetProps; channel: number
 		window.addEventListener('keydown', close);
 		return () => window.removeEventListener('keydown', close);
 	}, [onClose]);
-	const mode = pumpMode(c);
 	const stat = (label: string, value: string, unit: string, extra?: string) => (
-		<div className="rounded-lg bg-zinc-100 p-3 dark:bg-slate-800">
-			<div className="text-xs text-zinc-500">{label}</div>
-			<div className="font-mono text-2xl tabular-nums">{value}<span className="ml-1 text-sm text-zinc-500">{unit}</span></div>
-			{extra && <div className="text-xs text-zinc-500">{extra}</div>}
+		<div className="rounded-lg bg-ground px-3 py-2">
+			<div className="text-xs text-muted">{label}</div>
+			<div className="text-xl tabular-nums">{value}<span className="ml-1 text-sm text-faint">{unit}</span></div>
+			{extra && <div className="text-xs tabular-nums text-faint">{extra}</div>}
 		</div>
 	);
+	const speedId = `pump-speed-${p.device}-${channel}`;
 	return (
-		<div data-testid={`pump-panel-${p.device}-${channel}`} role="dialog" aria-label={c.name} className="fixed bottom-24 left-1/2 z-50 w-[28rem] max-w-[95vw] -translate-x-1/2 rounded-xl bg-white p-4 shadow-2xl ring-1 ring-zinc-300 dark:bg-slate-900 dark:ring-slate-700">
-			<div className="mb-3 flex items-center gap-2">
-				<h2 className="text-lg font-semibold">{typeof p.props.label === 'string' && p.props.label ? p.props.label : c.name}</h2>
-				<span className={`font-bold ${mode.color}`} data-testid={`pump-mode-${p.device}-${channel}`}>{mode.text}</span>
-				<span className="flex-1" />
-				<button className={BUTTON} aria-label="Close" onClick={onClose}>✕</button>
+		<div data-testid={`pump-panel-${p.device}-${channel}`} role="dialog" aria-label={c.name} className="fixed bottom-40 right-4 z-50 w-[26rem] max-w-[calc(100vw-2rem)] rounded-xl border border-line bg-panel shadow-2xl">
+			<div className="flex items-center gap-3 border-b border-line py-2 pl-4 pr-2">
+				<h2 className="font-semibold">{typeof p.props.label === 'string' && p.props.label ? p.props.label : c.name}</h2>
+				<span className="flex-1 text-sm"><Mode c={c} testId={`pump-mode-${p.device}-${channel}`} /></span>
+				<IconButton icon="close" label="Close" onClick={onClose} />
 			</div>
-			{c.status !== 'ok' && <p className="mb-2 text-sm text-amber-700">{c.status}</p>}
-			{c.error_code && <p className="mb-2 text-sm text-red-600">The controller reports the error {c.error_code}.</p>}
-			<div className="grid grid-cols-2 gap-2">
-				{stat('Speed', number(c.actual_speed), 'Hz', `target ${number(c.target_speed)} Hz`)}
-				{stat('Motor current', number(c.current, 2), 'A')}
-				{stat('Power', number(c.power), 'W')}
-				{stat('Voltage', number(c.voltage, 1), 'V')}
-			</div>
-			<p className="mt-2 text-xs text-zinc-500">Operating hours: {number(c.operating_hours)} h</p>
-			<div className="mt-3 flex gap-2">
-				<button className={`${BUTTON} flex-1 py-1`} data-testid="pump-start" disabled={c.is_running === true} onClick={() => run('start', channel)}>▶ Start</button>
-				<button className={`${BUTTON} flex-1 py-1`} data-testid="pump-stop" disabled={c.is_running === false} onClick={() => run('stop', channel)}>■ Stop</button>
-				<button className="flex-1 rounded bg-red-600 py-1 text-sm text-white hover:bg-red-700" data-testid="pump-emergency" onClick={() => window.confirm('Emergency stop?') && run('emergency_stop', channel)}>⚠ Emergency stop</button>
-			</div>
-			<div className="mt-3 flex items-center gap-2">
-				<label className="text-sm" htmlFor={`pump-speed-${p.device}-${channel}`}>Target speed (Hz)</label>
-				<input id={`pump-speed-${p.device}-${channel}`} data-testid="pump-speed" type="number" min={0} className={`${INPUT} w-24 flex-none`} value={speed ?? (c.target_speed ?? '')} onChange={(e) => setSpeed(e.target.value)} />
-				<button className={BUTTON} data-testid="pump-set-speed" disabled={speed === null || speed === ''} onClick={() => run('set_speed', channel, Number(speed)).then(() => setSpeed(null))}>Set</button>
-				<span className="flex-1" />
-				<label className="flex items-center gap-1 text-sm">
-					<input type="checkbox" data-testid="pump-standby" checked={c.is_standby ?? false} onChange={(e) => run('set_standby', channel, e.target.checked)} /> Standby
+			<div className="flex flex-col gap-3 p-4">
+				{c.status !== 'ok' && <p className="text-sm text-warn">{c.status}</p>}
+				{c.error_code && <p className="text-sm text-bad">The controller reports the error {c.error_code}.</p>}
+				<div className="grid grid-cols-2 gap-2">
+					{stat('Speed', number(c.actual_speed), 'Hz', `target ${number(c.target_speed)} Hz`)}
+					{stat('Motor current', number(c.current, 2), 'A')}
+					{stat('Power', number(c.power), 'W')}
+					{stat('Voltage', number(c.voltage, 1), 'V', `${number(c.operating_hours)} operating hours`)}
+				</div>
+				<div className="flex items-center gap-2">
+					<label className="flex-1 text-sm text-muted" htmlFor={speedId}>Target speed (Hz)</label>
+					<Input id={speedId} data-testid="pump-speed" type="number" min={0} className="w-24 text-right tabular-nums" value={speed ?? (c.target_speed ?? '')} onChange={(e) => setSpeed(e.target.value)} />
+					<Button data-testid="pump-set-speed" disabled={speed === null || speed === ''} onClick={() => run('set_speed', channel, Number(speed)).then(() => setSpeed(null))}>Set</Button>
+				</div>
+				<label className="flex items-center justify-between text-sm text-muted">
+					Standby (reduced speed)
+					<input type="checkbox" className="size-4" data-testid="pump-standby" checked={c.is_standby ?? false} onChange={(e) => run('set_standby', channel, e.target.checked)} />
 				</label>
+				<div className="flex gap-2">
+					<Button className="!flex-1" variant={c.is_running ? 'default' : 'primary'} icon="play" data-testid="pump-start" disabled={c.is_running === true} onClick={() => run('start', channel)}>Start</Button>
+					<Button className="!flex-1" icon="stop" data-testid="pump-stop" disabled={c.is_running === false} onClick={() => run('stop', channel)}>Stop</Button>
+					<Button className="!bg-bad/15 !text-bad hover:!bg-bad/25" icon="warning" data-testid="pump-emergency" onClick={() => window.confirm('Emergency stop?') && run('emergency_stop', channel)}>Emergency stop</Button>
+				</div>
+				{error && <p role="alert" className="text-xs text-bad">{error}</p>}
 			</div>
-			{error && <p role="alert" className="mt-2 text-xs text-red-600">{error}</p>}
 		</div>
 	);
 }
 
-/** One pump: state, speed and current in the tile; double click for all values and the controls. */
+/** One pump: state, speed and current in the tile; a click shows all values and the controls. */
 export function TurboPumpWidget(p: WidgetProps) {
 	const channel = channelOf(p);
 	const [open, setOpen] = useState(false);
 	const channels = (profileState(p.info, 'turbo_pump').channels ?? []) as Pump[];
 	const c = channels[channel];
-	const mode = c ? pumpMode(c) : null;
 	return (
 		<>
-			<div onDoubleClick={() => setOpen(true)} className="h-full cursor-pointer" title="Double click for details and controls">
+			<div role="button" tabIndex={0} onClick={() => setOpen(true)} onKeyDown={(e) => e.key === 'Enter' && setOpen(true)} className="h-full rounded-lg" title="Details and controls">
 				<Tile label={typeof p.props.label === 'string' && p.props.label ? p.props.label : (c?.name ?? labelOf(p, channel, channels.length > 1))} testId={`turbo-${p.device}-${channel}`} problem={!c ? `no pump ${channel}` : c.status !== 'ok' ? c.status : null}>
-					{c && mode && (
-						<div className="flex items-center gap-3 text-xs">
-							<span className={`font-bold ${mode.color}`} data-testid={`turbo-mode-${p.device}-${channel}`}>{mode.text}</span>
-							<span><span className="text-zinc-500">Speed:</span> <span className="font-bold text-sky-600" data-testid={`turbo-speed-${p.device}-${channel}`}>{number(c.actual_speed)} Hz</span></span>
-							<span><span className="text-zinc-500">I:</span> <span className="font-bold text-emerald-600">{number(c.current, 2)} A</span></span>
+					{c && (
+						<div className="flex items-center gap-3 whitespace-nowrap text-sm tabular-nums">
+							<Mode c={c} testId={`turbo-mode-${p.device}-${channel}`} />
+							<span data-testid={`turbo-speed-${p.device}-${channel}`}>{number(c.actual_speed)} Hz</span>
+							<span className="text-muted">{number(c.current, 2)} A</span>
 						</div>
 					)}
 				</Tile>

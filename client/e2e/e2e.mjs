@@ -101,6 +101,9 @@ try {
 			([id, exp]) => document.querySelector(`[data-testid="${id}"]`)?.textContent === exp,
 			[testId, expected],
 		);
+	const openPicker = async () => {
+		if ((await page.getByTestId('picker').count()) === 0) await page.getByTestId('add-widget').click();
+	};
 	const run = async (action, values) => {
 		const form = page.getByTestId(`action-pressure-${action}`);
 		for (const [name, value] of Object.entries(values)) await form.getByLabel(name).fill(String(value));
@@ -247,7 +250,7 @@ try {
 	// a device that runs on another machine: added without a file, a token for its worker
 	await page.getByTestId('add-device').click();
 	const remoteDialog = page.getByTestId('device-dialog');
-	await remoteDialog.getByTestId('kind-remote').check();
+	await remoteDialog.getByTestId('kind-remote').click();
 	await remoteDialog.getByTestId('field-id').fill('far_gauge');
 	await remoteDialog.getByTestId('save-device').click();
 	await remoteDialog.waitFor({ state: 'detached' });
@@ -274,7 +277,7 @@ try {
 
 	// the simulated oscilloscope: a C# driver, added through the dialog, shown with its own widget
 	await page.getByTestId('add-device').click();
-	await dialog.getByTestId('kind-driver').check();
+	await dialog.getByTestId('kind-driver').click();
 	await dialog.getByTestId('field-driver').selectOption('simulated_oscilloscope');
 	await dialog.getByTestId('field-id').fill('scope');
 	await dialog.getByTestId('option-noise').waitFor(); // the options of the driver
@@ -392,7 +395,7 @@ try {
 	await page.getByTestId('osc-canvas').waitFor();
 	ok('first view is created from the devices: oscilloscope pane, summary in the strip');
 
-	await page.getByTestId('add-widget').click();
+	await openPicker();
 	await page.getByTestId('add-device_card-pressure').click();
 	view = await waitView((v) => v.root?.kind === 'split' && v.root.children.length === 2, 'a second pane');
 	assert.equal(view.root.dir, 'column');
@@ -421,7 +424,7 @@ try {
 	ok('dropping on the right edge of a pane puts the dragged one next to it');
 
 	// reorder in the strip
-	await page.getByTestId('add-widget').click();
+	await openPicker();
 	await page.getByTestId('add-summary-scope').click();
 	view = await waitView((v) => v.strip.length === 2, 'two summaries');
 	const order = view.strip.map((w) => w.device);
@@ -440,9 +443,9 @@ try {
 
 	// compact widgets: a pressure readout (labelled), the recording bar
 	await page.getByTestId('edit-toggle').click();
-	await page.getByTestId('add-widget').click();
+	await openPicker();
 	await page.getByTestId('add-pressure-pressure-0').click();
-	await page.getByTestId('add-widget').click();
+	await openPicker();
 	await page.getByTestId('add-recording').click();
 	await page.getByTestId('pressure-value-pressure-0').waitFor();
 	assert.equal(await text('pressure-value-pressure-0'), await text('state-pressure-channels.0.pressure'));
@@ -484,11 +487,11 @@ try {
 	current.devices.rf = { file: 'devices/rs_sma100b.py', config: { simulate: true } };
 	fs.writeFileSync(devicesJson, JSON.stringify(current));
 	await page.getByTestId('edit-toggle').click();
-	await page.getByTestId('add-widget').click();
+	await openPicker();
 	await page.getByTestId('add-positioner-stages-1').click();
-	await page.getByTestId('add-widget').click();
+	await openPicker();
 	await page.getByTestId('add-frequency-rf-0').click();
-	await page.getByTestId('add-widget').click();
+	await openPicker();
 	await page.getByTestId('add-turbo_pump-turbo-1').click();
 	const positionInput = page.getByTestId('positioner-input-stages-1');
 	await positionInput.fill('42.5');
@@ -509,23 +512,23 @@ try {
 	ok('RF widget: frequency with SI suffix, output on');
 
 	await page.getByTestId('turbo-mode-turbo-1').waitFor();
-	assert.match(await text('turbo-mode-turbo-1'), /STOP/);
-	await page.getByTestId('turbo-turbo-1').dblclick();
+	assert.match(await text('turbo-mode-turbo-1'), /Stopped/);
+	await page.getByTestId('turbo-turbo-1').click();
 	const panel = page.getByTestId('pump-panel-turbo-1');
 	await panel.getByTestId('pump-speed').fill('400');
 	await panel.getByTestId('pump-set-speed').click();
 	await panel.getByTestId('pump-start').click();
-	await page.waitForFunction(() => /RUN/.test(document.querySelector('[data-testid="turbo-mode-turbo-1"]')?.textContent ?? ''));
+	await page.waitForFunction(() => /Running/.test(document.querySelector('[data-testid="turbo-mode-turbo-1"]')?.textContent ?? ''));
 	await page.waitForFunction(() => Number(document.querySelector('[data-testid="turbo-speed-turbo-1"]')?.textContent?.replace(/[^0-9.]/g, '')) >= 100);
 	assert.equal(script("print(lab.turbo.state['channels'][1]['target_speed'], lab.turbo.state['channels'][0]['is_running'])"), '400 False'); // only the chosen pump
 	await panel.getByTestId('pump-stop').click();
-	await page.waitForFunction(() => /STOP/.test(document.querySelector('[data-testid="turbo-mode-turbo-1"]')?.textContent ?? ''));
+	await page.waitForFunction(() => /Stopped/.test(document.querySelector('[data-testid="turbo-mode-turbo-1"]')?.textContent ?? ''));
 	await page.keyboard.press('Escape');
 	await panel.waitFor({ state: 'detached' });
 	ok('turbo pump widget: details panel starts, sets the speed and stops only its pump');
 
 	// the oscilloscope is also a frequency generator (a second profile, mounted at "generator"): the ordinary frequency widget works on it
-	await page.getByTestId('add-widget').click();
+	await openPicker();
 	await page.getByTestId('add-frequency-scope-0').click();
 	const generator = page.getByTestId('frequency-input-scope-0');
 	await generator.fill('250 kHz');
@@ -538,7 +541,7 @@ try {
 
 	// generic widgets, configured in the picker: a state field, a number with its action, a button
 	const pick = async (type) => {
-		await page.getByTestId('add-widget').click();
+		await openPicker();
 		await page.getByTestId(`add-${type}-scope`).click();
 	};
 	await pick('value');
@@ -592,7 +595,7 @@ export default function BigPressure({ device, props }: { device: string; props: 
 `;
 	fs.mkdirSync(path.dirname(widgetFile), { recursive: true });
 	fs.writeFileSync(widgetFile, widgetSource('v1'));
-	await page.getByTestId('add-widget').click();
+	await openPicker();
 	await page.getByTestId('add-ws:pressure_big-pressure').click(); // appears in the picker by itself
 	await page.getByTestId('rw-value').waitFor();
 	assert.equal(await text('rw-value'), await text('state-pressure-channels.0.pressure').catch(() => text('rw-value'))); // the SDK's useDevice shows the device's state
@@ -639,7 +642,7 @@ export default function BigPressure({ device, props }: { device: string; props: 
 	await page.getByTestId('nav-devices').click();
 	await page.getByTestId('add-device').click();
 	const packageDialog = page.getByTestId('device-dialog');
-	await packageDialog.getByTestId('kind-package').check();
+	await packageDialog.getByTestId('kind-package').click();
 	await packageDialog.getByTestId('field-package').fill(packageDir);
 	await packageDialog.getByTestId('look-inside').click();
 	await packageDialog.getByTestId('package-contents').waitFor();
@@ -655,7 +658,7 @@ export default function BigPressure({ device, props }: { device: string; props: 
 	ok('device dialog: a package is looked into, its device chosen, its options filled in');
 	await page.getByTestId('nav-dashboard').click();
 	await page.getByTestId('edit-toggle').click();
-	await page.getByTestId('add-widget').click();
+	await openPicker();
 	await page.getByTestId('add-pkg:packaged_tile-pkg_counter').click(); // shipped by the package, not in the workspace
 	await page.getByTestId('packaged-count').waitFor();
 	assert.equal(await text('packaged-count'), '0');
@@ -676,7 +679,7 @@ export default function BigPressure({ device, props }: { device: string; props: 
 	assert.ok(fs.readFileSync(path.join(dir, 'workspace/widgets/status_tile.tsx'), 'utf8').includes('export default function StatusTile('));
 	assert.ok(fs.existsSync(path.join(dir, 'workspace/widgets/laborchestra-widget.d.ts')));
 	await page.getByTestId('new-widget-dialog').getByRole('button', { name: 'Done' }).click();
-	await page.getByTestId('add-widget').click();
+	await openPicker();
 	await page.getByTestId('add-ws:status_tile-pressure').click();
 	await page.getByTestId('status_tile').waitFor();
 	assert.match(await text('status_tile'), /ready/); // the template shows the status of the device
@@ -688,8 +691,9 @@ export default function BigPressure({ device, props }: { device: string; props: 
 	const copy = JSON.parse(fs.readFileSync(path.join(dir, 'workspace/views/dashboard_copy.json'), 'utf8'));
 	assert.equal(copy.title, 'Dashboard (copy)');
 	assert.equal(copy.strip.length, readView().strip.length); // the same widgets
-	page.once('dialog', (d) => d.accept('Second view'));
 	await page.getByTestId('view-rename').click();
+	await page.getByTestId('name-input').fill('Second view');
+	await page.getByTestId('name-save').click();
 	await page.getByTestId('view-tab-dashboard_copy').getByText('Second view').waitFor();
 	await page.getByTestId('view-left').click();
 	for (let i = 0; i < 50; i++) {
@@ -699,7 +703,7 @@ export default function BigPressure({ device, props }: { device: string; props: 
 	}
 	await page.waitForFunction(() => [...document.querySelectorAll('[data-testid^="view-tab-"]')].map((e) => e.dataset.testid).join() === 'view-tab-dashboard_copy,view-tab-dashboard');
 	page.once('dialog', (d) => d.accept());
-	await page.getByText('Delete view').click();
+	await page.getByTestId('view-delete').click();
 	await page.getByTestId('view-tab-dashboard_copy').waitFor({ state: 'detached' });
 	await page.getByTestId('view-tab-dashboard').click();
 	ok('views: duplicate, rename, reorder, delete');

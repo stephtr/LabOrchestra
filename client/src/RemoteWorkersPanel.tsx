@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, CreatedToken, DeviceEntry, TokenInfo } from './api';
+import { Section, TABLE } from './Section';
+import { Button, IconButton, Input, Select } from './ui';
 
 /** Tokens for workers on other machines. A token belongs to one device and is shown once; revoking it stops the worker from connecting again. */
 export function RemoteWorkersPanel({ entries }: { entries: Record<string, DeviceEntry> }) {
@@ -31,47 +33,42 @@ export function RemoteWorkersPanel({ entries }: { entries: Record<string, Device
 		? `python -m laborchestra.worker path/to/${created.device}.py --id ${created.device} --url ${location.origin} --token ${created.token}`
 		: '';
 	return (
-		<section className="mt-8" data-testid="remote-workers">
-			<h2 className="mb-1 text-lg font-semibold">Remote workers</h2>
-			<p className="mb-3 text-sm text-zinc-500">
-				A device added as “Remote worker” runs on another machine and connects with a token that only works for that device. Use TLS when the worker is not on this machine.
-			</p>
-			{remote.length === 0 ? (
-				<p className="text-sm text-zinc-500">No remote devices yet: add one with “Add existing”, kind “Remote worker”.</p>
-			) : (
-				<form className="mb-3 flex flex-wrap items-center gap-2 text-sm" onSubmit={(e) => { e.preventDefault(); void create(); }}>
-					<select data-testid="token-device" aria-label="Device" className="rounded border border-zinc-300 bg-transparent px-2 py-1 dark:border-slate-700" value={device} onChange={(e) => setDevice(e.target.value)}>
-						{remote.map((id) => <option key={id}>{id}</option>)}
-					</select>
-					<input data-testid="token-label" aria-label="Label" className="rounded border border-zinc-300 bg-transparent px-2 py-1 dark:border-slate-700" placeholder="Label, e.g. lab PC 2" value={label} onChange={(e) => setLabel(e.target.value)} />
-					<button data-testid="token-create" className="rounded bg-brand px-3 py-1 text-white">Create token</button>
-				</form>
-			)}
-			{created && (
-				<div data-testid="token-created" className="mb-3 rounded border border-amber-400 bg-amber-50 p-3 text-sm dark:bg-amber-950">
-					<p className="mb-1 font-medium">Copy this now: the token is not shown again.</p>
-					<pre className="overflow-x-auto font-mono text-xs" data-testid="token-command">{command}</pre>
-					<button className="mt-2 text-xs underline" onClick={() => setCreated(null)}>Hide</button>
-				</div>
-			)}
-			{error && <p role="alert" className="mb-2 text-sm text-red-600">{error}</p>}
+		<Section testId="remote-workers" title="Remote workers" description="Devices that run on another machine connect with a token that works for that device only. Use TLS when the machine is not this one.">
+			{remote.length === 0 && tokens.length === 0 && <p className="px-4 py-4 text-sm text-muted">No remote devices yet. Add one with “Add existing…”, kind “Remote”.</p>}
 			{tokens.length > 0 && (
-				<table className="w-full text-left text-sm">
-					<thead className="text-zinc-500"><tr><th className="p-1">Device</th><th className="p-1">Label</th><th className="p-1">Created</th><th /></tr></thead>
+				<table className={TABLE}>
+					<thead><tr><th>Device</th><th>Label</th><th>Created</th><th /></tr></thead>
 					<tbody>
 						{tokens.map((t) => (
-							<tr key={t.id} data-testid={`token-${t.id}`} className="border-t border-zinc-200 dark:border-slate-800">
-								<td className="p-1 font-mono">{t.device}</td>
-								<td className="p-1">{t.label}</td>
-								<td className="p-1 text-zinc-500">{new Date(t.created * 1000).toLocaleString()}</td>
-								<td className="p-1 text-right">
-									<button className="text-red-600 hover:underline" onClick={() => { if (window.confirm(`Revoke the token "${t.label}"? The worker cannot connect again.`)) void api.revokeToken(t.id).then(refresh, (e: Error) => setError(e.message)); }}>Revoke</button>
+							<tr key={t.id} data-testid={`token-${t.id}`}>
+								<td className="font-medium">{t.device}</td>
+								<td>{t.label}</td>
+								<td className="text-muted">{new Date(t.created * 1000).toLocaleString()}</td>
+								<td className="text-right">
+									<IconButton icon="trash" variant="danger" label={`Revoke ${t.label}`} onClick={() => { if (window.confirm(`Revoke the token "${t.label}"? The worker cannot connect again.`)) void api.revokeToken(t.id).then(refresh, (e: Error) => setError(e.message)); }} />
 								</td>
 							</tr>
 						))}
 					</tbody>
 				</table>
 			)}
-		</section>
+			{remote.length > 0 && (
+				<form className="flex flex-wrap items-center gap-2 border-t border-line px-4 py-3" onSubmit={(e) => { e.preventDefault(); void create(); }}>
+					<Select data-testid="token-device" aria-label="Device" className="w-56" value={device} onChange={(e) => setDevice(e.target.value)}>
+						{remote.map((id) => <option key={id}>{id}</option>)}
+					</Select>
+					<Input data-testid="token-label" aria-label="Label" placeholder="Label, e.g. lab PC 2" className="w-56" value={label} onChange={(e) => setLabel(e.target.value)} />
+					<Button data-testid="token-create">Create token</Button>
+				</form>
+			)}
+			{created && (
+				<div data-testid="token-created" className="border-t border-line bg-warn/10 px-4 py-3 text-sm">
+					<p className="mb-2 font-medium">Copy this now: the token is not shown again.</p>
+					<pre className="overflow-x-auto rounded-md bg-ground p-2.5 font-mono text-xs" data-testid="token-command">{command}</pre>
+					<Button variant="ghost" className="mt-2" onClick={() => setCreated(null)}>Hide</Button>
+				</div>
+			)}
+			{error && <p role="alert" className="border-t border-line px-4 py-3 text-sm text-bad">{error}</p>}
+		</Section>
 	);
 }

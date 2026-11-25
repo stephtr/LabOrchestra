@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, EnvironmentInfo } from './api';
+import { Section, TABLE } from './Section';
+import { Button } from './ui';
 
 /** The Python environments on disk (one per set of dependencies, shared by devices that need the same) and their clean-up. */
 export function EnvironmentsPanel() {
@@ -20,41 +22,38 @@ export function EnvironmentsPanel() {
 	}
 
 	return (
-		<section className="mt-8" data-testid="environments">
-			<h2 className="mb-1 text-lg font-semibold">Python environments</h2>
-			<p className="mb-3 text-sm text-zinc-500">
-				Every device runs in an environment with the dependencies of its file. An old one stays for a while, so that going back to an
-				older file (git) works at once.
-			</p>
-			<div className="overflow-x-auto rounded-lg bg-white shadow dark:bg-slate-900">
-				<table className="w-full text-left text-sm">
-					<thead className="text-zinc-500">
-						<tr><th className="p-2">Key</th><th className="p-2">Python</th><th className="p-2">Packages</th><th className="p-2">Size</th><th className="p-2">Last used</th><th className="p-2">Used by</th></tr>
+		<Section
+			testId="environments"
+			title="Python environments"
+			description="One per set of dependencies. Old ones stay for a while, for going back."
+			actions={
+				<span className="flex items-center gap-2">
+					{message && <span role="status" className="text-xs text-muted">{message}</span>}
+					<Button variant="ghost" data-testid="env-cleanup" onClick={() => void cleanUp(30)}>Remove unused for 30 days</Button>
+					<Button variant="ghost" onClick={() => void cleanUp(0)}>Remove all unused</Button>
+				</span>
+			}
+		>
+			{(environments ?? []).length > 0 && (
+				<table className={TABLE}>
+					<thead>
+						<tr><th>Used by</th><th>Packages</th><th>Python</th><th>Size</th><th>Last used</th><th>Key</th></tr>
 					</thead>
 					<tbody>
 						{(environments ?? []).map((e) => (
-							<tr key={e.key} data-testid={`env-${e.key}`} className="border-t border-zinc-200 dark:border-slate-800">
-								<td className="p-2 font-mono text-xs">{e.key}</td>
-								<td className="p-2">{e.python ?? 'any'}</td>
-								<td className="p-2">{e.dependencies.join(', ') || 'none'}</td>
-								<td className="p-2">{e.size_mb.toFixed(0)} MB</td>
-								<td className="p-2">{new Date(e.last_used * 1000).toLocaleDateString()}</td>
-								<td className="p-2">{e.used_by.join(', ') || <span className="text-zinc-400">unused</span>}</td>
+							<tr key={e.key} data-testid={`env-${e.key}`}>
+								<td>{e.used_by.join(', ') || <span className="text-faint">unused</span>}</td>
+								<td className="break-all text-muted">{e.dependencies.join(', ') || 'none'}</td>
+								<td className="text-muted">{e.python ?? 'any'}</td>
+								<td className="whitespace-nowrap tabular-nums text-muted">{e.size_mb.toFixed(0)} MB</td>
+								<td className="whitespace-nowrap text-muted">{new Date(e.last_used * 1000).toLocaleDateString()}</td>
+								<td className="font-mono text-xs text-faint">{e.key}</td>
 							</tr>
 						))}
-						{environments?.length === 0 && <tr><td colSpan={6} className="p-3 text-zinc-500">No environments yet.</td></tr>}
 					</tbody>
 				</table>
-			</div>
-			<div className="mt-2 flex items-center gap-3 text-sm">
-				<button data-testid="env-cleanup" className="rounded bg-zinc-200 px-3 py-1 dark:bg-slate-700" onClick={() => void cleanUp(30)}>
-					Remove unused for 30 days
-				</button>
-				<button className="rounded bg-zinc-200 px-3 py-1 dark:bg-slate-700" onClick={() => void cleanUp(0)}>
-					Remove all unused
-				</button>
-				{message && <span role="status" className="text-zinc-500">{message}</span>}
-			</div>
-		</section>
+			)}
+			{environments?.length === 0 && <p className="px-4 py-4 text-sm text-muted">No environments yet.</p>}
+		</Section>
 	);
 }

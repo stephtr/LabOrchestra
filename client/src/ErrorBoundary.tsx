@@ -17,11 +17,11 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { error: E
 	render() {
 		if (!this.state.error) return this.props.children;
 		return (
-			<div role="alert" data-testid="error-boundary" className="mx-auto mt-24 max-w-lg rounded-lg bg-white p-6 shadow dark:bg-slate-900">
+			<div role="alert" data-testid="error-boundary" className="mx-auto mt-24 max-w-lg rounded-xl border border-line bg-panel p-6 shadow-lg">
 				<h1 className="mb-2 text-xl font-semibold">Something went wrong</h1>
-				<p className="mb-3 text-sm text-zinc-500">The error was sent to the server's log (source "client").</p>
-				<pre className="mb-3 overflow-x-auto rounded bg-red-50 p-2 text-xs text-red-800 dark:bg-red-950 dark:text-red-300">{String(this.state.error)}</pre>
-				<button className="rounded bg-zinc-200 px-3 py-1 dark:bg-slate-700" onClick={() => location.reload()}>
+				<p className="mb-3 text-sm text-muted">The error was sent to the server's log (source "client").</p>
+				<pre className="mb-3 overflow-x-auto rounded-md bg-bad/10 p-2 text-xs text-bad">{String(this.state.error)}</pre>
+				<button className="h-8 rounded-md bg-raised px-3 text-sm hover:bg-hover" onClick={() => location.reload()}>
 					Reload
 				</button>
 			</div>

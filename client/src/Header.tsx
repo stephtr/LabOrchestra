@@ -1,0 +1,71 @@
+import { ReactNode, useEffect, useState } from 'react';
+import logoDark from '../../docs/assets/laborchestra-logo-dark.svg';
+import logoLight from '../../docs/assets/laborchestra-logo-light.svg';
+import { navigate, usePath } from './router';
+import { logout, useStore } from './store';
+import { Icon, IconButton } from './ui';
+
+function NavLink({ to, children }: { to: string; children: string }) {
+	const path = usePath();
+	const active = to === '/' ? path === '/' || path.startsWith('/views') : path.startsWith(to);
+	return (
+		<a
+			href={to}
+			data-testid={`nav-${to === '/' ? 'dashboard' : to.slice(1)}`}
+			aria-current={active ? 'page' : undefined}
+			className={`inline-flex h-8 items-center rounded-md px-2.5 text-sm ${active ? 'bg-raised text-ink' : 'text-muted hover:text-ink'}`}
+			onClick={(e) => {
+				e.preventDefault();
+				navigate(to);
+			}}
+		>
+			{children}
+		</a>
+	);
+}
+
+/** Seconds since the start of the recording, while there is one. */
+export function useRecordingTime(): string | null {
+	const { recording } = useStore();
+	const [now, setNow] = useState(Date.now());
+	useEffect(() => {
+		if (!recording.active) return;
+		setNow(Date.now());
+		const timer = setInterval(() => setNow(Date.now()), 500);
+		return () => clearInterval(timer);
+	}, [recording.active]);
+	if (!recording.active || !recording.start_time) return null;
+	const s = Math.max(0, Math.round((now - Date.parse(recording.start_time)) / 1000));
+	const h = Math.floor(s / 3600);
+	return `${h > 0 ? `${h}:` : ''}${String(Math.floor(s / 60) % 60).padStart(h > 0 ? 2 : 1, '0')}:${String(s % 60).padStart(2, '0')}`;
+}
+
+/** The one bar of every page: logo, pages, what the page puts there (the views), and what is always worth knowing (recording, connection). */
+export function Header({ children, actions }: { children?: ReactNode; actions?: ReactNode }) {
+	const { connection, recording } = useStore();
+	const time = useRecordingTime();
+	return (
+		<header className="flex min-h-12 flex-none flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-panel px-3 py-1.5">
+			<img src={logoLight} alt="LabOrchestra" className="h-7 dark:hidden" />
+			<img src={logoDark} alt="LabOrchestra" className="hidden h-7 dark:block" />
+			{children}
+			<span className="flex-1" />
+			{time && (
+				<span data-testid="recording-indicator" className="inline-flex items-center gap-1.5 rounded-md bg-bad/10 px-2 py-1 text-sm tabular-nums text-bad" title={`Recording “${recording.name}”`}>
+					<Icon name="record" size={12} className="animate-pulse" /> {time}
+				</span>
+			)}
+			{actions}
+			{(children || actions) && <span className="h-5 w-px bg-line" />}
+			<nav className="flex gap-0.5" aria-label="Pages">
+				<NavLink to="/">Dashboard</NavLink>
+				<NavLink to="/devices">Devices</NavLink>
+			</nav>
+			<span className={`inline-flex items-center gap-1.5 text-xs ${connection === 'connected' ? 'text-faint' : 'rounded-md bg-warn/15 px-2 py-1 text-warn'}`} title={`Server: ${connection}`}>
+				<span className={`size-1.5 rounded-full ${connection === 'connected' ? 'bg-good' : 'animate-pulse bg-warn'}`} />
+				<span data-testid="connection" className={connection === 'connected' ? 'sr-only' : ''}>{connection}</span>
+			</span>
+			<IconButton icon="logout" label="Sign out" onClick={logout} />
+		</header>
+	);
+}

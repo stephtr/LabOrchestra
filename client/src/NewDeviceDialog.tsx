@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { OpenFileButtons } from './OpenFileButtons';
+import { Button, Dialog, DialogBody, DialogFooter, ErrorText, FormRow, Input, Select } from './ui';
 import { api, PythonInfo, Scaffolded, TemplateInfo } from './api';
 
-const FIELD = 'rounded border border-zinc-300 bg-transparent px-2 py-1 text-sm dark:border-slate-700';
 const SNAKE = /^[a-z][a-z0-9]*(_[a-z0-9]+)*$/;
 const CONNECTIONS = [
 	['none', 'None (software only)'],
@@ -13,7 +13,6 @@ const CONNECTIONS = [
 
 /** "New device": pick what kind of device, give it a name and a connection; the server writes devices/<name>.py and starts it simulated. */
 export function NewDeviceDialog({ onClose }: { onClose: () => void }) {
-	const dialog = useRef<HTMLDialogElement>(null);
 	const [templates, setTemplates] = useState<TemplateInfo[]>([]);
 	const [pythons, setPythons] = useState<PythonInfo[]>([]);
 	const [template, setTemplate] = useState('blank');
@@ -25,7 +24,6 @@ export function NewDeviceDialog({ onClose }: { onClose: () => void }) {
 	const [made, setMade] = useState<Scaffolded | null>(null);
 
 	useEffect(() => {
-		dialog.current?.showModal();
 		void api.listTemplates().then(setTemplates, (e: Error) => setError(e.message));
 		void api.listPythons().then(setPythons, () => setPythons([]));
 	}, []);
@@ -44,65 +42,62 @@ export function NewDeviceDialog({ onClose }: { onClose: () => void }) {
 	}
 
 	return (
-		<dialog
-			ref={dialog}
-			data-testid="new-device-dialog"
-			onClose={onClose}
-			className="m-auto w-full max-w-xl rounded-lg bg-white p-5 text-zinc-900 shadow-xl backdrop:bg-black/40 dark:bg-slate-900 dark:text-zinc-100"
-		>
-			{made ? (
-				<div className="flex flex-col gap-3" data-testid="new-device-done">
-					<h2 className="text-lg font-semibold">Device “{made.device}” created</h2>
-					<p className="text-sm">
-						The file <code className="font-mono">{made.file}</code> is in your workspace and the device is running on <b>simulated values</b>. Open the file in your editor and replace the
-						<code className="font-mono"> TODO</code>s with the code for your instrument; the Devices page shows “file changed” when you save, and Restart applies it.
-					</p>
-					<p className="break-all rounded bg-zinc-100 p-2 font-mono text-xs dark:bg-slate-800" data-testid="new-device-path">{made.path}</p>
-					<OpenFileButtons file={made.file} />
-					<div className="flex justify-end">
-						<button className="rounded bg-brand px-3 py-1 text-sm text-white" onClick={() => dialog.current?.close()}>Done</button>
+		<Dialog title={made ? `Device “${made.device}” created` : 'New device'} testId="new-device-dialog" width="max-w-lg" onClose={onClose}>
+			{(close) =>
+				made ? (
+					<div className="flex min-h-0 flex-col" data-testid="new-device-done">
+						<DialogBody>
+							<p className="text-sm text-muted">
+								<code className="font-mono text-ink">{made.file}</code> is in your workspace, and the device is running on <b className="text-ink">simulated values</b>. Replace the <code className="font-mono text-ink">TODO</code>s in the file with the code for your instrument. After you save it, the Devices page shows “file changed”; Restart applies it.
+							</p>
+							<p className="break-all rounded-md bg-ground p-2.5 font-mono text-xs" data-testid="new-device-path">{made.path}</p>
+							<OpenFileButtons file={made.file} />
+						</DialogBody>
+						<DialogFooter>
+							<Button variant="primary" onClick={close}>Done</Button>
+						</DialogFooter>
 					</div>
-				</div>
-			) : (
-				<form className="flex flex-col gap-3" onSubmit={(e) => { e.preventDefault(); void create(); }}>
-					<h2 className="text-lg font-semibold">New device</h2>
-					<fieldset className="flex flex-col gap-1" aria-label="Kind of device">
-						{templates.map((t) => (
-							<label key={t.id} className={`flex cursor-pointer gap-2 rounded border p-2 text-sm ${template === t.id ? 'border-brand bg-emerald-50 dark:bg-emerald-950' : 'border-zinc-200 dark:border-slate-700'}`}>
-								<input type="radio" name="template" data-testid={`template-${t.id}`} checked={template === t.id} onChange={() => setTemplate(t.id)} />
+				) : (
+					<form className="flex min-h-0 flex-col" onSubmit={(e) => { e.preventDefault(); void create(); }}>
+						<DialogBody>
+							<fieldset className="flex flex-col gap-1.5" aria-label="Kind of device">
+								{templates.map((t) => (
+							<label key={t.id} className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm ${template === t.id ? 'border-accent bg-accent/10' : 'border-line hover:bg-raised'}`}>
+								<input type="radio" name="template" data-testid={`template-${t.id}`} className="mt-0.5" checked={template === t.id} onChange={() => setTemplate(t.id)} />
 								<span>
 									<span className="font-medium">{t.title}</span>
-									{t.source === 'workspace' && <span className="ml-2 rounded bg-zinc-200 px-1 text-xs dark:bg-slate-700">your template</span>}
-									<span className="block text-xs text-zinc-500">{t.description}</span>
+									{t.source === 'workspace' && <span className="ml-2 rounded bg-raised px-1.5 text-xs text-muted">your template</span>}
+									<span className="block text-xs text-muted">{t.description}</span>
 								</span>
 							</label>
-						))}
-					</fieldset>
-					<div className="flex flex-wrap items-center gap-2">
-						<label className="w-32 text-sm" htmlFor="new-name">Name</label>
-						<input id="new-name" data-testid="new-device-name" autoFocus className={`${FIELD} w-56 font-mono`} value={id} placeholder="e.g. vacuum_pump" onChange={(e) => setId(e.target.value)} />
-					</div>
-					<div className="flex flex-wrap items-center gap-2">
-						<label className="w-32 text-sm" htmlFor="new-connection">Connection</label>
-						<select id="new-connection" data-testid="new-device-connection" className={`${FIELD} w-56`} value={connection} onChange={(e) => setConnection(e.target.value)}>
-							{CONNECTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-						</select>
-					</div>
-					<div className="flex flex-wrap items-center gap-2">
-						<label className="w-32 text-sm" htmlFor="new-python">Python (optional)</label>
-						<input id="new-python" list="new-pythons" className={`${FIELD} w-56`} value={python} placeholder='a version such as "3.12", or a path' onChange={(e) => setPython(e.target.value)} />
-						<datalist id="new-pythons">
-							{pythons.map((p) => <option key={p.path} value={p.path}>{`${p.implementation ?? 'Python'} ${p.version}`}</option>)}
-						</datalist>
-					</div>
-					<p className="text-xs text-zinc-500">The device starts on simulated values. Switching to real hardware is up to you, once the code in the file works.</p>
-					{error && <p role="alert" data-testid="dialog-error" className="whitespace-pre-wrap text-sm text-red-600">{error}</p>}
-					<div className="mt-1 flex justify-end gap-2">
-						<button type="button" className="rounded px-3 py-1 text-sm hover:bg-zinc-100 dark:hover:bg-slate-800" onClick={() => dialog.current?.close()}>Cancel</button>
-						<button data-testid="create-device" className="rounded bg-brand px-3 py-1 text-sm text-white disabled:opacity-50" disabled={saving || templates.length === 0}>Create</button>
-					</div>
-				</form>
-			)}
-		</dialog>
+								))}
+							</fieldset>
+						<FormRow label="Name" htmlFor="new-name">
+							<Input id="new-name" data-testid="new-device-name" autoFocus value={id} placeholder="e.g. vacuum_pump" onChange={(e) => setId(e.target.value)} />
+						</FormRow>
+						<div className="grid gap-4 sm:grid-cols-2">
+							<FormRow label="Connection" htmlFor="new-connection">
+								<Select id="new-connection" data-testid="new-device-connection" value={connection} onChange={(e) => setConnection(e.target.value)}>
+									{CONNECTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+								</Select>
+							</FormRow>
+							<FormRow label="Python (optional)" htmlFor="new-python">
+								<Input id="new-python" list="new-pythons" value={python} placeholder="version or path" onChange={(e) => setPython(e.target.value)} />
+								<datalist id="new-pythons">
+									{pythons.map((p) => <option key={p.path} value={p.path}>{`${p.implementation ?? 'Python'} ${p.version}`}</option>)}
+								</datalist>
+							</FormRow>
+						</div>
+						<p className="text-xs text-faint">The device starts on simulated values. Switch to real hardware once the code in the file works.</p>
+							{error && <ErrorText testId="dialog-error">{error}</ErrorText>}
+						</DialogBody>
+						<DialogFooter>
+							<Button type="button" variant="ghost" onClick={close}>Cancel</Button>
+							<Button variant="primary" data-testid="create-device" disabled={saving || templates.length === 0}>Create</Button>
+						</DialogFooter>
+					</form>
+				)
+			}
+		</Dialog>
 	);
 }

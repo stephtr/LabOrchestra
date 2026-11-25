@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react';
-import { DeviceCard, STATUS_STYLE } from './DeviceCard';
+import { DeviceCard } from './DeviceCard';
+import { StatusBadge } from './ui';
 import { formatNumber, unitFor } from './format';
 import { ButtonWidget, NumberWidget, ValueWidget } from './generic';
 import { FrequencyWidget, PolarimeterWidget, PositionerWidget, PressureWidget, RecordingWidget, TurboPumpWidget } from './compact';
@@ -22,6 +23,8 @@ export type WidgetDef = {
 	accepts: (info: DeviceInfo) => boolean;
 	/** The settings of an instance (besides the label every widget has): what the settings dialog offers. */
 	props?: PropSpec[];
+	/** A generic widget that fits every device: the picker lists it after the specific ones. */
+	generic?: boolean;
 	/** The user chooses a state field and/or an action in a form before the widget is added. */
 	configure?: boolean;
 	/** False for widgets of the whole server (recording): no device is chosen. */
@@ -31,27 +34,26 @@ export type WidgetDef = {
 	component: ComponentType<WidgetProps>;
 };
 
-function Summary({ device, info }: WidgetProps) {
+function Summary({ device, info, props }: WidgetProps) {
 	const state = info.state ?? {};
 	const numbers = Object.entries(state)
 		.filter(([, v]) => typeof v === 'number')
 		.slice(0, 3) as [string, number][];
 	return (
-		<div className="flex h-full flex-col justify-center rounded-lg bg-white px-3 py-1 text-sm shadow dark:bg-slate-900" data-testid={`summary-${device}`}>
-			<div className="flex items-center gap-2">
-				<span className="font-mono">{device}</span>
-				<span className={`rounded-full px-1.5 text-xs ${STATUS_STYLE[info.status] ?? ''}`}>{info.status}</span>
+		<div className="flex h-full flex-col justify-center gap-0.5 rounded-lg border border-line bg-panel px-3" data-testid={`summary-${device}`}>
+			<div className="flex items-center justify-between gap-3 text-xs leading-4">
+				<span className="text-muted">{typeof props.label === 'string' && props.label ? props.label : device}</span>
+				<StatusBadge status={info.status} />
 			</div>
-			{numbers.length > 0 && (
-				<div className="flex gap-3 text-xs text-zinc-600 dark:text-zinc-300">
-					{numbers.map(([key, value]) => (
-						<span key={key}>
-							{key} <span className="font-mono tabular-nums">{formatNumber(value)}</span>
-							{unitFor(info.schema?.units, key) && <span className="ml-0.5 text-zinc-500">{unitFor(info.schema?.units, key)}</span>}
-						</span>
-					))}
-				</div>
-			)}
+			<div className="flex min-h-7 items-center gap-3 whitespace-nowrap text-sm">
+				{numbers.length === 0 && <span className="text-faint">—</span>}
+				{numbers.map(([key, value]) => (
+					<span key={key} className="tabular-nums">
+						<span className="text-xs text-faint">{key.replaceAll('_', ' ')}</span> {formatNumber(value)}
+						{unitFor(info.schema?.units, key) && <span className="ml-0.5 text-xs text-faint">{unitFor(info.schema?.units, key)}</span>}
+					</span>
+				))}
+			</div>
 		</div>
 	);
 }
@@ -72,17 +74,17 @@ const perChannel = (profile: string) => (info: DeviceInfo) => {
 
 const definitions: WidgetDef[] = [
 	{ type: 'oscilloscope', title: 'Oscilloscope', size: 'main', accepts: (i) => i.schema?.widget === 'oscilloscope', component: ({ device, info }) => <OscilloscopeWidget id={device} info={info} /> },
-	{ type: 'device_card', title: 'Device card', size: 'main', accepts: () => true, component: ({ device, info }) => <DeviceCard id={device} info={info} /> },
+	{ type: 'device_card', generic: true, title: 'Device card', size: 'main', accepts: () => true, component: ({ device, info }) => <DeviceCard id={device} info={info} /> },
 	{ type: 'pressure', title: 'Pressure', size: 'S', props: [{ name: 'channel', label: 'Channel', type: 'integer', min: 0, default: 0 }], accepts: (i) => hasProfile(i, 'pressure_sensor'), variants: perChannel('pressure_sensor'), component: PressureWidget },
 	{ type: 'turbo_pump', title: 'Turbo pump', size: 'S', props: [{ name: 'channel', label: 'Channel', type: 'integer', min: 0, default: 0 }], accepts: (i) => hasProfile(i, 'turbo_pump'), variants: perChannel('turbo_pump'), component: TurboPumpWidget },
 	{ type: 'positioner', title: 'Stage', size: 'S', props: [{ name: 'channel', label: 'Channel', type: 'integer', min: 0, default: 0 }, { name: 'step', label: 'Step of the + and - buttons', type: 'number', min: 0.000001, help: 'Default: 1 degree, 10 micrometers' }], accepts: (i) => hasProfile(i, 'positioner'), variants: perChannel('positioner'), component: PositionerWidget },
 	{ type: 'frequency', title: 'Frequency', size: 'S', props: [{ name: 'channel', label: 'Channel', type: 'integer', min: 0, default: 0 }], accepts: (i) => hasProfile(i, 'frequency_generator'), variants: perChannel('frequency_generator'), component: FrequencyWidget },
 	{ type: 'polarimeter', title: 'Polarization', size: 'S', accepts: (i) => hasProfile(i, 'polarimeter'), component: PolarimeterWidget },
 	{ type: 'recording', title: 'Recording', size: 'S', needsDevice: false, accepts: () => false, component: RecordingWidget },
-	{ type: 'value', title: 'Value…', size: 'S', props: [{ name: 'path', label: 'State field', type: 'text' }], configure: true, accepts: () => true, component: ValueWidget },
-	{ type: 'number', title: 'Number…', size: 'S', props: [{ name: 'path', label: 'State field', type: 'text' }, { name: 'action', label: 'Action', type: 'text' }, { name: 'channel', label: 'Channel (for actions that take one)', type: 'integer', min: 0 }], configure: true, accepts: () => true, component: NumberWidget },
-	{ type: 'button', title: 'Button…', size: 'S', props: [{ name: 'action', label: 'Action', type: 'text' }, { name: 'confirm', label: 'Ask before running', type: 'boolean' }], configure: true, accepts: () => true, component: ButtonWidget },
-	{ type: 'summary', title: 'Summary', size: 'S', accepts: () => true, component: Summary },
+	{ type: 'value', generic: true, title: 'Value', size: 'S', props: [{ name: 'path', label: 'State field', type: 'text' }], configure: true, accepts: () => true, component: ValueWidget },
+	{ type: 'number', generic: true, title: 'Number', size: 'S', props: [{ name: 'path', label: 'State field', type: 'text' }, { name: 'action', label: 'Action', type: 'text' }, { name: 'channel', label: 'Channel (for actions that take one)', type: 'integer', min: 0 }], configure: true, accepts: () => true, component: NumberWidget },
+	{ type: 'button', generic: true, title: 'Button', size: 'S', props: [{ name: 'action', label: 'Action', type: 'text' }, { name: 'confirm', label: 'Ask before running', type: 'boolean' }], configure: true, accepts: () => true, component: ButtonWidget },
+	{ type: 'summary', generic: true, title: 'Summary', size: 'S', accepts: () => true, component: Summary },
 ];
 
 /** A widget of the workspace (widgets/<name>.tsx) as an entry of the registry: its type is "ws:<name>". */
@@ -102,7 +104,7 @@ function runtimeDef(w: RuntimeWidget): WidgetDef {
 					<Module {...props} />
 				</WidgetBoundary>
 			) : (
-				<div data-testid={`widget-error-${w.name.replace(/^\w+:/, '')}`} className="h-full overflow-auto whitespace-pre-wrap rounded-lg border border-red-400 bg-red-50 p-2 font-mono text-xs text-red-800 dark:bg-red-950 dark:text-red-300">
+				<div data-testid={`widget-error-${w.name.replace(/^\w+:/, '')}`} className="h-full overflow-auto whitespace-pre-wrap rounded-lg border border-bad/40 bg-bad/10 p-2 font-mono text-xs text-bad">
 					{w.error}
 				</div>
 			),
@@ -126,4 +128,4 @@ export const widgetDef = (type: string) => allWidgetDefs().find((d) => d.type ==
 export const runtimeWidgetsReady = () => runtimeWidgets().ready;
 
 /** Pixel height of a compact widget: two sizes, so that the strip stays tidy. */
-export const COMPACT_HEIGHT: Record<'S' | 'M', number> = { S: 56, M: 116 };
+export const COMPACT_HEIGHT: Record<'S' | 'M', number> = { S: 60, M: 128 };

@@ -4,6 +4,7 @@ import { widget, WidgetInstance } from './layout';
 import { formatSI } from './OscilloscopeWidget';
 import { ActionSchema, callAction, DeviceInfo } from './store';
 import { Field, Tile, useRun } from './compact';
+import { Button, FormRow, Input, Select } from './ui';
 import type { WidgetProps } from './widgets';
 
 /**
@@ -42,9 +43,9 @@ export function ValueWidget({ device, info, props }: WidgetProps) {
 	const unit = unitFor(info.schema?.units, path);
 	return (
 		<Tile label={label(props, `${device} ${path}`)} testId={`value-${device}-${path}`} problem={value === undefined ? `no state field "${path}"` : null}>
-			<div className="flex items-baseline gap-1">
-				<span className="font-mono text-lg tabular-nums" data-testid={`value-text-${device}-${path}`}>{show(value, unit)}</span>
-				{unit && unit !== 'Hz' && <span className="text-xs text-zinc-500">{unit}</span>}
+			<div className="flex items-baseline gap-1.5 whitespace-nowrap">
+				<span className="text-lg leading-7 tabular-nums" data-testid={`value-text-${device}-${path}`}>{show(value, unit)}</span>
+				{unit && unit !== 'Hz' && <span className="text-xs text-faint">{unit}</span>}
 			</div>
 		</Tile>
 	);
@@ -68,8 +69,8 @@ export function NumberWidget({ device, info, props }: WidgetProps) {
 					onCommit={(v) => run(action, ...(channel === undefined ? [v] : [channel, v]))}
 					testId={`number-input-${device}-${path}`}
 					label={label(props, path)}
+					suffix={unit !== 'Hz' ? unit : undefined}
 				/>
-				{unit && unit !== 'Hz' && <span className="text-xs text-zinc-500">{unit}</span>}
 			</div>
 		</Tile>
 	);
@@ -81,23 +82,21 @@ export function ButtonWidget({ device, info, props }: WidgetProps) {
 	const { run, error } = useRun(device);
 	const known = info.schema?.actions.some((a) => a.name === action);
 	return (
-		<div className="flex h-full items-center rounded-lg bg-white px-3 py-1 shadow dark:bg-slate-900" title={error ?? (!known ? `no action "${action}"` : undefined)}>
-			<button
+		<div className={`flex h-full items-center justify-center rounded-lg border bg-panel px-3 ${error ? 'border-warn' : 'border-line'}`} title={error ?? (!known ? `no action "${action}"` : undefined)}>
+			<Button
 				data-testid={`button-${device}-${action}`}
 				disabled={!known}
-				className={`rounded px-3 py-1 text-sm ${error ? 'bg-amber-200 dark:bg-amber-900' : 'bg-zinc-200 hover:bg-brand hover:text-white dark:bg-slate-800'}`}
+				icon={error ? 'warning' : undefined}
 				onClick={() => {
 					if (props.confirm && !window.confirm(`${label(props, action)}?`)) return;
 					void run(action, ...args);
 				}}
 			>
 				{label(props, action)}
-			</button>
+			</Button>
 		</div>
 	);
 }
-
-const SELECT = 'rounded border border-zinc-300 bg-white px-1 py-0.5 text-sm dark:border-slate-700 dark:bg-slate-900';
 
 /** What a user picks for a widget of this kind: a state field, an action, a channel for actions that take one. */
 export function CustomForm({ type, device, info, onCreate, onCancel }: { type: 'value' | 'number' | 'button'; device: string; info: DeviceInfo; onCreate: (w: WidgetInstance) => void; onCancel: () => void }) {
@@ -123,7 +122,7 @@ export function CustomForm({ type, device, info, onCreate, onCancel }: { type: '
 	return (
 		<form
 			data-testid="custom-form"
-			className="flex flex-wrap items-end gap-2 py-1"
+			className="flex flex-col gap-3"
 			onSubmit={(e) => {
 				e.preventDefault();
 				if (!ready || parsedArgs === null) return;
@@ -136,36 +135,37 @@ export function CustomForm({ type, device, info, onCreate, onCancel }: { type: '
 				onCreate(widget(type, device, props));
 			}}
 		>
-			<span className="font-mono">{device}</span>
 			{type !== 'button' && (
-				<label className="text-xs text-zinc-500">State field
-					<select data-testid="custom-path" className={`${SELECT} block`} value={path} onChange={(e) => setPath(e.target.value)}>
+				<FormRow label="State field" htmlFor="custom-path">
+					<Select id="custom-path" data-testid="custom-path" value={path} onChange={(e) => setPath(e.target.value)}>
 						{paths.map((l) => <option key={l.path}>{l.path}</option>)}
-					</select>
-				</label>
+					</Select>
+				</FormRow>
 			)}
 			{type !== 'value' && (
-				<label className="text-xs text-zinc-500">Action
-					<select data-testid="custom-action" className={`${SELECT} block`} value={action} onChange={(e) => setAction(e.target.value)}>
+				<FormRow label="Action" htmlFor="custom-action" hint={chosen?.doc ?? undefined}>
+					<Select id="custom-action" data-testid="custom-action" value={action} onChange={(e) => setAction(e.target.value)}>
 						{actions.map((a) => <option key={a.name}>{a.name}</option>)}
-					</select>
-				</label>
+					</Select>
+				</FormRow>
 			)}
 			{needsChannel && (
-				<label className="text-xs text-zinc-500">Channel
-					<input data-testid="custom-channel" type="number" min={0} className={`${SELECT} block w-16`} value={channel} onChange={(e) => setChannel(e.target.value)} />
-				</label>
+				<FormRow label="Channel" htmlFor="custom-channel">
+					<Input id="custom-channel" data-testid="custom-channel" type="number" min={0} value={channel} onChange={(e) => setChannel(e.target.value)} />
+				</FormRow>
 			)}
 			{type === 'button' && (
-				<label className="text-xs text-zinc-500">Arguments (JSON, e.g. 0, true)
-					<input data-testid="custom-args" className={`${SELECT} block w-36 ${parsedArgs === null ? 'border-red-500' : ''}`} value={args} onChange={(e) => setArgs(e.target.value)} />
-				</label>
+				<FormRow label="Arguments" htmlFor="custom-args" hint="JSON, separated by commas, e.g. 0, true" error={parsedArgs === null ? 'This is not valid JSON' : undefined}>
+					<Input id="custom-args" data-testid="custom-args" className="font-mono" value={args} onChange={(e) => setArgs(e.target.value)} />
+				</FormRow>
 			)}
-			<label className="text-xs text-zinc-500">Label
-				<input data-testid="custom-label" className={`${SELECT} block w-32`} value={name} onChange={(e) => setName(e.target.value)} />
-			</label>
-			<button data-testid="custom-create" disabled={!ready || parsedArgs === null} className="rounded bg-brand px-2 py-1 text-sm text-white disabled:opacity-50">Add</button>
-			<button type="button" className="px-2 py-1 text-sm text-zinc-500" onClick={onCancel}>Cancel</button>
+			<FormRow label="Label" htmlFor="custom-label" hint="Optional">
+				<Input id="custom-label" data-testid="custom-label" value={name} onChange={(e) => setName(e.target.value)} />
+			</FormRow>
+			<div className="flex justify-end gap-2">
+				<Button type="button" variant="ghost" onClick={onCancel}>Back</Button>
+				<Button variant="primary" data-testid="custom-create" disabled={!ready || parsedArgs === null}>Add</Button>
+			</div>
 		</form>
 	);
 }

@@ -1,15 +1,65 @@
 @import 'tailwindcss';
 
+/* The colours of the interface. Each has a light and a dark value, so that components (and widgets) need no dark: variants.
+   ground: the page. panel: cards, bars, dialogs. raised: buttons and what lies on a panel. field: inputs. plot: behind curves. line: borders. ink/muted/faint: text. */
 @theme {
 	--color-brand: #0e4d3a;
 	--color-gold: #e3b23c;
+	--color-accent: light-dark(#0f6b50, #34b48a);
+	--color-ground: light-dark(#f1f3f5, #0a0d12);
+	--color-panel: light-dark(#ffffff, #13181f);
+	--color-raised: light-dark(#e2e6ea, #1f2630);
+	--color-hover: light-dark(#d2d8de, #2a333f);
+	--color-field: light-dark(#ffffff, #0a0d12);
+	--color-plot: light-dark(#ffffff, #05070b);
+	--color-line: light-dark(#d0d6dc, #29313c);
+	--color-ink: light-dark(#14181d, #e8ebef);
+	--color-muted: light-dark(#56606c, #98a3b0);
+	--color-faint: light-dark(#737d89, #7a8592);
+	--color-good: light-dark(#0a7a4b, #41c98a);
+	--color-warn: light-dark(#a15c00, #f0b04a);
+	--color-bad: light-dark(#c02626, #ff7b72);
 	--font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
 :root {
 	color-scheme: light dark;
+	accent-color: var(--color-accent);
 }
 
 body {
-	@apply bg-zinc-100 text-zinc-900 dark:bg-slate-950 dark:text-zinc-100;
+	@apply bg-ground text-ink antialiased;
+}
+
+@layer base {
+	button:not(:disabled),
+	[role='button'],
+	summary,
+	select {
+		cursor: pointer;
+	}
+	:focus-visible {
+		outline: 2px solid var(--color-accent);
+		outline-offset: 1px;
+	}
+	dialog {
+		@apply text-ink;
+	}
+	/* number fields look like the others; the arrows only take up room */
+	input[type='number'] {
+		appearance: textfield;
+	}
+	input[type='number']::-webkit-inner-spin-button {
+		appearance: none;
+	}
+	* {
+		scrollbar-width: thin;
+		scrollbar-color: var(--color-line) transparent;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	* {
+		transition: none !important;
+	}
 }
