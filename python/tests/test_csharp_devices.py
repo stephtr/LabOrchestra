@@ -129,7 +129,7 @@ def test_drivers_can_be_listed_and_used_through_the_management_api(lab, cs_serve
     assert saved == {"driver": "demo_counter", "config": {"step": 2}, "description": "from the test"}
     lab.added_cs.increment()
     assert lab.added_cs.state["count"] == 2
-    with pytest.raises(RemoteError, match="either a 'file'"):
+    with pytest.raises(RemoteError, match="exactly one of 'file'"):
         lab.add_device("both", file="devices/x.py", driver="demo_counter")
     with pytest.raises(RemoteError, match="There is no driver 'ghost'"):
         lab.add_device("ghost_device", driver="ghost")
