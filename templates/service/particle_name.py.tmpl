@@ -1,0 +1,80 @@
+# template {"title": "Particle name", "description": "Gives the trapped particle a funny name (from OpenAI) when the pressure drops below a limit, and greets it on Slack. A playful example of a service that reacts to a device."}
+"""{{title}}: when the pressure of `device` (field `path`) falls below `limit`, a new name for the particle is made by OpenAI, shown in the state
+(`name`, saved with the settings) and, if a Slack token and channel are set, announced there. Needs an OpenAI key (put it in a secret)."""
+
+import json
+import urllib.request
+
+from laborchestra import Service
+
+
+class {{class_name}}(Service):
+    """{{title}}."""
+
+    device: str = "pressure"
+    path: str = "channels.1.pressure"
+    limit: float = 1e-2  # mbar
+    openai_api_key: str = ""
+    model: str = "gpt-4o"
+    slack_token: str = ""
+    slack_channel: str = ""
+
+    state = {"name": "", "status": "starting"}
+    persist = ["name"]  # kept over restarts
+
+    def _ask(self, prompt: str) -> str:
+        body = json.dumps({"model": self.model, "input": prompt, "temperature": 1}).encode()
+        request = urllib.request.Request("https://api.openai.com/v1/responses", data=body, headers={"Authorization": f"Bearer {self.openai_api_key}", "Content-Type": "application/json"})
+        with urllib.request.urlopen(request, timeout=60) as response:
+            answer = json.loads(response.read())
+        return "".join(part["text"] for item in answer["output"] if item.get("type") == "message" for part in item["content"] if part.get("type") == "output_text").strip()
+
+    def new_name(self) -> str:
+        return self._ask("Output a first and a given name for a solid nanoparticle which is used in a physics experiment. It should be close to an ordinary English name, "
+                         "just with a _slight_ fun quantum twist. But not just adding quantum; and it should be a reasonable name. Output just the total name.")
+
+    def greet(self, name: str) -> None:
+        if not (self.slack_token and self.slack_channel):
+            return
+        text = self._ask(f'Write a funny welcome message for a nanoparticle named "{name}", which is trapped in a laser field and gonna be cooled and used in a quantum physics experiment. It shouldn\'t be longer than 2 sentences.')
+        body = json.dumps({"channel": self.slack_channel, "text": text}).encode()
+        request = urllib.request.Request("https://slack.com/api/chat.postMessage", data=body, headers={"Authorization": f"Bearer {self.slack_token}", "Content-Type": "application/json; charset=utf-8"})
+        urllib.request.urlopen(request, timeout=10).read()
+
+    def _value(self):
+        node = self.lab[self.device].state
+        for key in self.path.split("."):
+            node = node[int(key)] if isinstance(node, list) else node[key]
+        return node
+
+    def run(self):
+        if not self.openai_api_key:
+            self.state["status"] = "not configured: set openai_api_key in the options"
+            self.log.warning(self.state["status"])
+            while self.running:
+                self.sleep(5)
+            return
+        try:
+            if not self.state["name"]:
+                self.state["name"] = self.new_name()
+        except OSError as e:
+            self.log.warning("No name yet: %s", e)
+        before = None
+        complained = None
+        while self.running:
+            try:
+                value = self._value()
+                if isinstance(value, (int, float)) and not isinstance(value, bool):  # None: no reading, ignored
+                    if before is not None and before >= self.limit > value:
+                        self.state["name"] = self.new_name()
+                        self.log.info("The particle is called %s", self.state["name"])
+                        self.greet(self.state["name"])
+                    before = value
+                    self.state["status"] = "ok"
+                    complained = None
+            except (OSError, KeyError, IndexError, ValueError) as e:  # not the device's fault: say it once, try again
+                self.state["status"] = f"error: {e}"
+                if str(e) != complained:
+                    complained = str(e)
+                    self.log.warning("%s", e)
+            self.sleep(1)

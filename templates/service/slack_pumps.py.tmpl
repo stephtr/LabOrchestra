@@ -1,0 +1,140 @@
+# template {"title": "Slack pump control", "description": "Start, stop and ask for the status of turbo pumps by writing to a Slack channel (\"bot start big\", \"bot stop small\", \"bot status\"), and reports when the pump has stopped or reached its speed."}
+"""{{title}}: reads the messages of a Slack channel and controls the pumps of a device with the `turbo_pump` profile.
+Commands: `bot start <pump>`, `bot stop <pump>`, `bot status [<pump>]`. `pumps` maps the names you type to channel numbers of the device,
+for example {"small": 0, "big": 1}. Needs a Slack bot token (xoxb-...; put it in a secret) with the rights to read the channel and to post."""
+
+import json
+import re
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+
+from laborchestra import Service
+
+COMMAND = re.compile(r"^\s*bot\s+(start|stop|status)(?:\s+(\S+))?\s*$", re.IGNORECASE)
+
+
+class {{class_name}}(Service):
+    """{{title}}."""
+
+    device: str = ""  # the device with the turbo pumps, e.g. "turbo"
+    pumps: dict = {}  # name -> channel, e.g. {"small": 0, "big": 1}
+    bot_token: str = ""
+    channel_id: str = ""
+    poll_s: float = 3.0  # Slack allows about 50 requests a minute for this
+    watch_timeout_s: float = 1800.0  # how long to wait for a pump to run up or down before saying so
+
+    state = {"status": "starting", "commands": 0}
+
+    # --- Slack -------------------------------------------------------------------------------------------------------
+    def _api(self, method: str, params: dict, post: bool = False) -> dict:
+        url = f"https://slack.com/api/{method}"
+        headers = {"Authorization": f"Bearer {self.bot_token}"}
+        if post:
+            request = urllib.request.Request(url, data=json.dumps(params).encode(), headers={**headers, "Content-Type": "application/json; charset=utf-8"})
+        else:
+            request = urllib.request.Request(f"{url}?{urllib.parse.urlencode(params)}", headers=headers)
+        try:
+            with urllib.request.urlopen(request, timeout=10) as response:
+                return json.loads(response.read())
+        except urllib.error.HTTPError as e:
+            if e.code == 429:  # rate limit: wait as long as Slack asks
+                self.sleep(int(e.headers.get("Retry-After", "5")))
+            return {"ok": False, "error": f"http_{e.code}"}
+        except OSError as e:
+            return {"ok": False, "error": str(e)}
+
+    def post(self, text: str, thread: str | None = None) -> None:
+        answer = self._api("chat.postMessage", {"channel": self.channel_id, "text": text, **({"thread_ts": thread} if thread else {})}, post=True)
+        if not answer.get("ok"):
+            self.log.warning("Slack: could not post: %s", answer.get("error"))
+
+    # --- commands ----------------------------------------------------------------------------------------------------
+    def channel_state(self, channel: int) -> dict:
+        return self.lab[self.device].state["channels"][channel]
+
+    def describe(self, channel: int) -> str:
+        c = self.channel_state(channel)
+        return f"{c['name']}: {c['status']}, {c['actual_speed']}/{c['target_speed']} Hz, {c['power']} W, {c['current']} A, error: {c['error_code']}"
+
+    def handle(self, text: str):
+        """None when the message is not a command, else (the reply, what to watch afterwards or None)."""
+        found = COMMAND.match(text or "")
+        if not found:
+            return None
+        command, target = found.group(1).lower(), (found.group(2) or "").lower()
+        if command == "status" and not target:
+            return "\n".join(self.describe(c) for c in sorted(set(self.pumps.values()))), None
+        if not target:
+            return None  # "bot start" alone: ignored
+        if target not in self.pumps:
+            return f"Unknown pump '{target}'. Known: {', '.join(sorted(self.pumps))}", None
+        channel = self.pumps[target]
+        name = self.channel_state(channel)["name"]
+        try:
+            if command == "start":
+                self.lab[self.device].start(channel)
+                return f"{name}: start sent, running up …", ("start", channel)
+            if command == "stop":
+                self.lab[self.device].stop(channel)
+                return f"{name}: stop sent, running down …", ("stop", channel)
+            return self.describe(channel), None
+        except Exception as e:  # the device says why (not connected, refused, ...)
+            return f"{name}: error: {e}", None
+
+    def finished(self, watch: dict) -> bool:
+        """Tells the thread when the pump has stopped or reached its speed. True: nothing more to watch."""
+        c = self.channel_state(watch["channel"])
+        if str(c["status"]).startswith("error"):
+            self.post(f"{c['name']}: {c['status']}, please check.", watch["thread"])
+            return True
+        speed, target = c["actual_speed"], c["target_speed"]
+        if watch["kind"] == "stop" and speed == 0:
+            self.post(f"{c['name']}: stopped (0 Hz).", watch["thread"])
+            return True
+        if watch["kind"] == "start" and target and speed is not None and speed >= 0.98 * target:
+            self.post(f"{c['name']}: target speed reached ({speed} Hz).", watch["thread"])
+            return True
+        if time.monotonic() - watch["since"] > self.watch_timeout_s:
+            self.post(f"{c['name']}: still {speed} Hz after {self.watch_timeout_s / 60:.0f} min, please check.", watch["thread"])
+            return True
+        return False
+
+    # --- the loop ----------------------------------------------------------------------------------------------------
+    def run(self):
+        if not (self.device and self.pumps and self.bot_token.startswith("xoxb-") and self.channel_id):
+            self.state["status"] = "not configured: set device, pumps, bot_token (xoxb-...) and channel_id in the options"
+            self.log.warning(self.state["status"])
+            while self.running:
+                self.sleep(5)
+            return
+        newest = f"{time.time():.6f}"  # only messages from now on: old commands are not played again after a restart
+        watches: dict[int, dict] = {}
+        complained = None
+        while self.running:
+            answer = self._api("conversations.history", {"channel": self.channel_id, "oldest": newest, "limit": 50})
+            if not answer.get("ok"):
+                self.state["status"] = f"error: {answer.get('error')}"
+                if answer.get("error") != complained:  # say it once
+                    complained = answer.get("error")
+                    self.log.warning("Slack: %s", complained)
+            else:
+                complained = None
+                self.state["status"] = "ok"
+                for message in reversed(answer.get("messages", [])):  # newest first from Slack
+                    newest = max(newest, message["ts"], key=float)
+                    if message.get("bot_id") or message.get("subtype"):
+                        continue
+                    result = self.handle(message.get("text", ""))
+                    if result is None:
+                        continue
+                    reply, watch = result
+                    self.state["commands"] += 1
+                    self.log.info("'%s' from %s: %s", message.get("text"), message.get("user"), reply)
+                    self.post(reply, message["ts"])
+                    if watch:
+                        watches[watch[1]] = {"kind": watch[0], "channel": watch[1], "thread": message["ts"], "since": time.monotonic()}
+            for channel in [c for c, w in watches.items() if self.finished(w)]:
+                del watches[channel]
+            self.sleep(self.poll_s)

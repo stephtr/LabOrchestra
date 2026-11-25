@@ -1,0 +1,67 @@
+# template {"title": "Slack notifier", "description": "Posts a message to Slack when a value of a device falls below or rises above a limit (for example when the pressure drops after pumping down)."}
+"""{{title}}: posts `message` to a Slack channel when the state field `path` of `device` crosses `limit` in the direction `when` ("below" or "above").
+Needs a Slack bot token (xoxb-...) and the id of the channel; put the token in a secret and refer to it in the options."""
+
+import json
+import urllib.request
+
+from laborchestra import Service
+
+
+class {{class_name}}(Service):
+    """{{title}}."""
+
+    device: str = ""  # e.g. "pressure"
+    path: str = ""  # e.g. "channels.1.pressure"
+    limit: float = 0.0
+    when: str = "below"  # "below": the value was above the limit and now is below; "above": the other way round
+    message: str = "{device}: {path} is now {value:.3g} (limit {limit:g})"
+    bot_token: str = ""
+    channel_id: str = ""
+    poll_s: float = 1.0
+
+    state = {"status": "starting", "last_value": None, "notified": 0}
+
+    def _value(self):
+        node = self.lab[self.device].state
+        for key in self.path.split("."):
+            node = node[int(key)] if isinstance(node, list) else node[key]
+        return node
+
+    def _post(self, text: str) -> None:
+        body = json.dumps({"channel": self.channel_id, "text": text}).encode()
+        request = urllib.request.Request("https://slack.com/api/chat.postMessage", data=body, headers={"Authorization": f"Bearer {self.bot_token}", "Content-Type": "application/json; charset=utf-8"})
+        with urllib.request.urlopen(request, timeout=10) as response:
+            answer = json.loads(response.read())
+        if not answer.get("ok"):
+            raise OSError(f"Slack: {answer.get('error')}")
+
+    def crossed(self, before: float, now: float) -> bool:
+        return (before >= self.limit > now) if self.when == "below" else (before <= self.limit < now)
+
+    def run(self):
+        if not (self.device and self.path and self.bot_token and self.channel_id):
+            self.state["status"] = "not configured: set device, path, bot_token and channel_id in the options"
+            self.log.warning(self.state["status"])
+            while self.running:
+                self.sleep(5)
+            return
+        before = None
+        complained = None
+        while self.running:
+            try:
+                value = self._value()
+                if isinstance(value, (int, float)) and not isinstance(value, bool):  # None: no valid reading, kept as it was
+                    self.state["last_value"] = value
+                    if before is not None and self.crossed(before, value):
+                        self._post(self.message.format(device=self.device, path=self.path, value=value, limit=self.limit))
+                        self.state["notified"] += 1
+                    before = value
+                    self.state["status"] = "ok"
+                    complained = None
+            except (OSError, KeyError, IndexError, ValueError) as e:  # say it once, try again
+                self.state["status"] = f"error: {e}"
+                if str(e) != complained:
+                    complained = str(e)
+                    self.log.warning("%s", e)
+            self.sleep(self.poll_s)

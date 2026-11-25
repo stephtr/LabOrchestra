@@ -72,7 +72,7 @@ def test_a_service_restarts_by_itself_when_its_file_changes_a_device_does_not(se
 def test_every_service_template_makes_a_service_that_runs_and_the_uploader_reports_that_it_is_not_set_up(server):
     lab, workspace = server
     templates = {t["id"]: t for t in invoke(lab, "list_service_templates")}
-    assert set(templates) == {"blank", "uploader"}
+    assert set(templates) == {"blank", "uploader", "slack_notifier", "slack_pumps", "particle_name"}
     for template in templates:
         made = invoke(lab, "scaffold_service", template, f"my_{template}", None)
         assert made["file"] == f"services/my_{template}.py" and made["kind"] == "service"
@@ -82,7 +82,8 @@ def test_every_service_template_makes_a_service_that_runs_and_the_uploader_repor
         device.wait_ready(60)
         assert device.schema["kind"] == "service"
     wait_for(lambda: lab.my_blank.state["checks"] >= 2, 20, "the blank service to loop")
-    assert lab.my_uploader.state["status"].startswith("not configured")
+    for name in ("uploader", "slack_notifier", "slack_pumps", "particle_name"):
+        wait_for(lambda: lab[f"my_{name}"].state["status"].startswith("not configured"), 20, f"{name} to say that it is not set up")
     (workspace / "services" / "orphan.py").write_text("# mine\n")
     with pytest.raises(RemoteError, match="never overwritten"):
         invoke(lab, "scaffold_service", "blank", "orphan", None)  # a file of that name exists already
@@ -118,3 +119,32 @@ def test_the_uploader_sends_the_average_of_a_field_with_its_unit_and_the_key(ser
         wait_for(lambda: lab.gauge_upload.state["status"] == "ok" and lab.gauge_upload.state["uploads"] >= 1, 20, "the state to say so")  # published just after the request
     finally:
         sink.shutdown()
+
+
+def test_the_slack_pump_commands_control_the_channel_that_the_name_stands_for(server, tmp_path):
+    from types import SimpleNamespace
+
+    from laborchestra._load import load_file
+
+    lab, workspace = server
+    invoke(lab, "scaffold_service", "slack_pumps", "pump_bot", None)
+    cls = load_file(workspace / "services" / "pump_bot.py", "pump_bot").PumpBot
+    calls = []
+    channels = [{"name": "Small", "status": "ok", "actual_speed": 0, "target_speed": 1000, "power": 0, "current": 0.1, "error_code": None},
+                {"name": "Big", "status": "ok", "actual_speed": 800, "target_speed": 800, "power": 20, "current": 0.5, "error_code": None}]
+    turbo = SimpleNamespace(state={"channels": channels}, start=lambda c: calls.append(("start", c)), stop=lambda c: calls.append(("stop", c)))
+    bot = object.__new__(cls)
+    bot._lab = {"turbo": turbo}
+    bot.device, bot.pumps, bot.watch_timeout_s = "turbo", {"small": 0, "big": 1}, 60.0
+    assert bot.handle("hello") is None and bot.handle("bot start") is None
+    reply, watch = bot.handle("Bot start SMALL")
+    assert calls == [("start", 0)] and watch == ("start", 0) and "Small" in reply
+    assert bot.handle("bot stop big")[1] == ("stop", 1) and calls[-1] == ("stop", 1)
+    assert "Unknown pump 'huge'" in bot.handle("bot start huge")[0]
+    assert bot.handle("bot status").__getitem__(0).count("\n") == 1  # one line per pump
+    posted = []
+    bot.post = lambda text, thread=None: posted.append(text)
+    watch = {"kind": "stop", "channel": 1, "thread": "1.0", "since": time.monotonic()}
+    assert not bot.finished(watch)  # still turning
+    channels[1]["actual_speed"] = 0
+    assert bot.finished(watch) and "stopped" in posted[-1]
