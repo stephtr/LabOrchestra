@@ -25,7 +25,7 @@ declare module '@laborchestra/widget' {
 		help?: string;
 	};
 	/** What a widget module exports as `meta`, so that the picker knows it. */
-	export type WidgetMeta = { title: string; size: 'main' | 'S' | 'M'; profile?: string; needsDevice?: boolean; props?: PropSpec[] };
+	export type WidgetMeta = { title: string; description?: string; size: 'main' | 'S' | 'M'; profile?: string; needsDevice?: boolean; props?: PropSpec[] };
 	export type Device = {
 		id: string;
 		status: string;

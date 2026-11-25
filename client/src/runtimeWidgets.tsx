@@ -52,7 +52,7 @@ async function load(name: string): Promise<RuntimeWidget> {
 			name,
 			version,
 			error: null,
-			module: { component: imported.default, meta: { title: meta.title ?? name, size: meta.size ?? 'S', profile: meta.profile, needsDevice: meta.needsDevice, props: Array.isArray(meta.props) ? meta.props : undefined } },
+			module: { component: imported.default, meta: { title: meta.title ?? name, description: meta.description, size: meta.size ?? 'S', profile: meta.profile, needsDevice: meta.needsDevice, props: Array.isArray(meta.props) ? meta.props : undefined } },
 		};
 	} catch (e) {
 		return { name, version, error: `The widget "${name}" could not be loaded: ${e instanceof Error ? e.message : String(e)}`, module: null };

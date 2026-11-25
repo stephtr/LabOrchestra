@@ -23,7 +23,9 @@ export type WidgetDef = {
 	accepts: (info: DeviceInfo) => boolean;
 	/** The settings of an instance (besides the label every widget has): what the settings dialog offers. */
 	props?: PropSpec[];
-	/** A generic widget that fits every device: the picker lists it after the specific ones. */
+	/** One line for the picker: what the widget is for. */
+	description?: string;
+	/** Fits every device: the picker lists it once and asks for the device. */
 	generic?: boolean;
 	/** The user chooses a state field and/or an action in a form before the widget is added. */
 	configure?: boolean;
@@ -73,18 +75,18 @@ const perChannel = (profile: string) => (info: DeviceInfo) => {
 };
 
 const definitions: WidgetDef[] = [
-	{ type: 'oscilloscope', title: 'Oscilloscope', size: 'main', accepts: (i) => i.schema?.widget === 'oscilloscope', component: ({ device, info }) => <OscilloscopeWidget id={device} info={info} /> },
-	{ type: 'device_card', generic: true, title: 'Device card', size: 'main', accepts: () => true, component: ({ device, info }) => <DeviceCard id={device} info={info} /> },
-	{ type: 'pressure', title: 'Pressure', size: 'S', props: [{ name: 'channel', label: 'Channel', type: 'integer', min: 0, default: 0 }], accepts: (i) => hasProfile(i, 'pressure_sensor'), variants: perChannel('pressure_sensor'), component: PressureWidget },
-	{ type: 'turbo_pump', title: 'Turbo pump', size: 'S', props: [{ name: 'channel', label: 'Channel', type: 'integer', min: 0, default: 0 }], accepts: (i) => hasProfile(i, 'turbo_pump'), variants: perChannel('turbo_pump'), component: TurboPumpWidget },
-	{ type: 'positioner', title: 'Stage', size: 'S', props: [{ name: 'channel', label: 'Channel', type: 'integer', min: 0, default: 0 }, { name: 'step', label: 'Step of the + and - buttons', type: 'number', min: 0.000001, help: 'Default: 1 degree, 10 micrometers' }], accepts: (i) => hasProfile(i, 'positioner'), variants: perChannel('positioner'), component: PositionerWidget },
-	{ type: 'frequency', title: 'Frequency', size: 'S', props: [{ name: 'channel', label: 'Channel', type: 'integer', min: 0, default: 0 }], accepts: (i) => hasProfile(i, 'frequency_generator'), variants: perChannel('frequency_generator'), component: FrequencyWidget },
-	{ type: 'polarimeter', title: 'Polarization', size: 'S', accepts: (i) => hasProfile(i, 'polarimeter'), component: PolarimeterWidget },
-	{ type: 'recording', title: 'Recording', size: 'S', needsDevice: false, accepts: () => false, component: RecordingWidget },
-	{ type: 'value', generic: true, title: 'Value', size: 'S', props: [{ name: 'path', label: 'State field', type: 'text' }], configure: true, accepts: () => true, component: ValueWidget },
-	{ type: 'number', generic: true, title: 'Number', size: 'S', props: [{ name: 'path', label: 'State field', type: 'text' }, { name: 'action', label: 'Action', type: 'text' }, { name: 'channel', label: 'Channel (for actions that take one)', type: 'integer', min: 0 }], configure: true, accepts: () => true, component: NumberWidget },
-	{ type: 'button', generic: true, title: 'Button', size: 'S', props: [{ name: 'action', label: 'Action', type: 'text' }, { name: 'confirm', label: 'Ask before running', type: 'boolean' }], configure: true, accepts: () => true, component: ButtonWidget },
-	{ type: 'summary', generic: true, title: 'Summary', size: 'S', accepts: () => true, component: Summary },
+	{ type: 'oscilloscope', description: 'Spectrum or time trace with the controls of the instrument', title: 'Oscilloscope', size: 'main', accepts: (i) => i.schema?.widget === 'oscilloscope', component: ({ device, info }) => <OscilloscopeWidget id={device} info={info} /> },
+	{ type: 'device_card', description: 'Everything a device has: state, actions and log', generic: true, title: 'Device card', size: 'main', accepts: () => true, component: ({ device, info }) => <DeviceCard id={device} info={info} /> },
+	{ type: 'pressure', description: 'Pressure of one gauge', title: 'Pressure', size: 'S', props: [{ name: 'channel', label: 'Channel', type: 'integer', min: 0, default: 0 }], accepts: (i) => hasProfile(i, 'pressure_sensor'), variants: perChannel('pressure_sensor'), component: PressureWidget },
+	{ type: 'turbo_pump', description: 'State and speed of a pump; click for the controls', title: 'Turbo pump', size: 'S', props: [{ name: 'channel', label: 'Channel', type: 'integer', min: 0, default: 0 }], accepts: (i) => hasProfile(i, 'turbo_pump'), variants: perChannel('turbo_pump'), component: TurboPumpWidget },
+	{ type: 'positioner', description: 'Position of a stage, to type or to step', title: 'Stage', size: 'S', props: [{ name: 'channel', label: 'Channel', type: 'integer', min: 0, default: 0 }, { name: 'step', label: 'Step of the + and - buttons', type: 'number', min: 0.000001, help: 'Default: 1 degree, 10 micrometers' }], accepts: (i) => hasProfile(i, 'positioner'), variants: perChannel('positioner'), component: PositionerWidget },
+	{ type: 'frequency', description: 'Frequency of an output, and on/off', title: 'Frequency', size: 'S', props: [{ name: 'channel', label: 'Channel', type: 'integer', min: 0, default: 0 }], accepts: (i) => hasProfile(i, 'frequency_generator'), variants: perChannel('frequency_generator'), component: FrequencyWidget },
+	{ type: 'polarimeter', description: 'Polarization and power', title: 'Polarization', size: 'S', accepts: (i) => hasProfile(i, 'polarimeter'), component: PolarimeterWidget },
+	{ type: 'recording', description: 'Start and stop recordings, take snapshots', title: 'Recording', size: 'S', needsDevice: false, accepts: () => false, component: RecordingWidget },
+	{ type: 'value', description: 'Shows one value of a device', generic: true, title: 'Value', size: 'S', props: [{ name: 'path', label: 'State field', type: 'text' }], configure: true, accepts: () => true, component: ValueWidget },
+	{ type: 'number', description: 'A number to type, sent with an action', generic: true, title: 'Number', size: 'S', props: [{ name: 'path', label: 'State field', type: 'text' }, { name: 'action', label: 'Action', type: 'text' }, { name: 'channel', label: 'Channel (for actions that take one)', type: 'integer', min: 0 }], configure: true, accepts: () => true, component: NumberWidget },
+	{ type: 'button', description: 'Runs an action', generic: true, title: 'Button', size: 'S', props: [{ name: 'action', label: 'Action', type: 'text' }, { name: 'confirm', label: 'Ask before running', type: 'boolean' }], configure: true, accepts: () => true, component: ButtonWidget },
+	{ type: 'summary', description: 'Status and the first values of a device', generic: true, title: 'Summary', size: 'S', accepts: () => true, component: Summary },
 ];
 
 /** A widget of the workspace (widgets/<name>.tsx) as an entry of the registry: its type is "ws:<name>". */
@@ -97,6 +99,8 @@ function runtimeDef(w: RuntimeWidget): WidgetDef {
 		size: meta?.size ?? 'S',
 		needsDevice: meta?.needsDevice,
 		props: meta?.props,
+		generic: !meta?.profile && meta?.needsDevice !== false,
+		description: w.error ? 'Has an error' : meta?.description,
 		accepts: (info) => !meta?.profile || hasProfile(info, meta.profile),
 		component: (props) =>
 			Module ? (

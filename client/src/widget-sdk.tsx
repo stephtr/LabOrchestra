@@ -20,6 +20,8 @@ export type WidgetProps = { id: string; device: string; info: DeviceInfo; props:
 /** What a widget module exports as `meta`, so that the picker knows it. */
 export type WidgetMeta = {
 	title: string;
+	/** One line for the picker: what the widget is for. */
+	description?: string;
 	/** "main" fills a pane; "S" and "M" are the two heights of the strip. */
 	size: 'main' | 'S' | 'M';
 	/** The device profile the widget is for (e.g. "pressure_sensor"); without one it can be placed for any device. */

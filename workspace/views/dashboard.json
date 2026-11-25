@@ -98,6 +98,14 @@
 		{
 			"id": "w_recording",
 			"type": "recording"
+		},
+		{
+			"id": "wmwvx7j6i1z1h",
+			"type": "turbo_pump",
+			"device": "turbo",
+			"props": {
+				"channel": 1
+			}
 		}
 	]
 }

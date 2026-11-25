@@ -101,8 +101,19 @@ try {
 			([id, exp]) => document.querySelector(`[data-testid="${id}"]`)?.textContent === exp,
 			[testId, expected],
 		);
+	// adds a widget from the panel: the panel is closed again, because its previews are real widgets with the same test ids
+	const GENERIC = ['summary', 'device_card', 'ws:status_tile', 'pkg:packaged_tile'];
 	const openPicker = async () => {
 		if ((await page.getByTestId('picker').count()) === 0) await page.getByTestId('add-widget').click();
+	};
+	const addWidget = async (type, device, channel) => {
+		await openPicker();
+		if (GENERIC.includes(type)) {
+			await page.getByTestId(`add-${type}`).click();
+			await page.getByTestId('pick-device').selectOption(device);
+			await page.getByTestId('pick-add').click();
+		} else await page.getByTestId(['add', type, device, channel].filter((x) => x !== undefined).join('-')).click();
+		await page.getByLabel('Close panel').click();
 	};
 	const run = async (action, values) => {
 		const form = page.getByTestId(`action-pressure-${action}`);
@@ -395,8 +406,7 @@ try {
 	await page.getByTestId('osc-canvas').waitFor();
 	ok('first view is created from the devices: oscilloscope pane, summary in the strip');
 
-	await openPicker();
-	await page.getByTestId('add-device_card-pressure').click();
+	await addWidget('device_card', 'pressure');
 	view = await waitView((v) => v.root?.kind === 'split' && v.root.children.length === 2, 'a second pane');
 	assert.equal(view.root.dir, 'column');
 	await page.getByTestId('device-pressure').waitFor();
@@ -424,8 +434,7 @@ try {
 	ok('dropping on the right edge of a pane puts the dragged one next to it');
 
 	// reorder in the strip
-	await openPicker();
-	await page.getByTestId('add-summary-scope').click();
+	await addWidget('summary', 'scope');
 	view = await waitView((v) => v.strip.length === 2, 'two summaries');
 	const order = view.strip.map((w) => w.device);
 	const strip = page.locator('[data-testid^="strip-"]:not([data-testid="strip"])');
@@ -443,10 +452,8 @@ try {
 
 	// compact widgets: a pressure readout (labelled), the recording bar
 	await page.getByTestId('edit-toggle').click();
-	await openPicker();
-	await page.getByTestId('add-pressure-pressure-0').click();
-	await openPicker();
-	await page.getByTestId('add-recording').click();
+	await addWidget('pressure', 'pressure', 0);
+	await addWidget('recording');
 	await page.getByTestId('pressure-value-pressure-0').waitFor();
 	assert.equal(await text('pressure-value-pressure-0'), await text('state-pressure-channels.0.pressure'));
 	const pressureId = (await waitView((v) => v.strip.some((w) => w.type === 'pressure'), 'pressure widget')).strip.find((w) => w.type === 'pressure').id;
@@ -487,12 +494,9 @@ try {
 	current.devices.rf = { file: 'devices/rs_sma100b.py', config: { simulate: true } };
 	fs.writeFileSync(devicesJson, JSON.stringify(current));
 	await page.getByTestId('edit-toggle').click();
-	await openPicker();
-	await page.getByTestId('add-positioner-stages-1').click();
-	await openPicker();
-	await page.getByTestId('add-frequency-rf-0').click();
-	await openPicker();
-	await page.getByTestId('add-turbo_pump-turbo-1').click();
+	await addWidget('positioner', 'stages', 1);
+	await addWidget('frequency', 'rf', 0);
+	await addWidget('turbo_pump', 'turbo', 1);
 	const positionInput = page.getByTestId('positioner-input-stages-1');
 	await positionInput.fill('42.5');
 	await positionInput.press('Enter');
@@ -528,8 +532,7 @@ try {
 	ok('turbo pump widget: details panel starts, sets the speed and stops only its pump');
 
 	// the oscilloscope is also a frequency generator (a second profile, mounted at "generator"): the ordinary frequency widget works on it
-	await openPicker();
-	await page.getByTestId('add-frequency-scope-0').click();
+	await addWidget('frequency', 'scope', 0);
 	const generator = page.getByTestId('frequency-input-scope-0');
 	await generator.fill('250 kHz');
 	await generator.press('Enter');
@@ -542,18 +545,23 @@ try {
 	// generic widgets, configured in the picker: a state field, a number with its action, a button
 	const pick = async (type) => {
 		await openPicker();
-		await page.getByTestId(`add-${type}-scope`).click();
+		await page.getByTestId(`add-${type}`).click();
+		await page.getByTestId('pick-device').selectOption('scope');
 	};
 	await pick('value');
 	await page.getByTestId('custom-path').selectOption('sample_rate');
 	await page.getByTestId('custom-label').fill('Rate');
+	await page.getByTestId('picker-preview').waitFor();
 	await page.getByTestId('custom-create').click();
+	await page.getByLabel('Close panel').click();
 	await page.getByTestId('value-text-scope-sample_rate').waitFor();
 	assert.match(await text('value-text-scope-sample_rate'), /MHz/); // a unit of Hz is shown with an SI prefix
 	await pick('number');
 	await page.getByTestId('custom-path').selectOption('fft_frequency');
-	await page.getByTestId('custom-action').selectOption('set_fft_frequency');
+	assert.equal(await page.getByTestId('custom-action').inputValue(), 'set_fft_frequency'); // suggested from the name of the field
+	await page.getByTestId('picker-preview').waitFor();
 	await page.getByTestId('custom-create').click();
+	await page.getByLabel('Close panel').click();
 	const top = page.getByTestId('number-input-scope-fft_frequency');
 	await top.fill('500 kHz');
 	await top.press('Enter');
@@ -561,7 +569,9 @@ try {
 	assert.equal(Number(script("print(lab.scope.state['fft_frequency'])")), 500000);
 	await pick('button');
 	await page.getByTestId('custom-action').selectOption('reset_fft_storage');
+	await page.getByTestId('picker-preview').waitFor();
 	await page.getByTestId('custom-create').click();
+	await page.getByLabel('Close panel').click();
 	await page.getByTestId('button-scope-reset_fft_storage').click();
 	await page.waitForTimeout(300);
 	assert.equal(await page.getByTestId('button-scope-reset_fft_storage').locator('..').getAttribute('title'), null); // no error
@@ -595,8 +605,7 @@ export default function BigPressure({ device, props }: { device: string; props: 
 `;
 	fs.mkdirSync(path.dirname(widgetFile), { recursive: true });
 	fs.writeFileSync(widgetFile, widgetSource('v1'));
-	await openPicker();
-	await page.getByTestId('add-ws:pressure_big-pressure').click(); // appears in the picker by itself
+	await addWidget('ws:pressure_big', 'pressure'); // appears in the picker by itself
 	await page.getByTestId('rw-value').waitFor();
 	assert.equal(await text('rw-value'), await text('state-pressure-channels.0.pressure').catch(() => text('rw-value'))); // the SDK's useDevice shows the device's state
 	await page.waitForFunction(() => document.querySelector('[data-testid="rw-value"]')?.textContent !== '');
@@ -658,8 +667,7 @@ export default function BigPressure({ device, props }: { device: string; props: 
 	ok('device dialog: a package is looked into, its device chosen, its options filled in');
 	await page.getByTestId('nav-dashboard').click();
 	await page.getByTestId('edit-toggle').click();
-	await openPicker();
-	await page.getByTestId('add-pkg:packaged_tile-pkg_counter').click(); // shipped by the package, not in the workspace
+	await addWidget('pkg:packaged_tile', 'pkg_counter'); // shipped by the package, not in the workspace
 	await page.getByTestId('packaged-count').waitFor();
 	assert.equal(await text('packaged-count'), '0');
 	script('lab.pkg_counter.increment()');
@@ -668,6 +676,7 @@ export default function BigPressure({ device, props }: { device: string; props: 
 	ok('widget shipped by a package: offered for devices, shows the device, styled');
 
 	// "New widget": a file from a template that is built and offered at once (edit mode is on)
+	await openPicker();
 	await page.getByTestId('new-widget').click();
 	await page.getByTestId('widget-template-blank').check();
 	await page.getByTestId('new-widget-name').fill('Not Snake');
@@ -679,8 +688,7 @@ export default function BigPressure({ device, props }: { device: string; props: 
 	assert.ok(fs.readFileSync(path.join(dir, 'workspace/widgets/status_tile.tsx'), 'utf8').includes('export default function StatusTile('));
 	assert.ok(fs.existsSync(path.join(dir, 'workspace/widgets/laborchestra-widget.d.ts')));
 	await page.getByTestId('new-widget-dialog').getByRole('button', { name: 'Done' }).click();
-	await openPicker();
-	await page.getByTestId('add-ws:status_tile-pressure').click();
+	await addWidget('ws:status_tile', 'pressure');
 	await page.getByTestId('status_tile').waitFor();
 	assert.match(await text('status_tile'), /ready/); // the template shows the status of the device
 	ok('new widget from a template appears in the picker and works');

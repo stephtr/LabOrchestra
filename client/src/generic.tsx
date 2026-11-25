@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { ReactNode, useState } from 'react';
 import { formatNumber, parseFrequency, unitFor } from './format';
 import { widget, WidgetInstance } from './layout';
 import { formatSI } from './OscilloscopeWidget';
@@ -99,11 +99,13 @@ export function ButtonWidget({ device, info, props }: WidgetProps) {
 }
 
 /** What a user picks for a widget of this kind: a state field, an action, a channel for actions that take one. */
-export function CustomForm({ type, device, info, onCreate, onCancel }: { type: 'value' | 'number' | 'button'; device: string; info: DeviceInfo; onCreate: (w: WidgetInstance) => void; onCancel: () => void }) {
+export function CustomForm({ type, device, info, onCreate, onCancel, preview }: { type: 'value' | 'number' | 'button'; device: string; info: DeviceInfo; onCreate: (w: WidgetInstance) => void; onCancel: () => void; /** Shows what the widget would look like with these props. */ preview: (props: Record<string, unknown>) => ReactNode }) {
 	const paths = leafPaths(info.state).filter((l) => type === 'value' || typeof l.value === 'number');
 	const actions = info.schema?.actions ?? [];
 	const [path, setPath] = useState(paths[0]?.path ?? '');
-	const [action, setAction] = useState(actions[0]?.name ?? '');
+	/** The action that sets a field is usually called like it: channels.0.frequency -> set_frequency. */
+	const actionFor = (field: string) => actions.find((a) => a.name === `set_${field.split('.').at(-1)}`)?.name;
+	const [action, setAction] = useState((type === 'number' ? actionFor(path) : undefined) ?? actions[0]?.name ?? '');
 	const [channel, setChannel] = useState('');
 	const [args, setArgs] = useState('');
 	const [name, setName] = useState('');
@@ -119,6 +121,12 @@ export function CustomForm({ type, device, info, onCreate, onCancel }: { type: '
 			parsedArgs = null;
 		}
 	}
+	const props: Record<string, unknown> = {};
+	if (type !== 'button') props.path = path;
+	if (type !== 'value') props.action = action;
+	if (needsChannel) props.channel = Number(channel);
+	if (type === 'button' && parsedArgs?.length) props.args = parsedArgs;
+	if (name.trim()) props.label = name.trim();
 	return (
 		<form
 			data-testid="custom-form"
@@ -126,18 +134,12 @@ export function CustomForm({ type, device, info, onCreate, onCancel }: { type: '
 			onSubmit={(e) => {
 				e.preventDefault();
 				if (!ready || parsedArgs === null) return;
-				const props: Record<string, unknown> = {};
-				if (type !== 'button') props.path = path;
-				if (type !== 'value') props.action = action;
-				if (needsChannel) props.channel = Number(channel);
-				if (type === 'button' && parsedArgs.length) props.args = parsedArgs;
-				if (name.trim()) props.label = name.trim();
 				onCreate(widget(type, device, props));
 			}}
 		>
 			{type !== 'button' && (
 				<FormRow label="State field" htmlFor="custom-path">
-					<Select id="custom-path" data-testid="custom-path" value={path} onChange={(e) => setPath(e.target.value)}>
+					<Select id="custom-path" data-testid="custom-path" value={path} onChange={(e) => { setPath(e.target.value); if (type === 'number') setAction(actionFor(e.target.value) ?? action); }}>
 						{paths.map((l) => <option key={l.path}>{l.path}</option>)}
 					</Select>
 				</FormRow>
@@ -162,6 +164,7 @@ export function CustomForm({ type, device, info, onCreate, onCancel }: { type: '
 			<FormRow label="Label" htmlFor="custom-label" hint="Optional">
 				<Input id="custom-label" data-testid="custom-label" value={name} onChange={(e) => setName(e.target.value)} />
 			</FormRow>
+			{preview(props)}
 			<div className="flex justify-end gap-2">
 				<Button type="button" variant="ghost" onClick={onCancel}>Back</Button>
 				<Button variant="primary" data-testid="custom-create" disabled={!ready || parsedArgs === null}>Add</Button>

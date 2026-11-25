@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, ReactNode, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Group, Panel, Separator, useGroupRef } from 'react-resizable-panels';
 import {
 	addMain,
@@ -23,14 +23,14 @@ import {
 } from './layout';
 import { CustomForm } from './generic';
 import { Header } from './Header';
-import { Button, Dialog, DialogBody, DialogFooter, FormRow, Icon, IconButton, Input } from './ui';
+import { Button, Dialog, DialogBody, DialogFooter, FormRow, Icon, IconButton, Input, Select } from './ui';
 import { NewWidgetDialog } from './NewWidgetDialog';
 import { WidgetSettingsDialog } from './WidgetSettingsDialog';
 import { navigate, usePath } from './router';
 import { DeviceInfo, deleteView, saveView, useStore } from './store';
 import { DeviceCard } from './DeviceCard';
 import { OscilloscopeWidget } from './OscilloscopeWidget';
-import { COMPACT_HEIGHT, runtimeWidgetsReady, useWidgetDefs, widgetDef } from './widgets';
+import { COMPACT_HEIGHT, runtimeWidgetsReady, useWidgetDefs, widgetDef, WidgetDef } from './widgets';
 
 const AUTO_ID = 'dashboard';
 const NO_DEVICE: DeviceInfo = { status: 'ready', error: null, schema: null, state: null, revision: 0 };
@@ -260,82 +260,167 @@ function Strip({ widgets }: { widgets: WidgetInstance[] }) {
 	);
 }
 
-/** The panel next to the view with everything that can be placed, by device: what its profiles offer first, what fits any device below. */
+/** A widget as it would look, with the live values of its device. Not to be used, only to be looked at. */
+function Preview({ type, device, props }: { type: string; device: string; props?: Record<string, unknown> }) {
+	const { devices } = useContext(DashboardContext);
+	const def = widgetDef(type);
+	const info = device ? devices[device] : NO_DEVICE;
+	if (!def || !info) return null;
+	if (def.size === 'main') return <Thumbnail type={type} large />;
+	const Component = def.component;
+	return (
+		<div inert className="pointer-events-none w-fit min-w-28 max-w-full overflow-hidden" style={{ height: COMPACT_HEIGHT[def.size] }}>
+			<Component id="preview" device={device} info={info} props={props ?? {}} />
+		</div>
+	);
+}
+
+/** A live preview that adds the widget when it is clicked. The button lies over the preview: a widget has buttons and fields of its own. */
+function PreviewButton({ def, device, props, caption = '', testId, onClick }: { def: WidgetDef; device: string; props?: Record<string, unknown>; caption?: string; testId: string; onClick: () => void }) {
+	return (
+		<div className="group relative flex w-fit max-w-full flex-col gap-1">
+			<div className="w-fit max-w-full rounded-lg ring-accent group-hover:ring-2"><Preview type={def.type} device={device} props={props} /></div>
+			<span aria-hidden="true" className="text-xs text-muted group-hover:text-ink">{def.title}{caption}</span>
+			<button data-testid={testId} className="absolute inset-0 rounded-lg" aria-label={`Add ${def.title} ${device}${caption}`} title={def.description} onClick={onClick} />
+		</div>
+	);
+}
+
+const PICTURE: Record<string, ReactNode> = {
+	oscilloscope: <path d="M3 25h8l2-19 2 19h9l2-12 2 12h17M3 4v24h42" />,
+	device_card: <path d="M4 6h14M36 6h8M4 13h10M20 13h16M4 19h8M20 19h20M4 26h10M34 23h10v5H34z" />,
+	summary: <path d="M4 10h12M36 10h8M4 20h9M19 20h9M34 20h9" />,
+	value: <path d="M4 9h14M4 21h22M31 21h6" strokeWidth="1.5" />,
+	number: <path d="M4 8h12M4 15h40v11H4zM32 20.5h7" />,
+	button: <path d="M8 10h32v13H8zM17 16.5h14" />,
+};
+
+/** A little picture of a widget that cannot be shown as it is (too large, or not set up yet). */
+function Thumbnail({ type, large }: { type: string; large?: boolean }) {
+	return (
+		<span className={`flex flex-none items-center justify-center rounded-md border border-line bg-field text-muted ${large ? 'h-20 w-full' : 'h-9 w-13'}`}>
+			<svg aria-hidden="true" viewBox="0 0 48 32" className={large ? 'h-12' : 'h-7'} fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+				{PICTURE[type] ?? <path d="M6 6h36v20H6zM12 13h14M12 19h22" />}
+			</svg>
+		</span>
+	);
+}
+
+/** A row of the picker for a widget that is not shown live: picture, name, what it is for. */
+function PickerRow({ def, testId, onClick }: { def: WidgetDef; testId: string; onClick: () => void }) {
+	return (
+		<button data-testid={testId} className="-mx-2 flex items-center gap-3 rounded-lg p-2 text-left hover:bg-raised" onClick={onClick}>
+			<Thumbnail type={def.type} />
+			<span className="min-w-0">
+				<span className="block text-sm">{def.title}</span>
+				{def.description && <span className="block text-xs text-muted">{def.description}</span>}
+			</span>
+		</button>
+	);
+}
+
+/** The panel next to the view with everything that can be placed. What the profiles of a device offer is shown live, by device; what fits any
+ *  device is listed once and asks for the device. */
 function Picker({ onPick, onClose, onNewWidget }: { onPick: (instance: WidgetInstance) => void; onClose: () => void; onNewWidget: () => void }) {
 	const { devices } = useContext(DashboardContext);
 	const defs = useWidgetDefs();
 	const [search, setSearch] = useState('');
-	const [custom, setCustom] = useState<{ type: 'value' | 'number' | 'button'; device: string } | null>(null);
+	const [chosen, setChosen] = useState<{ type: string; device: string } | null>(null);
 	const ids = Object.keys(devices).sort();
-	const matches = (...texts: string[]) => texts.some((t) => t.toLowerCase().includes(search.trim().toLowerCase()));
-	const chip = 'inline-flex h-7 items-center gap-1 rounded-md transition-colors';
-	const entries = (id: string, generic: boolean) =>
+	const matches = (...texts: (string | undefined)[]) => texts.some((t) => t?.toLowerCase().includes(search.trim().toLowerCase()));
+	const specific = (id: string) =>
 		defs
-			.filter((d) => d.needsDevice !== false && Boolean(d.generic) === generic && d.accepts(devices[id]!))
-			.flatMap((d) => (d.variants?.(devices[id]!) ?? [{ label: '' }]).map((v) => ({ d, v })))
-			.filter(({ d, v }) => matches(id, d.title, v.label));
-	const add = (id: string, { d, v }: ReturnType<typeof entries>[number]) => (
-		<button
-			key={`${d.type}${v.label}`}
-			data-testid={`add-${d.type}-${id}${v.props && 'channel' in v.props ? `-${v.props.channel}` : ''}`}
-			className={`${chip} ${d.generic ? 'px-1.5 text-xs text-muted hover:bg-raised hover:text-ink' : 'bg-raised px-2 text-sm hover:bg-hover'}`}
-			onClick={() => (d.configure ? setCustom({ type: d.type as 'value' | 'number' | 'button', device: id }) : onPick(widget(d.type, id, v.props)))}
-		>
-			{d.title}{v.label && (d.variants?.(devices[id]!).length ?? 0) > 1 ? <span className="text-faint">{v.label.replace('channel ', '')}</span> : null}{d.configure ? '…' : ''}
-		</button>
-	);
+			.filter((d) => d.needsDevice !== false && !d.generic && d.accepts(devices[id]!) && matches(id, d.title, d.description))
+			.flatMap((d) => (d.variants?.(devices[id]!) ?? [{ label: '' }]).map((v, _, all) => ({ d, v, many: all.length > 1 })));
+	const generic = defs.filter((d) => d.generic && matches(d.title, d.description));
+	const server = defs.filter((d) => d.needsDevice === false && matches(d.title, d.description));
+	const def = chosen ? defs.find((d) => d.type === chosen.type) : undefined;
+
+	let body: ReactNode;
+	if (chosen && def) {
+		const done = (w: WidgetInstance) => {
+			onPick(w);
+			setChosen(null);
+		};
+		const preview = (props?: Record<string, unknown>) => (
+			<div className="flex flex-col gap-1" data-testid="picker-preview">
+				<span className="text-sm text-muted">Preview</span>
+				<div className="rounded-lg bg-ground p-3"><Preview type={def.type} device={chosen.device} props={props} /></div>
+			</div>
+		);
+		const info = devices[chosen.device];
+		body = (
+			<div className="flex flex-col gap-3 overflow-y-auto p-4">
+				{def.description && <p className="text-sm text-muted">{def.description}.</p>}
+				<FormRow label="Device" htmlFor="pick-device">
+					<Select id="pick-device" data-testid="pick-device" value={chosen.device} onChange={(e) => setChosen({ ...chosen, device: e.target.value })}>
+						{ids.map((id) => <option key={id}>{id}</option>)}
+					</Select>
+				</FormRow>
+				{info && def.configure ? (
+					<CustomForm key={chosen.device} type={def.type as 'value' | 'number' | 'button'} device={chosen.device} info={info} preview={preview} onCreate={done} onCancel={() => setChosen(null)} />
+				) : (
+					<>
+						{preview()}
+						<div className="flex justify-end gap-2">
+							<Button variant="ghost" onClick={() => setChosen(null)}>Back</Button>
+							<Button variant="primary" data-testid="pick-add" disabled={!info} onClick={() => done(widget(def.type, chosen.device))}>Add</Button>
+						</div>
+					</>
+				)}
+			</div>
+		);
+	} else {
+		body = (
+			<>
+				<div className="relative flex-none px-4 pt-3">
+					<Icon name="search" size={14} className="absolute left-6.5 top-5.5 text-faint" />
+					<Input type="search" aria-label="Search widgets" placeholder="Search" className="w-full !pl-8" value={search} onChange={(e) => setSearch(e.target.value)} />
+				</div>
+				<div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-4">
+					{ids.length === 0 && <p className="text-sm text-muted">There are no devices to show yet.</p>}
+					{ids.map((id) => {
+						const entries = specific(id);
+						if (entries.length === 0) return null;
+						return (
+							<section key={id} className="flex flex-col gap-2">
+								<h3 className="flex items-baseline gap-2 text-sm font-medium">{id}<span className="truncate text-xs font-normal text-faint">{devices[id]!.schema?.class}</span></h3>
+								{entries.filter(({ d }) => d.size === 'main').map(({ d, v }) => <PickerRow key={d.type} def={d} testId={`add-${d.type}-${id}`} onClick={() => onPick(widget(d.type, id, v.props))} />)}
+								<div className="flex flex-wrap gap-2">
+									{entries.filter(({ d }) => d.size !== 'main').map(({ d, v, many }) => (
+										<PreviewButton key={`${d.type}${v.label}`} def={d} device={id} props={v.props} caption={many ? ` · ${v.label}` : ''} testId={`add-${d.type}-${id}${v.props && 'channel' in v.props ? `-${v.props.channel}` : ''}`} onClick={() => onPick(widget(d.type, id, v.props))} />
+									))}
+								</div>
+							</section>
+						);
+					})}
+					{server.length > 0 && (
+						<section className="flex flex-col gap-2">
+							<h3 className="text-sm font-medium">Whole server</h3>
+							{server.map((d) => <PreviewButton key={d.type} def={d} device="" testId={`add-${d.type}`} onClick={() => onPick(widget(d.type))} />)}
+						</section>
+					)}
+					{ids.length > 0 && generic.length > 0 && (
+						<section className="flex flex-col">
+							<h3 className="mb-1 text-sm font-medium">For any device</h3>
+							{generic.map((d) => <PickerRow key={d.type} def={d} testId={`add-${d.type}`} onClick={() => setChosen({ type: d.type, device: ids[0]! })} />)}
+						</section>
+					)}
+				</div>
+				<div className="flex-none border-t border-line p-3">
+					<Button data-testid="new-widget" variant="ghost" icon="plus" className="w-full" title="Write a widget of your own" onClick={onNewWidget}>New widget…</Button>
+				</div>
+			</>
+		);
+	}
 	return (
 		<aside data-testid="picker" aria-label="Add widget" className="flex w-92 flex-none flex-col border-l border-line bg-panel">
-			<div className="flex flex-none items-center gap-1 border-b border-line py-1.5 pl-4 pr-2">
-				<h2 className="flex-1 truncate text-sm font-semibold">{custom ? `${widgetDef(custom.type)?.title} · ${custom.device}` : 'Add widget'}</h2>
+			<div className="flex flex-none items-center gap-1 border-b border-line py-1.5 pl-2 pr-2">
+				{chosen ? <IconButton icon="chevron-left" label="Back to the list" onClick={() => setChosen(null)} /> : <span className="w-2" />}
+				<h2 className="flex-1 truncate text-sm font-semibold">{def && chosen ? def.title : 'Add widget'}</h2>
 				<IconButton icon="close" label="Close panel" onClick={onClose} />
 			</div>
-			{custom && devices[custom.device] ? (
-				<div className="overflow-y-auto p-4">
-					<CustomForm
-						type={custom.type}
-						device={custom.device}
-						info={devices[custom.device]!}
-						onCreate={(w) => {
-							onPick(w);
-							setCustom(null);
-						}}
-						onCancel={() => setCustom(null)}
-					/>
-				</div>
-			) : (
-				<>
-					<div className="relative flex-none px-4 pt-3">
-						<Icon name="search" size={14} className="absolute left-6.5 top-5.5 text-faint" />
-						<Input type="search" aria-label="Search widgets" placeholder="Search" className="w-full !pl-8" value={search} onChange={(e) => setSearch(e.target.value)} />
-					</div>
-					<div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
-						{ids.length === 0 && <p className="text-sm text-muted">There are no devices to show yet.</p>}
-						{ids.map((id) => {
-							const [specific, generic] = [entries(id, false), entries(id, true)];
-							if (specific.length + generic.length === 0) return null;
-							return (
-								<section key={id} className="flex flex-col gap-1">
-									<h3 className="flex items-baseline gap-2 text-sm font-medium">{id}<span className="truncate text-xs font-normal text-faint">{devices[id]!.schema?.class}</span></h3>
-									{specific.length > 0 && <div className="flex flex-wrap gap-1">{specific.map((e) => add(id, e))}</div>}
-									{generic.length > 0 && <div className="-ml-1.5 flex flex-wrap">{generic.map((e) => add(id, e))}</div>}
-								</section>
-							);
-						})}
-						<section className="flex flex-col gap-1">
-							<h3 className="text-sm font-medium">Whole server</h3>
-							<div className="flex flex-wrap gap-1">
-								{defs.filter((d) => d.needsDevice === false && matches(d.title)).map((d) => (
-									<button key={d.type} data-testid={`add-${d.type}`} className={`${chip} bg-raised px-2 text-sm hover:bg-hover`} onClick={() => onPick(widget(d.type))}>{d.title}</button>
-								))}
-							</div>
-						</section>
-					</div>
-					<div className="flex-none border-t border-line p-3">
-						<Button data-testid="new-widget" variant="ghost" icon="plus" className="w-full" title="Write a widget of your own" onClick={onNewWidget}>New widget…</Button>
-					</div>
-				</>
-			)}
+			{body}
 		</aside>
 	);
 }
