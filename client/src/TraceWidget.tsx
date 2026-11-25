@@ -108,20 +108,23 @@ export function TraceWidget({ device, info, props }: WidgetProps) {
 		trend == null ? null : log ? `× ${trend.toPrecision(2)} / h` : `${trend >= 0 ? '+' : '−'}${formatNumber(Math.abs(trend))}${unit ? ` ${unit}` : ''} / h`;
 	const lastTime = points?.length ? points[points.length - 1]![0] : null;
 	return (
-		<div data-testid={`trace-${device}-${path}`} title={problem ?? undefined} className={`flex h-full min-h-0 flex-col gap-1 rounded-lg border bg-panel px-3 py-2 ${problem ? 'border-warn' : 'border-line'}`}>
+		<div data-testid={`trace-${device}-${path}`} title={problem ?? undefined} className={`@container flex h-full min-h-0 flex-col gap-1 rounded-lg border bg-panel px-3 py-2 ${problem ? 'border-warn' : 'border-line'}`}>
 			<div className="flex flex-none items-baseline gap-2">
 				<span className="min-w-0 flex-1 truncate text-xs text-muted">{label}</span>
 				<span className="flex-none text-xs text-faint">{lastTime != null ? ago(now - lastTime) : ''}</span>
 			</div>
 			<div className="flex flex-none items-center gap-x-3">
-				<span data-testid={`trace-value-${device}-${path}`} className="whitespace-nowrap text-2xl leading-8 tabular-nums">
+				<span data-testid={`trace-value-${device}-${path}`} className="whitespace-nowrap text-2xl leading-8 tabular-nums @max-[340px]:text-xl">
 					{typeof live === 'number' ? shown(live) : summary ? shown(summary.last) : '—'}
 				</span>
 				<span className="flex-1" />
 				{summary && (
-					<span className="flex flex-col items-end whitespace-nowrap text-xs leading-4 tabular-nums">
-						{trendText && <span className="text-muted" title="Change in the last hour">{trendText}</span>}
-						<span className="text-faint">min {shown(summary.min, false)} · max {shown(summary.max)}</span>
+					<span className="flex min-w-0 flex-col items-end whitespace-nowrap text-xs leading-4 tabular-nums">
+						{trendText && <span className="max-w-full truncate text-muted" title="Change in the last hour">{trendText}</span>}
+						{/* short enough for the narrowest card: the unit is the one of the value beside it; the words are in the tooltip */}
+						<span data-testid={`trace-range-${device}-${path}`} className="max-w-full truncate text-faint" title={`Lowest ${shown(summary.min)} and highest ${shown(summary.max)} in the shown range`}>
+							{shown(summary.min, false)} – {shown(summary.max, false)}
+						</span>
 					</span>
 				)}
 			</div>

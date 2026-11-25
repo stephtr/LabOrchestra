@@ -1031,7 +1031,8 @@ async def measure(lab, steps: int = 3, pause_s: float = 0.4, levels: list[float]
 	await page.getByTestId('trace-svg-pressure-channels.1.pressure').waitFor({ timeout: 60000 });
 	await page.waitForFunction(() => Number(document.querySelector('[data-testid="trace-svg-pressure-channels.1.pressure"]')?.getAttribute('data-points')) >= 2);
 	assert.match(await text("trace-value-pressure-channels.1.pressure"), /\d.* mbar$/); // the live value, with its unit
-	assert.match(await page.getByTestId('trace-pressure-channels.1.pressure').textContent(), /min .* max .* mbar/);
+	assert.match(await text('trace-range-pressure-channels.1.pressure'), /^\S+ – \S+$/); // lowest – highest, the unit is next to the value
+	assert.match(await page.getByTestId('trace-range-pressure-channels.1.pressure').getAttribute('title'), /Lowest .* and highest .* mbar/);
 	ok('trace widget: the value now, min and max, and the curve from the history');
 
 	// editing ends by itself after a while without activity

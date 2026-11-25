@@ -230,6 +230,13 @@ type Extent = { height: number; minHeight: number; minWidth: number; maxWidth: n
 const AREA_PAD = 12; // p-1.5 on both sides
 const AREA_GAP = 6; // gap-1.5
 
+/** How a widget with a width sits in an area: laid out from its smallest width (0.85 of it), grown to fill its row, and never wider than two of
+ *  them side by side. So a row is always full: an area wider than one widget can take always has room for a second one. */
+function stretch(width: number) {
+	const least = Math.ceil(width * 0.85);
+	return { flex: `1 1 ${least}px`, minWidth: least, maxWidth: 2 * least + AREA_GAP };
+}
+
 function SplitView({ node }: { node: Extract<Node, { kind: 'split' }> }) {
 	const ctx = useContext(DashboardContext);
 	const group = useGroupRef();
@@ -403,7 +410,7 @@ function AreaView({ node, onMeasure }: { node: Extract<Node, { kind: 'area' }>; 
 							data-area-item=""
 							data-width={width}
 							data-dropzone
-							style={{ height, ...(width ? { flex: `1 1 ${width}px`, minWidth: width * 0.85, maxWidth: width * 1.5 } : {}) }}
+							style={{ height, ...(width ? stretch(width) : {}) }}
 							className={`group relative min-w-28 ${width ? '' : 'flex-none'} ${ctx.editing ? 'cursor-grab active:cursor-grabbing' : ''} ${dropAt === i ? 'before:absolute before:inset-y-0 before:-left-1 before:w-0.5 before:rounded before:bg-accent' : ''}`}
 							{...dragProps(() => w, ctx)}
 							{...(ctx.editing ? acceptDrop(i) : {})}
