@@ -116,7 +116,7 @@ Track B, oscilloscope:
 
 - [ ] Port widgets: oscilloscope, pressure, RF generator, stage, polarimeter, locks, recording controls
 - [ ] Device management: list, catalog, schema forms, logs, restart
-- [ ] Views: grid, edit mode, picker, several views, phone layout
+- [x] Views: split tree with movable gutters + compact strip (S/M), edit mode with drag and drop, picker, several views, server-side files (phone layout dropped: not a priority)
 - [ ] Runtime widgets, widget SDK, error boundary, reload on change
 
 **Exit:** today's hard-coded dashboard is reproduced as a view without code changes.

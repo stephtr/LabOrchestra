@@ -44,6 +44,7 @@ var tokenStore = new TokenStore(dataDir);
 builder.Services.AddSingleton(tokenStore);
 builder.Services.AddSingleton(new TokenService(passphrase, tokenStore));
 builder.Services.AddSingleton(workspace);
+builder.Services.AddSingleton<ViewStore>(sp => new ViewStore(workspace.Path, sp.GetRequiredService<ILogger<ViewStore>>()));
 builder.Services.AddSingleton(new ServerInfo(workerUrl));
 builder.Services.AddSingleton(sp => new EnvironmentManager(config, dataDir, sp.GetRequiredService<LogStore>(), sp.GetRequiredService<ILogger<EnvironmentManager>>()));
 builder.Services.AddSingleton<EventBus>();
@@ -94,6 +95,9 @@ app.Use(async (context, next) =>
 app.Services.GetRequiredService<RecordingService>().RepairInterrupted();
 workspace.Watch(app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("LabOrchestra.Workspace"));
 var controlHub = app.Services.GetRequiredService<IHubContext<ControlHub>>();
+var views = app.Services.GetRequiredService<ViewStore>();
+views.Watch();
+views.Changed += all => _ = controlHub.Clients.All.SendAsync("views", ViewStore.AsText(all));
 logStore.Added += entry => _ = controlHub.Clients.Group("logs:" + entry["source"]).SendAsync("log", entry);
 app.MapGet("/api/protocol", () => new { protocol = Protocol.Current, supported = Protocol.Supported.Where(p => p >= 1) });
 app.UseAuthentication();

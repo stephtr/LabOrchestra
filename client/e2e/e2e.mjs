@@ -293,6 +293,83 @@ try {
 	ok('oscilloscope: the stream is subscribed again after the server restarted');
 	ok('server restart: the page reconnects and shows the new state');
 
+	// views: the first view is made from the devices, then edited
+	const viewFile = path.join(dir, 'workspace/views/dashboard.json');
+	const readView = () => JSON.parse(fs.readFileSync(viewFile, 'utf8'));
+	const waitView = async (check, what) => {
+		for (let i = 0; i < 100; i++) {
+			try {
+				if (check(readView())) return readView();
+			} catch {
+				/* not written yet */
+			}
+			await new Promise((r) => setTimeout(r, 100));
+		}
+		throw new Error(`view file never showed: ${what}\n${fs.existsSync(viewFile) ? fs.readFileSync(viewFile, 'utf8') : '(no file)'}`);
+	};
+	await page.getByTestId('edit-toggle').click(); // "Edit layout": creates the view from the devices
+	await page.getByTestId('strip').waitFor();
+	let view = await waitView((v) => v.root?.kind === 'main' && v.strip.length === 1, 'oscilloscope pane and one summary');
+	assert.equal(view.root.widget.type, 'oscilloscope');
+	assert.equal(view.strip[0].type, 'summary');
+	await page.getByTestId('summary-pressure').waitFor();
+	await page.getByTestId('osc-canvas').waitFor();
+	ok('first view is created from the devices: oscilloscope pane, summary in the strip');
+
+	await page.getByTestId('add-widget').click();
+	await page.getByTestId('add-device_card-pressure').click();
+	view = await waitView((v) => v.root?.kind === 'split' && v.root.children.length === 2, 'a second pane');
+	assert.equal(view.root.dir, 'column');
+	await page.getByTestId('device-pressure').waitFor();
+	ok('a widget picked from the list becomes a second pane');
+
+	// the gutter moves with the mouse and the size is stored
+	const gutter = page.getByRole('separator').first();
+	const box = await gutter.boundingBox();
+	await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(box.x + box.width / 2, box.y - 150, { steps: 8 });
+	await page.mouse.up();
+	view = await waitView((v) => Math.abs(v.root.sizes[0] - 50) > 5, 'resized panes');
+	assert.ok(view.root.sizes[0] < 45, `the upper pane got smaller: ${view.root.sizes}`);
+	assert.ok(Math.abs(view.root.sizes[0] + view.root.sizes[1] - 100) < 0.01);
+	ok('the gutter can be dragged; the sizes are stored');
+
+	// drag one pane to the side of the other: a row
+	const handles = page.locator('[data-testid^="handle-"]');
+	const target = page.locator('[data-testid^="pane-"]').first();
+	const targetBox = await target.boundingBox();
+	await handles.nth(1).dragTo(target, { targetPosition: { x: targetBox.width - 20, y: targetBox.height / 2 } });
+	view = await waitView((v) => v.root?.kind === 'split' && v.root.dir === 'row', 'panes side by side');
+	assert.equal(view.root.children.length, 2);
+	ok('dropping on the right edge of a pane puts the dragged one next to it');
+
+	// reorder in the strip
+	await page.getByTestId('add-widget').click();
+	await page.getByTestId('add-summary-scope').click();
+	view = await waitView((v) => v.strip.length === 2, 'two summaries');
+	const order = view.strip.map((w) => w.device);
+	const strip = page.locator('[data-testid^="strip-"]:not([data-testid="strip"])');
+	await strip.nth(1).dragTo(strip.nth(0), { targetPosition: { x: 5, y: 10 } });
+	view = await waitView((v) => v.strip[0].device === order[1], 'strip reordered');
+	ok('summaries can be reordered in the strip');
+
+	await page.getByTestId('edit-toggle').click(); // Done
+	await page.reload();
+	await page.getByTestId('summary-pressure').waitFor();
+	await page.getByTestId('device-pressure').waitFor();
+	assert.equal(await page.locator('[data-testid^="pane-"]').count(), 2);
+	assert.equal(await page.getByRole('separator').count(), 1);
+	ok('the layout survives a reload');
+
+	// a hand edit of the file reaches the open page; a missing device gives a placeholder
+	view = readView();
+	view.strip.push({ id: 'w_gone', type: 'summary', device: 'no_such_device' });
+	fs.writeFileSync(viewFile, JSON.stringify(view));
+	await page.getByTestId('placeholder-w_gone').waitFor();
+	assert.match(await text('placeholder-w_gone'), /does not exist/);
+	ok('a changed view file reaches the page; a missing device shows a placeholder');
+
 	failed = false;
 	console.log('OK');
 } catch (e) {

@@ -49,12 +49,14 @@ type Store = {
 	connection: ConnectionState;
 	devices: Record<string, DeviceInfo>;
 	logs: Record<string, LogEntry[]>;
+	/** The views of the dashboard by id, as the JSON text the server stores. */
+	views: Record<string, string>;
 	loginError: string | null;
 };
 
 const TOKEN_KEY = 'laborchestra.token';
 export const getToken = () => localStorage.getItem(TOKEN_KEY) ?? '';
-let store: Store = { info: null, connection: 'connecting', devices: {}, logs: {}, loginError: null };
+let store: Store = { info: null, connection: 'connecting', devices: {}, logs: {}, views: {}, loginError: null };
 const subscribedLogs = new Set<string>();
 const listeners = new Set<() => void>();
 let hub: HubConnection | null = null;
@@ -150,6 +152,7 @@ async function connect(token: string) {
 		const { [id]: _removed, ...rest } = store.devices;
 		set({ devices: rest });
 	});
+	connection.on('views', (views: Record<string, string>) => set({ views }));
 	connection.on('log', (entry: LogEntry) => {
 		if (!subscribedLogs.has(entry.source)) return;
 		set({ logs: { ...store.logs, [entry.source]: mergeLogs(store.logs[entry.source] ?? [], [entry]) } });
@@ -187,7 +190,8 @@ async function sync(connection: HubConnection) {
 	let devices: Record<string, DeviceInfo> = {};
 	for (const [id, info] of Object.entries(fetched)) devices = take(devices, id, info);
 	for (const [id, known] of Object.entries(store.devices)) if (id in fetched) devices = take(devices, id, known); // events that came while we asked
-	set({ connection: 'connected', devices, info: await connection.invoke<ServerInfo>('get_info') });
+	const [info, views] = await Promise.all([connection.invoke<ServerInfo>('get_info'), connection.invoke<Record<string, string>>('get_views')]);
+	set({ connection: 'connected', devices, info, views });
 	await Promise.all([...subscribedLogs].map((source) => loadLogs(connection, source)));
 }
 
@@ -268,3 +272,6 @@ export async function invokeHub<T = unknown>(method: string, ...args: unknown[])
 }
 
 export const callAction = (device: string, name: string, args: unknown[]) => invokeHub('action', device, name, args);
+
+export const saveView = (id: string, view: unknown) => invokeHub('save_view', id, JSON.stringify(view));
+export const deleteView = (id: string) => invokeHub('delete_view', id);

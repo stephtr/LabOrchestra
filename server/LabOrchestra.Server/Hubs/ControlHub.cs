@@ -51,6 +51,7 @@ public sealed class ControlHub(
 	Workspace workspace,
 	EventBus bus,
 	EventLog eventLog,
+	ViewStore views,
 	TokenStore tokenStore,
 	Supervision.EnvironmentManager environments,
 	IHubContext<DeviceHub> devices) : Hub
@@ -76,6 +77,24 @@ public sealed class ControlHub(
 		["devices_file"] = workspace.HasDevicesFile,
 		["version"] = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3),
 	};
+
+	/// <summary>All views of the dashboard by id (shared by every client), each as JSON text.</summary>
+	[HubMethodName("get_views")]
+	public Dictionary<string, string> GetViews() => ViewStore.AsText(views.All());
+
+	[HubMethodName("save_view")]
+	public void SaveView(string id, string json)
+	{
+		try { views.Save(id, System.Text.Json.Nodes.JsonNode.Parse(json) ?? throw new ArgumentException("empty view")); }
+		catch (Exception e) when (e is ArgumentException or InvalidOperationException or System.Text.Json.JsonException or IOException) { throw Fail(e); }
+	}
+
+	[HubMethodName("delete_view")]
+	public void DeleteView(string id)
+	{
+		try { views.Delete(id); }
+		catch (Exception e) when (e is ArgumentException or IOException) { throw Fail(e); }
+	}
 
 	[HubMethodName("get_recording")]
 	public Dictionary<string, object?> GetRecording() => recordings.Status();

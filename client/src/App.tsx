@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import logoDark from '../../docs/assets/laborchestra-logo-dark.svg';
 import logoLight from '../../docs/assets/laborchestra-logo-light.svg';
-import { DeviceCard } from './DeviceCard';
+import { Dashboard } from './Dashboard';
 import { DevicesPage } from './DevicesPage';
-import { OscilloscopeWidget } from './OscilloscopeWidget';
 import { navigate, usePath } from './router';
 import { login, logout, useStore } from './store';
 
@@ -40,7 +39,7 @@ function Login({ error }: { error: string | null }) {
 
 function NavLink({ to, children }: { to: string; children: string }) {
 	const path = usePath();
-	const active = to === '/' ? path === '/' : path.startsWith(to);
+	const active = to === '/' ? path === '/' || path.startsWith('/views') : path.startsWith(to);
 	return (
 		<a
 			href={to}
@@ -57,39 +56,13 @@ function NavLink({ to, children }: { to: string; children: string }) {
 	);
 }
 
-function Dashboard() {
-	const { connection, devices, info } = useStore();
-	const ids = Object.keys(devices).sort();
-	return (
-		<>
-			{connection === 'connected' && ids.length === 0 && (
-				<p className="text-zinc-500" data-testid="no-devices">
-					No devices configured. The workspace is <code className="font-mono">{info?.workspace}</code>
-					{info?.devices_file ? ', and its devices.json lists no devices.' : ', and it has no devices.json yet.'} Add one on the{' '}
-					<a href="/devices" className="underline" onClick={(e) => { e.preventDefault(); navigate('/devices'); }}>Devices</a>{' '}
-					page, or start the server with <code className="font-mono">--workspace &lt;folder&gt;</code> to use another workspace.
-				</p>
-			)}
-			<div className="grid gap-4 md:grid-cols-2">
-				{ids.map((id) =>
-					devices[id]!.schema?.widget === 'oscilloscope' ? (
-						<OscilloscopeWidget key={id} id={id} info={devices[id]!} />
-					) : (
-						<DeviceCard key={id} id={id} info={devices[id]!} />
-					),
-				)}
-			</div>
-		</>
-	);
-}
-
 export default function App() {
 	const { connection, loginError } = useStore();
 	const path = usePath();
 	if (connection === 'login') return <Login error={loginError} />;
 	return (
-		<div className="mx-auto max-w-5xl p-4">
-			<header className="mb-4 flex items-center gap-3">
+		<div className={path.startsWith('/devices') ? 'mx-auto max-w-5xl p-4' : 'flex h-screen flex-col'}>
+			<header className={`flex flex-none items-center gap-3 ${path.startsWith('/devices') ? 'mb-4' : 'px-2 py-1'}`}>
 				<img src={logoLight} alt="LabOrchestra" className="h-8 dark:hidden" />
 				<img src={logoDark} alt="LabOrchestra" className="hidden h-8 dark:block" />
 				<nav className="ml-3 flex gap-1">
