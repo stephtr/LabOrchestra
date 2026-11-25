@@ -52,6 +52,7 @@ builder.Services.AddSingleton<EventBus>();
 builder.Services.AddSingleton(sp => new EventLog(dataDir, sp.GetRequiredService<EventBus>(), double.Parse(config["history_interval_s"] ?? "10", System.Globalization.CultureInfo.InvariantCulture), sp.GetRequiredService<ILogger<EventLog>>()));
 builder.Services.AddHostedService(sp => sp.GetRequiredService<EventLog>());
 builder.Services.AddSingleton<StreamManager>();
+builder.Services.AddSingleton<LabOrchestra.Server.Events.ServerEvents>();
 builder.Services.AddSingleton<DeviceRegistry>();
 builder.Services.AddSingleton(sp => new LabOrchestra.Server.Drivers.DriverCatalog(
 	[Path.Combine(AppContext.BaseDirectory, "plugins"), Path.Combine(workspace.Path, "plugins")], sp.GetRequiredService<ILogger<LabOrchestra.Server.Drivers.DriverCatalog>>()));
@@ -65,7 +66,7 @@ builder.Services.AddSingleton<LabOrchestra.Server.Devices.FileOpener>();
 builder.Services.AddSingleton(sp => new LabOrchestra.Server.Procedures.ProcedureService(
 	sp.GetRequiredService<Workspace>(), sp.GetRequiredService<EnvironmentManager>(), sp.GetRequiredService<LabOrchestra.Server.Devices.DeviceCatalog>(), sp.GetRequiredService<TokenService>(),
 	sp.GetRequiredService<RecordingService>(), sp.GetRequiredService<DeviceRegistry>(), sp.GetRequiredService<LogStore>(), sp.GetRequiredService<WorkerGuard>(), sp.GetRequiredService<ServerInfo>(),
-	config, sp.GetRequiredService<IHubContext<ControlHub>>(), dataDir, sp.GetRequiredService<ILogger<LabOrchestra.Server.Procedures.ProcedureService>>()));
+	config, sp.GetRequiredService<LabOrchestra.Server.Events.ServerEvents>(), sp.GetRequiredService<IHubContext<ControlHub>>(), dataDir, sp.GetRequiredService<ILogger<LabOrchestra.Server.Procedures.ProcedureService>>()));
 builder.Services.AddHostedService(sp => sp.GetRequiredService<LabOrchestra.Server.Procedures.ProcedureService>());
 builder.Services.AddSingleton(new LabOrchestra.Server.Widgets.ClientDirectory(clientDir is null ? null : Path.GetFullPath(clientDir)));
 builder.Services.AddSingleton<LabOrchestra.Server.Widgets.WidgetService>();
@@ -104,6 +105,11 @@ app.Use(async (context, next) =>
 	await next();
 });
 app.Services.GetRequiredService<RecordingService>().RepairInterrupted();
+{
+	var serverEvents = app.Services.GetRequiredService<LabOrchestra.Server.Events.ServerEvents>();
+	app.Services.GetRequiredService<RecordingService>().Events = serverEvents;
+	app.Services.GetRequiredService<DeviceRegistry>().OnError = (id, error) => serverEvents.Publish("device.error", new() { ["device"] = id, ["error"] = error });
+}
 workspace.Watch(app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("LabOrchestra.Workspace"));
 var controlHub = app.Services.GetRequiredService<IHubContext<ControlHub>>();
 var views = app.Services.GetRequiredService<ViewStore>();

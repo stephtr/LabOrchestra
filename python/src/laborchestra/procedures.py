@@ -37,9 +37,14 @@ from .errors import LabOrchestraError, SchemaError
 from .lab import AsyncDevice, AsyncLab
 
 # --- declaring a procedure ----------------------------------------------------------------------------------------------
-def procedure(fn: Callable | None = None, *, devices: Iterable[str] = (), title: str | None = None):
+#: The events a procedure can be started by (``on=``). The server publishes them; the event itself is passed as the parameter ``event`` if the procedure has one.
+EVENTS = ("recording.finished", "recording.discarded", "snapshot.saved", "device.error")
+
+
+def procedure(fn: Callable | None = None, *, devices: Iterable[str] = (), title: str | None = None, on: str | Iterable[str] = ()):
     """Marks an ``async def`` as a procedure. The first parameter receives the ``lab`` (see :class:`Run`), the others are the parameters
-    of the run: type hints make the form, defaults make them optional. ``devices`` lists every device the procedure uses."""
+    of the run: type hints make the form, defaults make them optional. ``devices`` lists every device the procedure uses. ``on`` starts the procedure by itself
+    when such an event happens (``"recording.finished"``, ...): a parameter named ``event`` (``event: dict | None = None``) receives what the server says about it."""
 
     def mark(f: Callable) -> Callable:
         if not inspect.iscoroutinefunction(f):
@@ -56,7 +61,11 @@ def procedure(fn: Callable | None = None, *, devices: Iterable[str] = (), title:
         for d in used:
             if not isinstance(d, str) or not d or not d.replace("_", "").isalnum() or d != d.lower():
                 raise SchemaError(f"The procedure {f.__name__}: '{d}' is not a device id (snake_case)")
-        f.__lab_procedure__ = {"devices": used, "title": title}
+        triggers = [on] if isinstance(on, str) else list(on)
+        for t in triggers:
+            if t not in EVENTS:
+                raise SchemaError(f"The procedure {f.__name__}: '{t}' is not an event (events: {', '.join(EVENTS)})")
+        f.__lab_procedure__ = {"devices": used, "title": title, "on": triggers}
         return f
 
     return mark(fn) if fn is not None else mark
@@ -140,7 +149,7 @@ def describe(fn: Callable) -> dict:
                 "doc": param_docs.get(p.name),
             }
         )
-    return {"name": fn.__name__, "title": meta["title"] or fn.__name__.replace("_", " ").capitalize(), "doc": doc, "devices": meta["devices"], "params": params}
+    return {"name": fn.__name__, "title": meta["title"] or fn.__name__.replace("_", " ").capitalize(), "doc": doc, "devices": meta["devices"], "on": meta.get("on", []), "params": params}
 
 
 def coerce_params(fn: Callable, given: dict) -> dict:

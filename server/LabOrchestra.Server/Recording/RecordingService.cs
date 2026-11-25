@@ -112,6 +112,9 @@ public sealed partial class RecordingService(string directory, DeviceRegistry re
 	/// <summary>Who may describe a recording's run in its header (the procedure, its source and parameters): set by the procedure service.</summary>
 	public Func<string, Dictionary<string, object?>?>? RunInfo { get; set; }
 
+	/// <summary>Where "recording.finished", "recording.discarded" and "snapshot.saved" are announced (after the files are closed).</summary>
+	public ServerEvents? Events { get; set; }
+
 	/// <summary>Stops the recording if <paramref name="by"/> started it (a procedure that ended or died must not leave one open); the header says why.</summary>
 	public bool StopOwnedBy(string by, string reason)
 	{
@@ -155,6 +158,11 @@ public sealed partial class RecordingService(string directory, DeviceRegistry re
 			log.LogInformation("Recording '{Name}' finished ({Count} events){Reason}", active.Name, active.Count, endReason is null ? "" : ": " + endReason);
 		}
 		Notify();
+		Events?.Publish(discard ? "recording.discarded" : "recording.finished", new()
+		{
+			["name"] = active.Name, ["path"] = active.Base, ["header"] = active.Base + ".yaml", ["tags"] = active.Tags, ["started_by"] = active.By,
+			["events"] = active.Count, ["end_reason"] = endReason,
+		});
 		return new() { ["name"] = active.Name, ["events"] = active.Count, ["discarded"] = discard };
 	}
 
@@ -182,6 +190,7 @@ public sealed partial class RecordingService(string directory, DeviceRegistry re
 			WriteYaml(file, header);
 		}
 		log.LogInformation("Snapshot '{Name}' saved", name);
+		Events?.Publish("snapshot.saved", new() { ["name"] = name, ["header"] = Path.Combine(directory, name + ".yaml"), ["tags"] = tags ?? new(), ["taken_by"] = by });
 		return new() { ["name"] = name };
 	}
 

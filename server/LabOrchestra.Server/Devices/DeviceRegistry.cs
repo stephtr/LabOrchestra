@@ -51,7 +51,17 @@ public sealed class DeviceRegistry(IHubContext<ControlHub> control, EventBus bus
 
 	private const int DegradedAfter = 3;
 
-	public void SetStatus(string id, string status, string? error = null) =>
+	/// <summary>Told when a device goes into the status "error" (not when it stays there): the server's event "device.error".</summary>
+	public Action<string, string?>? OnError { get; set; }
+
+	public void SetStatus(string id, string status, string? error = null)
+	{
+		var before = Get(id)?.Status;
+		SetStatusCore(id, status, error);
+		if (status == "error" && before != "error") OnError?.Invoke(id, error);
+	}
+
+	private void SetStatusCore(string id, string status, string? error) =>
 		Mutate(id, false, e =>
 		{
 			e.Status = status; e.Error = error; e.ActionFailures = 0; e.DegradedBy = null;

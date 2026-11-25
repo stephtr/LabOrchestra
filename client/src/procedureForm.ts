@@ -1,6 +1,6 @@
 /** The form of a procedure: what its parameters offer (the server's description), what the user typed, and the parameters of the run. Pure, tested. */
 export type ProcedureParam = { name: string; type: 'bool' | 'int' | 'float' | 'str' | 'list' | 'json'; items?: string; default: unknown; required: boolean; doc: string | null };
-export type Procedure = { name: string; title: string; doc: string | null; devices: string[]; params: ProcedureParam[]; file: string };
+export type Procedure = { name: string; title: string; doc: string | null; devices: string[]; /** events that start it by itself */ on?: string[]; params: ProcedureParam[]; file: string };
 /** A file of procedures/ that could not be loaded is listed with its error instead. */
 export type ProcedureListing = Procedure | { file: string; error: string; name?: undefined };
 export type FormValues = Record<string, string | boolean>;

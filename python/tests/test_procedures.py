@@ -92,6 +92,25 @@ async def pausing(lab):
     "_helper.py": "x = 1\n",
 }
 
+TRIGGERS = HEAD + '''
+@procedure(devices=["knob"], on="recording.finished")
+async def after_recording(lab, event: dict | None = None):
+    """Runs after a recording."""
+    text = open(event["header"]).read()  # the files are closed: the header is complete
+    ended = "end_time" in text
+    await lab.knob.set_value(float(len(event["name"])) if ended else -99.0)
+
+
+@procedure(devices=["other"], on=["snapshot.saved", "recording.discarded"])
+async def after_snapshot(lab, event: dict | None = None):
+    await lab.other.set_value(float(len(event["name"])))
+
+
+@procedure(devices=[], on="recording.finished")
+async def always_fails(lab):
+    raise RuntimeError("the trigger is broken")
+'''
+
 
 @pytest.fixture(scope="module")
 def server(tmp_path_factory):
@@ -244,3 +263,30 @@ def test_a_pause_stops_the_run_at_its_next_pause_point_and_a_resume_goes_on(lab)
 def test_a_run_that_was_going_when_the_server_ended_is_marked_crashed(lab):
     leftover = lab.get_run("leftover0001")
     assert leftover["status"] == "crashed" and leftover["ended"] and "server ended" in leftover["reason"]
+
+
+def test_events_start_procedures_after_the_files_are_closed_and_a_failing_one_does_not_touch_the_recording(server, lab):
+    (server[1] / "procedures" / "triggers.py").write_text(TRIGGERS)  # only here: they react to every recording
+    try:
+        _events_test(server, lab)
+    finally:
+        (server[1] / "procedures" / "triggers.py").unlink()
+
+
+def _events_test(server, lab):
+    wait_for(lambda: any(p.get("name") == "after_recording" for p in lab.list_procedures()), 30)
+    listed = {p["name"]: p for p in lab.list_procedures() if "name" in p}
+    assert listed["after_recording"]["on"] == ["recording.finished"] and listed["after_snapshot"]["on"] == ["snapshot.saved", "recording.discarded"]
+    lab.start_recording("trig_rec")
+    result = lab.stop_recording()  # returns at once, the failing trigger cannot change that
+    assert result["discarded"] is False
+    wait_for(lambda: lab.knob.state["value"] == 8.0, 60)  # len("trig_rec"): it saw a finished header
+    runs = {r["procedure"]: r for r in lab.list_runs() if r["procedure"] in ("after_recording", "always_fails")}
+    assert runs["after_recording"]["caller"] == "event:recording.finished"
+    wait_for(lambda: lab.get_run(runs["always_fails"]["id"])["status"] == "failed", 60)
+    assert recording_header(server, "trig_rec").get("end_time") is not None
+    lab.snapshot("snap_one")
+    wait_for(lambda: lab.other.state["value"] == 8.0, 60)  # len("snap_one")
+    lab.start_recording("dropped")
+    lab.abort_recording(discard=True)
+    wait_for(lambda: lab.other.state["value"] == 7.0, 60)  # len("dropped")

@@ -211,6 +211,7 @@ export function ProceduresPage() {
 											{p.doc && <p className="truncate text-sm text-muted">{p.doc.split('\n')[0]}</p>}
 											<div className="mt-1 flex flex-wrap gap-1.5 text-xs text-faint">
 												{p.devices.map((d) => <span key={d} className={`rounded bg-raised px-1.5 py-0.5 font-mono ${reserved.has(d) ? 'text-warn' : ''}`} title={reserved.has(d) ? 'Reserved by a run that is still going' : 'Used by this procedure'}>{d}</span>)}
+												{(p.on ?? []).map((e) => <span key={e} className="rounded bg-accent/10 px-1.5 py-0.5 font-mono text-accent" title="Starts by itself when this happens">on {e}</span>)}
 												{p.params.length > 0 && <span>{p.params.length} parameter{p.params.length > 1 ? 's' : ''}</span>}
 											</div>
 										</div>

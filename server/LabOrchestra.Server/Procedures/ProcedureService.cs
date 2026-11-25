@@ -56,7 +56,7 @@ public sealed class Run
 /// procedure that declared them runs, closes a recording that its run leaves open (also when the run dies), and remembers every run.</summary>
 public sealed class ProcedureService(
 	Workspace workspace, EnvironmentManager environments, DeviceCatalog catalog, TokenService tokens, RecordingService recordings, DeviceRegistry registry,
-	LogStore logs, WorkerGuard guard, ServerInfo info, IConfiguration config, IHubContext<ControlHub> hub, string dataDir, ILogger<ProcedureService> log) : IHostedService, IDisposable
+	LogStore logs, WorkerGuard guard, ServerInfo info, IConfiguration config, LabOrchestra.Server.Events.ServerEvents events, IHubContext<ControlHub> hub, string dataDir, ILogger<ProcedureService> log) : IHostedService, IDisposable
 {
 	private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 	private readonly object _gate = new();
@@ -71,6 +71,7 @@ public sealed class ProcedureService(
 	// --- lifecycle -----------------------------------------------------------------------------------------------------
 	public Task StartAsync(CancellationToken cancel)
 	{
+		events.Subscribe(StartTriggeredAsync);
 		Directory.CreateDirectory(dataDir);
 		using (var db = Open())
 		{
@@ -142,6 +143,24 @@ public sealed class ProcedureService(
 			foreach (var p in found.Procedures) result.Add(new Dictionary<string, object?>(p) { ["file"] = relative });
 		}
 		return result;
+	}
+
+	/// <summary>An event of the server starts every procedure that asked for it (<c>@procedure(on="recording.finished")</c>). It runs in its own process after the
+	/// code that published the event has gone on, so a recording is never held up or failed by it. A procedure that cannot start (a device it needs is
+	/// reserved, say) is logged; the event is not kept for later.</summary>
+	private async Task StartTriggeredAsync(string name, Dictionary<string, object?> data)
+	{
+		foreach (var procedure in await ListAsync(CancellationToken.None))
+		{
+			if (!procedure.TryGetValue("on", out var on) || on is not List<object?> list || !list.Contains(name)) continue;
+			var procedureName = (string)procedure["name"]!;
+			var takesEvent = procedure["params"] is List<object?> parameters && parameters.OfType<Dictionary<string, object?>>().Any(p => (string?)p["name"] == "event");
+			try { await StartAsync(procedureName, takesEvent ? new() { ["event"] = data } : new(), $"event:{name}", CancellationToken.None); }
+			catch (Exception e) when (e is ArgumentException or ReservationException)
+			{
+				log.LogWarning("The procedure {Procedure} could not be started by {Event}: {Message}", procedureName, name, e.Message);
+			}
+		}
 	}
 
 	// --- runs ------------------------------------------------------------------------------------------------------------
