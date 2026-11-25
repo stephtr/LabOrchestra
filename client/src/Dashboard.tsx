@@ -224,6 +224,12 @@ function layoutOf(node: Extract<Node, { kind: 'split' }>): Record<string, number
 	return Object.fromEntries(node.children.map((c, i) => [c.id, node.sizes[i] ?? 100 / node.children.length]));
 }
 
+/** What an area needs, measured from its widgets (pixels): its content height at the current width, one row (the tallest widget), the widest
+ *  single widget, and all widgets in one row. A split keeps the area between these, so it is never cut below a widget nor larger than its content. */
+type Extent = { height: number; minHeight: number; minWidth: number; maxWidth: number };
+const AREA_PAD = 12; // p-1.5 on both sides
+const AREA_GAP = 6; // gap-1.5
+
 function SplitView({ node }: { node: Extract<Node, { kind: 'split' }> }) {
 	const ctx = useContext(DashboardContext);
 	const group = useGroupRef();
@@ -231,11 +237,11 @@ function SplitView({ node }: { node: Extract<Node, { kind: 'split' }> }) {
 	const reported = useRef<string>('');
 	/** The layout that was set to fit the areas to their content (not by the user), to tell the two apart when the group reports a change. */
 	const expected = useRef<Record<string, number> | null>(null);
-	const [natural, setNatural] = useState<Record<string, number>>({});
+	const [extent, setExtent] = useState<Record<string, Extent>>({});
 	const [height, setHeight] = useState(0);
 	// areas of a column fit their content (until the user drags their size): their share is what their content needs
 	const fitIds = node.dir === 'column' ? node.children.filter((c) => c.kind === 'area' && !c.fixed).map((c) => c.id) : [];
-	const fitKey = fitIds.map((id) => `${id}:${natural[id] ?? '?'}`).join();
+	const fitKey = fitIds.map((id) => `${id}:${extent[id]?.height ?? '?'}`).join();
 	useEffect(() => {
 		const element = wrapper.current;
 		if (!element || fitIds.length === 0) return;
@@ -249,9 +255,9 @@ function SplitView({ node }: { node: Extract<Node, { kind: 'split' }> }) {
 			expected.current = null;
 			return;
 		}
-		if (height <= 0 || fitIds.some((id) => natural[id] === undefined)) return;
+		if (height <= 0 || fitIds.some((id) => extent[id] === undefined)) return;
 		const share: Record<string, number> = {};
-		for (const id of fitIds) share[id] = Math.min(60, Math.max(4, ((natural[id]! + 2) / height) * 100));
+		for (const id of fitIds) share[id] = Math.min(60, Math.max(1, ((extent[id]!.height + 1) / height) * 100));
 		const left = 100 - Object.values(share).reduce((a, b) => a + b, 0);
 		const others = node.children.filter((c) => !fitIds.includes(c.id));
 		const weight = others.reduce((sum, c) => sum + (node.sizes[node.children.indexOf(c)] ?? 1), 0) || 1;
@@ -294,8 +300,8 @@ function SplitView({ node }: { node: Extract<Node, { kind: 'split' }> }) {
 			>
 				{node.children.flatMap((child, i) => [
 					...(i > 0 ? [<Gutter key={`g${child.id}`} direction={node.dir} />] : []),
-					<Panel key={child.id} id={child.id} minSize={child.kind === 'area' ? '4' : '8'}>
-						<NodeView node={child} onNatural={(id, px) => setNatural((n) => (n[id] === px ? n : { ...n, [id]: px }))} />
+					<Panel key={child.id} id={child.id} {...panelLimits(child, node.dir, extent[child.id])}>
+						<NodeView node={child} onMeasure={(id, e) => setExtent((all) => (JSON.stringify(all[id]) === JSON.stringify(e) ? all : { ...all, [id]: e }))} />
 					</Panel>,
 				])}
 			</Group>
@@ -303,22 +309,44 @@ function SplitView({ node }: { node: Extract<Node, { kind: 'split' }> }) {
 	);
 }
 
-function NodeView({ node, onNatural }: { node: Node; onNatural?: (id: string, px: number) => void }) {
-	return node.kind === 'main' ? <Pane instance={node.widget} /> : node.kind === 'area' ? <AreaView node={node} onNatural={onNatural} /> : <SplitView node={node} />;
+/** Limits of a panel in pixels (numbers) or percent (strings): a pane at least 8 %; an area between one row and its content (in a column),
+ *  or between its widest widget and all widgets side by side (in a row). */
+function panelLimits(child: Node, dir: 'row' | 'column', e: Extent | undefined): { minSize: number | string; maxSize?: number } {
+	if (child.kind !== 'area') return { minSize: '8' };
+	if (!e) return { minSize: '4' };
+	return dir === 'column' ? { minSize: e.minHeight, maxSize: Math.max(e.minHeight, e.height) } : { minSize: e.minWidth, maxSize: Math.max(e.minWidth, e.maxWidth) };
+}
+
+function NodeView({ node, onMeasure }: { node: Node; onMeasure?: (id: string, e: Extent) => void }) {
+	return node.kind === 'main' ? <Pane instance={node.widget} /> : node.kind === 'area' ? <AreaView node={node} onMeasure={onMeasure} /> : <SplitView node={node} />;
 }
 
 /** Compact widgets that wrap like text: each keeps its height (S or M); those with a width (a trace) grow a little to fill their row. */
-function AreaView({ node, onNatural }: { node: Extract<Node, { kind: 'area' }>; onNatural?: (id: string, px: number) => void }) {
+function AreaView({ node, onMeasure }: { node: Extract<Node, { kind: 'area' }>; onMeasure?: (id: string, e: Extent) => void }) {
 	const ctx = useContext(DashboardContext);
 	const inner = useRef<HTMLDivElement>(null);
+	const widgetKey = node.widgets.map((w) => w.id).join();
 	useEffect(() => {
 		const element = inner.current;
-		if (!element || !onNatural) return;
-		const observer = new ResizeObserver(() => onNatural(node.id, element.offsetHeight));
+		if (!element || !onMeasure) return;
+		const measure = () => {
+			const items = [...element.children].filter((c): c is HTMLElement => c instanceof HTMLElement && c.dataset.areaItem !== undefined);
+			// a widget with a width may shrink to 0.85 of it and is laid out from its width; the others are as wide as their content
+			const least = (el: HTMLElement) => (el.dataset.width ? Math.ceil(Number(el.dataset.width) * 0.85) : el.offsetWidth);
+			const basis = (el: HTMLElement) => (el.dataset.width ? Number(el.dataset.width) : el.offsetWidth);
+			onMeasure(node.id, {
+				height: element.offsetHeight + 1, // + the border line
+				minHeight: Math.max(0, ...items.map((el) => el.offsetHeight)) + AREA_PAD + 1,
+				minWidth: Math.max(0, ...items.map(least)) + AREA_PAD,
+				maxWidth: items.reduce((sum, el) => sum + basis(el), 0) + AREA_GAP * Math.max(0, items.length - 1) + AREA_PAD,
+			});
+		};
+		const observer = new ResizeObserver(measure);
 		observer.observe(element);
-		onNatural(node.id, element.offsetHeight);
+		for (const child of element.children) observer.observe(child); // a tile whose text gets longer
+		measure();
 		return () => observer.disconnect();
-	}, [node.id]); // eslint-disable-line react-hooks/exhaustive-deps
+	}, [node.id, widgetKey]); // eslint-disable-line react-hooks/exhaustive-deps
 	const fits = !ctx.dragging || isCompact(ctx.dragging);
 	const dropAt = ctx.drop && 'area' in ctx.drop && ctx.drop.area === node.id ? ctx.drop.index : null;
 	const widgets = node.widgets;
@@ -372,6 +400,8 @@ function AreaView({ node, onNatural }: { node: Extract<Node, { kind: 'area' }>; 
 						<div
 							key={w.id}
 							data-testid={`area-${w.id}`}
+							data-area-item=""
+							data-width={width}
 							data-dropzone
 							style={{ height, ...(width ? { flex: `1 1 ${width}px`, minWidth: width * 0.85, maxWidth: width * 1.5 } : {}) }}
 							className={`group relative min-w-28 ${width ? '' : 'flex-none'} ${ctx.editing ? 'cursor-grab active:cursor-grabbing' : ''} ${dropAt === i ? 'before:absolute before:inset-y-0 before:-left-1 before:w-0.5 before:rounded before:bg-accent' : ''}`}

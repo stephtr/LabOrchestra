@@ -483,6 +483,37 @@ try {
 	assert.equal(await page.getByRole('separator').count(), 2);
 	ok('the layout survives a reload');
 
+	// an area cannot be dragged larger than its content, nor smaller than one row of its widgets
+	const areaBox = async () => page.getByTestId('area').first().evaluate((el) => {
+		const items = [...el.querySelectorAll('[data-area-item]')];
+		return { height: el.getBoundingClientRect().height, top: el.getBoundingClientRect().top, content: el.querySelector(':scope > .flex-wrap').getBoundingClientRect().height + 1, row: Math.max(...items.map((i) => i.getBoundingClientRect().height)) };
+	});
+	const separatorAbove = async (y) => {
+		for (const handle of await page.getByRole('separator').all()) {
+			const b = await handle.boundingBox();
+			if (b && Math.abs(b.y + b.height - y) < 3 && b.width > b.height) return b;
+		}
+		throw new Error('no gutter above the area');
+	};
+	let a = await areaBox();
+	let g = await separatorAbove(a.top);
+	await page.mouse.move(g.x + g.width / 2, g.y + g.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(g.x + g.width / 2, g.y - 300, { steps: 10 }); // up: the area would get taller
+	await page.mouse.up();
+	await page.waitForTimeout(300);
+	a = await areaBox();
+	assert.ok(a.height <= a.content + 3, `the area is not taller than its content: ${JSON.stringify(a)}`);
+	g = await separatorAbove(a.top);
+	await page.mouse.move(g.x + g.width / 2, g.y + g.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(g.x + g.width / 2, g.y + 400, { steps: 10 }); // down: the area would get flatter than its widgets
+	await page.mouse.up();
+	await page.waitForTimeout(300);
+	a = await areaBox();
+	assert.ok(a.height >= a.row + 12, `the area keeps one row of its widgets: ${JSON.stringify(a)}`);
+	ok('an area is never larger than its content nor smaller than its widgets');
+
 	// compact widgets: a pressure readout (labelled), the recording bar
 	await page.getByTestId('edit-toggle').click();
 	await addWidget('pressure', 'pressure', 0);
