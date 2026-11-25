@@ -54,6 +54,9 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<EventLog>());
 builder.Services.AddSingleton<StreamManager>();
 builder.Services.AddSingleton<LabOrchestra.Server.Events.ServerEvents>();
 builder.Services.AddSingleton<DeviceRegistry>();
+builder.Services.AddSingleton(sp => new LabOrchestra.Server.Mcp.McpSettings(dataDir));
+builder.Services.AddSingleton<LabOrchestra.Server.Mcp.McpServer>();
+builder.Services.AddSingleton<LabOrchestra.Server.Devices.ActionInvoker>();
 builder.Services.AddSingleton(sp => new LabOrchestra.Server.Drivers.DriverCatalog(
 	[Path.Combine(AppContext.BaseDirectory, "plugins"), Path.Combine(workspace.Path, "plugins")], sp.GetRequiredService<ILogger<LabOrchestra.Server.Drivers.DriverCatalog>>()));
 var recordingsDir = Path.GetFullPath(config["recordings_dir"] ?? Path.Combine(dataDir, "recordings"));
@@ -119,6 +122,7 @@ logStore.Added += entry => _ = controlHub.Clients.Group("logs:" + entry["source"
 app.MapGet("/api/protocol", () => new { protocol = Protocol.Current, supported = Protocol.Supported.Where(p => p >= 1) });
 app.UseAuthentication();
 app.UseAuthorization();
+LabOrchestra.Server.Mcp.McpServer.Map(app);
 app.MapHub<DeviceHub>("/hub/devices");
 app.MapHub<ControlHub>("/hub/control");
 app.MapHub<StreamHub>("/hub/streaming");

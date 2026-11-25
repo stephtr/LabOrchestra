@@ -16,6 +16,8 @@ export type DeviceEntry = {
 	package?: string | null;
 	entry?: string | null;
 };
+export type McpInfo = { mode: 'off' | 'read_only' | 'control'; modes: string[]; url: string; local: boolean; tokens: { id: string; label: string; mode: string | null; created: number }[] };
+export type McpToken = { token: string; id: string; label: string; mode: string; url: string };
 export type TokenInfo = { id: string; kind: string; device: string | null; label: string; created: number };
 export type CreatedToken = { token: string; id: string; device: string; label: string };
 
@@ -70,6 +72,10 @@ export const api = {
 	removeDevice: (id: string) => invokeHub('remove_device', id),
 	restartDevice: (id: string) => invokeHub('restart_device', id),
 	createToken: (device: string, label: string) => invokeHub<CreatedToken>('create_token', device, label),
+	getMcp: () => invokeHub<McpInfo>('get_mcp'),
+	setMcpMode: (mode: string) => invokeHub('set_mcp_mode', mode),
+	createMcpToken: (label: string, mode: string) => invokeHub<McpToken>('create_mcp_token', label, mode),
+	installMcp: (client: string, mode: string) => invokeHub<{ output: string; mode: string }>('install_mcp', client, mode),
 	listTokens: () => invokeHub<TokenInfo[]>('list_tokens'),
 	revokeToken: (id: string) => invokeHub('revoke_token', id),
 	listSecrets: () => invokeHub<string[]>('list_secrets'),

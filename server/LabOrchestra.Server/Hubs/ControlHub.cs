@@ -58,7 +58,8 @@ public sealed class ControlHub(
 	Procedures.ProcedureService procedures,
 	TokenStore tokenStore,
 	Supervision.EnvironmentManager environments,
-	IHubContext<DeviceHub> devices) : Hub
+	ActionInvoker invoker,
+	Mcp.McpSettings mcpSettings) : Hub
 {
 	public override Task OnConnectedAsync()
 	{
@@ -424,6 +425,75 @@ public sealed class ControlHub(
 		if (!tokenStore.Revoke(id)) throw new HubException(Errors.Json("LookupError", $"There is no token '{id}'"));
 	}
 
+	// --- AI access (MCP) -------------------------------------------------------------------------------------------------
+	/// <summary>The base address under which the caller reached the server ("https://lab-pc:5095"), for the address that an AI client is given.</summary>
+	private string BaseUrl() => Context.GetHttpContext() is { } http ? $"{http.Request.Scheme}://{http.Request.Host}" : "";
+
+	private bool IsLocalCaller() => !(Context.GetHttpContext()?.Connection.RemoteIpAddress is { } ip && !System.Net.IPAddress.IsLoopback(ip));
+
+	/// <summary>The state of AI access: the global mode, the tokens, the address, and whether this caller is on the server's own computer (then
+	/// the server can set up an AI client there).</summary>
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("get_mcp")]
+	public Dictionary<string, object?> GetMcp() => new()
+	{
+		["mode"] = mcpSettings.Mode,
+		["modes"] = Mcp.McpSettings.Modes,
+		["url"] = BaseUrl(),
+		["local"] = IsLocalCaller(),
+		["tokens"] = tokenStore.List().Where(t => t.Kind == "mcp").Select(t => new Dictionary<string, object?> { ["id"] = t.Id, ["label"] = t.Label, ["mode"] = t.Mode, ["created"] = t.Created.ToUnixTimeSeconds() }).ToList(),
+	};
+
+	/// <summary>Off, read-only or control for every AI client (a token may be more limited, never more permissive).</summary>
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("set_mcp_mode")]
+	public void SetMcpMode(string mode)
+	{
+		try { mcpSettings.Set(mode); }
+		catch (ArgumentException e) { throw new HubException(Errors.Json("ValueError", e.Message)); }
+	}
+
+	/// <summary>A token for an AI client; shown here once. mode: read_only or control.</summary>
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("create_mcp_token")]
+	public Dictionary<string, object?> CreateMcpToken(string label, string mode)
+	{
+		if (mode is not ("read_only" or "control")) throw new HubException(Errors.Json("ValueError", "The mode of a token must be read_only or control"));
+		var (token, record) = tokenStore.Create("mcp", null, string.IsNullOrWhiteSpace(label) ? "AI client" : label.Trim(), mode);
+		return new() { ["token"] = token, ["id"] = record.Id, ["label"] = record.Label, ["mode"] = mode, ["url"] = BaseUrl() };
+	}
+
+	/// <summary>Sets up an AI client on the server's own computer (client: claude-code or claude-desktop): makes a token and runs the installer of the
+	/// laborchestra package there. Only for a caller on that computer. When AI access is off it is switched to <paramref name="mode"/>.</summary>
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("install_mcp")]
+	public async Task<Dictionary<string, object?>> InstallMcp(string client, string mode)
+	{
+		if (!IsLocalCaller()) throw new HubException(Errors.Json("ValueError", "This sets up an AI client on the computer that the server runs on: open LabOrchestra there, or use the command for another computer"));
+		if (client is not ("claude-code" or "claude-desktop")) throw new HubException(Errors.Json("ValueError", "client must be claude-code or claude-desktop"));
+		if (mode is not ("read_only" or "control")) throw new HubException(Errors.Json("ValueError", "mode must be read_only or control"));
+		var python = await environments.GetBridgePythonAsync(Context.ConnectionAborted);
+		var name = client == "claude-code" ? "Claude Code on the server computer" : "Claude Desktop on the server computer";
+		foreach (var old in tokenStore.List().Where(t => t.Kind == "mcp" && t.Label == name)) tokenStore.Revoke(old.Id); // installing again replaces the token
+		var (token, _) = tokenStore.Create("mcp", null, name, mode);
+		var url = BaseUrl().Replace("localhost", "127.0.0.1");
+		var info = new System.Diagnostics.ProcessStartInfo(python) { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
+		foreach (var a in new[] { "-m", "laborchestra.cli", "mcp", "install", "--client", client, "--url", url, "--bridge", "python" }) info.ArgumentList.Add(a);
+		info.Environment["LABORCHESTRA_MCP_TOKEN"] = token; // not on the command line, where other programs could read it
+		using var process = System.Diagnostics.Process.Start(info)!;
+		var output = process.StandardOutput.ReadToEndAsync();
+		var errors = process.StandardError.ReadToEndAsync();
+		await process.WaitForExitAsync(Context.ConnectionAborted);
+		var text = ((await output).Trim() + "\n" + (await errors).Trim()).Trim();
+		if (process.ExitCode != 0)
+		{
+			tokenStore.List().Where(t => t.Kind == "mcp" && t.Label == name).ToList().ForEach(t => tokenStore.Revoke(t.Id)); // nothing was set up: no token left over
+			throw new HubException(Errors.Json("InstallError", text));
+		}
+		if (mcpSettings.Mode == "off") mcpSettings.Set(mode);
+		return new() { ["output"] = text, ["mode"] = mcpSettings.Mode };
+	}
+
 	/// <summary>What happened to devices, oldest first: actions with their caller and status changes. Persistent, also outside recordings.</summary>
 	[HubMethodName("get_events")]
 	public List<Dictionary<string, object?>> GetEvents(string? device, string? kind, double since, double until, int limit) =>
@@ -467,46 +537,5 @@ public sealed class ControlHub(
 	public Task UnsubscribeLogs(string source) => Groups.RemoveFromGroupAsync(Context.ConnectionId, "logs:" + source);
 
 	[HubMethodName("action")]
-	public async Task<object?> Action(string device, string name, object?[] args)
-	{
-		try
-		{
-			var result = await Invoke(device, name, args);
-			registry.ActionFinished(device, null, null);
-			return result;
-		}
-		catch (HubException e)
-		{
-			var (type, message) = Errors.Parse(e.Message);
-			registry.ActionFinished(device, type, message);
-			throw;
-		}
-	}
-
-	private async Task<object?> Invoke(string device, string name, object?[] args)
-	{
-		var entry = registry.Get(device) ?? throw new HubException(Errors.Json("LookupError", $"Device '{device}' does not exist"));
-		if (entry.ConnectionId is null || !DeviceRegistry.IsUp(entry.Status))
-			throw new HubException(Errors.Json("DeviceNotReady", $"Device '{device}' is not ready (status: {entry.Status})"));
-		var caller = Caller();
-		if (caller.StartsWith("run:")) procedures.CheckAccess(caller[4..], device); // a procedure uses the devices it declared
-		bus.Publish(device, "action", caller, new() { ["action"] = name, ["args"] = Plain.From(args) });
-		if (entry.LocalCall is { } local && entry.ConnectionId.StartsWith(Drivers.InProcessDevice.ConnectionPrefix))
-		{
-			try { return await local(name, args, caller, Context.ConnectionAborted); }
-			catch (Drivers.DeviceActionException e) { throw new HubException(Errors.Json(e.Type, e.Message, e.Traceback)); }
-		}
-		try
-		{
-			return await devices.Clients.Client(entry.ConnectionId).InvokeAsync<object?>("call", name, args, caller, Context.ConnectionAborted);
-		}
-		catch (HubException e) when (e.Message.TrimStart().StartsWith('{'))
-		{
-			throw; // structured error of the worker, passed on unchanged
-		}
-		catch (Exception e) when (e is not OperationCanceledException)
-		{
-			throw new HubException(Errors.Json("ConnectionLost", $"Device '{device}' did not answer: {e.Message}"));
-		}
-	}
+	public Task<object?> Action(string device, string name, object?[] args) => invoker.ActionAsync(device, name, args, Caller(), Context.ConnectionAborted);
 }

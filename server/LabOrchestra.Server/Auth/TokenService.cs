@@ -11,6 +11,8 @@ public static class Roles
 	public const string Device = "device";
 	/// <summary>A procedure that is running: a token bound to one run, for the lifetime of its process. It may do what a script may (call actions, record), within the devices the procedure declared, and nothing of the management.</summary>
 	public const string Run = "run";
+	/// <summary>An AI client over MCP: only the /mcp endpoint, with a token that was made for it (never the passphrase), within its mode (read_only or control).</summary>
+	public const string Mcp = "mcp";
 }
 
 /// <summary>
@@ -81,8 +83,13 @@ public sealed class TokenService
 			return Principal(Roles.Run, new Claim("run_id", runId));
 		if (_deviceTokens.TryGetValue(token, out var deviceId))
 			return Principal(Roles.Device, new Claim("device_id", deviceId));
-		if (token.StartsWith("lo_") && _store.Find(token) is { Kind: "worker", Device: { } remoteDevice })
-			return Principal(Roles.Device, new Claim("device_id", remoteDevice)); // a worker on another machine: may register this device only
+		if (token.StartsWith("lo_") && _store.Find(token) is { } stored)
+		{
+			if (stored is { Kind: "worker", Device: { } remoteDevice })
+				return Principal(Roles.Device, new Claim("device_id", remoteDevice)); // a worker on another machine: may register this device only
+			if (stored.Kind == "mcp")
+				return Principal(Roles.Mcp, new Claim("mcp_token", stored.Id), new Claim("mcp_label", stored.Label), new Claim("mcp_mode", stored.Mode ?? "read_only"));
+		}
 		return null;
 	}
 

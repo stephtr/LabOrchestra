@@ -15,6 +15,7 @@ dev = ["pytest>=8", "psutil", "numpy", "pyyaml", "uv"]
 
 [project.scripts]
 laborchestra-worker = "laborchestra.worker:main"
+laborchestra = "laborchestra.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/laborchestra"]

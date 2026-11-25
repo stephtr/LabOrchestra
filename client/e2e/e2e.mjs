@@ -46,6 +46,8 @@ function startServer() {
 			LABORCHESTRA_PASSPHRASE: PASSPHRASE,
 			LABORCHESTRA_DATA_DIR: path.join(dir, 'data'),
 			LABORCHESTRA_EDITOR: editor,
+			LABORCHESTRA_CLAUDE_DESKTOP_CONFIG: path.join(dir, 'claude_desktop_config.json'), // "Set up Claude Desktop" writes here, not into the real settings
+			LABORCHESTRA_CLAUDE: editor, // and a stand-in for the `claude` program
 			LABORCHESTRA_HISTORY_INTERVAL_S: '0.3', // the history widgets have something to show within a test
 		},
 		stdio: ['ignore', 'pipe', 'pipe'],
@@ -1073,6 +1075,36 @@ async def measure(lab, steps: int = 3, pause_s: float = 0.4, levels: list[float]
 	await page.getByTestId('remove-gauge_upload').click();
 	await page.getByTestId('row-gauge_upload').waitFor({ state: 'detached' });
 	ok('background services: own section, off the dashboards, a warning in the header when one fails');
+
+	// AI access: off by default; one click sets up an AI client on this computer; a command for another computer; the server holds the line
+	await page.getByTestId('nav-devices').click();
+	const mcpCall = async (token, method = 'tools/list') => fetch(`${url}/mcp`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method }) });
+	await page.getByTestId('ai-access').waitFor();
+	assert.equal(await page.getByTestId('ai-mode-off').getAttribute('aria-pressed'), 'true'); // nothing is open until it is switched on
+	await page.getByTestId('ai-install-claude-desktop').click();
+	await page.getByTestId('ai-installed').waitFor();
+	const desktopConfig = JSON.parse(fs.readFileSync(path.join(dir, 'claude_desktop_config.json'), 'utf8'));
+	const installedToken = desktopConfig.mcpServers.laborchestra.env.LABORCHESTRA_MCP_TOKEN;
+	assert.equal((await mcpCall(installedToken)).status, 200); // the token that was written works, and AI access was switched on
+	assert.equal(await page.getByTestId('ai-mode-read_only').getAttribute('aria-pressed'), 'true');
+	assert.equal((await mcpCall(PASSPHRASE)).status, 403); // the passphrase is not an AI token
+	await page.getByTestId('ai-mode-off').click();
+	for (let i = 0; i < 50 && (await mcpCall(installedToken)).status === 200; i++) await new Promise((r) => setTimeout(r, 100));
+	assert.equal((await mcpCall(installedToken)).status, 403); // switched off again: refused at once
+	await page.getByTestId('ai-token-label').fill('Anna’s notebook');
+	await page.getByTestId('ai-token-create').click();
+	await page.getByTestId('ai-created').waitFor();
+	const installer = await text('ai-cmd-installer');
+	assert.match(installer, /^uvx --from laborchestra laborchestra mcp install --url http:\/\/127\.0\.0\.1:\d+ --token lo_\S+ --bridge uvx$/);
+	assert.match(await text('ai-cmd-claude'), /claude mcp add --transport http --scope user laborchestra http:\/\/127\.0\.0\.1:\d+\/mcp --header "Authorization: Bearer lo_/);
+	assert.match(await page.getByTestId('ai-created').textContent(), /only works on this computer/); // the address must be changed for another computer
+	await page.getByTestId('ai-address').fill('https://lab-pc:5095');
+	assert.match(await text('ai-cmd-installer'), /--url https:\/\/lab-pc:5095 /);
+	const connection = (await page.locator('[data-testid^="ai-token-"]').evaluateAll((els) => els.map((e) => e.dataset.testid))).find((id) => /^ai-token-[0-9a-f]+$/.test(id));
+	page.once('dialog', (d) => d.accept());
+	await page.getByTestId(connection).getByLabel(/^Revoke/).first().click();
+	await page.getByTestId(connection).waitFor({ state: 'detached' });
+	ok('AI access: off by default, set up on this computer with one click, a command for another computer, revoke');
 	await page.getByTestId('nav-dashboard').click();
 
 	// a trace widget: the history of a state field, from the server's own history

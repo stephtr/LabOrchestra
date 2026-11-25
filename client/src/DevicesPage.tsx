@@ -4,6 +4,7 @@ import { DeviceDialog } from './DeviceDialog';
 import { OpenFileButtons } from './OpenFileButtons';
 import { NewDeviceDialog } from './NewDeviceDialog';
 import { EnvironmentsPanel } from './EnvironmentsPanel';
+import { AiAccessPanel } from './AiAccessPanel';
 import { RemoteWorkersPanel } from './RemoteWorkersPanel';
 import { SecretsPanel } from './SecretsPanel';
 import { Header } from './Header';
@@ -110,6 +111,7 @@ export function DevicesPage() {
 					>
 						{renderTable(serviceIds, "No services yet. “New service…” makes one from a template.")}
 					</Section>
+					<AiAccessPanel />
 					<RemoteWorkersPanel entries={entries} />
 					<EnvironmentsPanel />
 					<SecretsPanel />

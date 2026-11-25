@@ -142,7 +142,7 @@ Track B, oscilloscope:
 
 ## Phase 7: public 0.1
 
-- [ ] MCP server, `.mcp.json`, feedback tools, audit log
+- [x] MCP server at `/mcp` with tokens, modes, audit via the event log, stdio bridge and installers (Devices page and `laborchestra mcp install`); [ ] file tools, plots, `requires_confirmation`, docs
 - [ ] Scaffolding, templates, CLI, `check`, generated stubs
 - [ ] Docs: quick start, device, procedure, widget, deployment; AI docs from the same source
 - [ ] Packaging per platform, signing, PyPI release

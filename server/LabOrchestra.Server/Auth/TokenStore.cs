@@ -5,7 +5,8 @@ using System.Text.Json;
 namespace LabOrchestra.Server.Auth;
 
 /// <summary>A token that was created in the UI or by a script (for a worker on another machine). Only a hash of the token is stored.</summary>
-public sealed record StoredToken(string Id, string Kind, string? Device, string Label, string Hash, DateTimeOffset Created);
+/// <summary>`Mode` is for the kind "mcp": "read_only" or "control" (what the AI client may do at most).</summary>
+public sealed record StoredToken(string Id, string Kind, string? Device, string Label, string Hash, DateTimeOffset Created, string? Mode = null);
 
 /// <summary>The long-lived tokens (tokens.json in the data folder, readable by the account only). A token is shown once, when it is created;
 /// the file has its hash, so that a copy of the file does not give access.</summary>
@@ -26,10 +27,10 @@ public sealed class TokenStore
 	public static string Hash(string token) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 
 	/// <summary>Creates a token; returns it together with its record. The token itself is not kept.</summary>
-	public (string Token, StoredToken Record) Create(string kind, string? device, string label)
+	public (string Token, StoredToken Record) Create(string kind, string? device, string label, string? mode = null)
 	{
 		var token = "lo_" + TokenService.NewSecret();
-		var record = new StoredToken(Guid.NewGuid().ToString("N")[..12], kind, device, label, Hash(token), DateTimeOffset.UtcNow);
+		var record = new StoredToken(Guid.NewGuid().ToString("N")[..12], kind, device, label, Hash(token), DateTimeOffset.UtcNow, mode);
 		lock (_lock) { _tokens = [.. _tokens, record]; Save(); }
 		return (token, record);
 	}

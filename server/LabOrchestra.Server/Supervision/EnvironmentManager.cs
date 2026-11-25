@@ -66,6 +66,10 @@ public sealed partial class EnvironmentManager(IConfiguration config, string dat
 		return await BuildAsync(deviceId, requires, dependencies, explicitPython, cancel);
 	}
 
+	/// <summary>An interpreter that has the laborchestra package and nothing else: for the MCP bridge that Claude Desktop starts on this computer. The
+	/// environment stays where it is (under the data folder), so the path in Claude's configuration keeps working.</summary>
+	public Task<string> GetBridgePythonAsync(CancellationToken cancel) => BuildAsync("_mcp_bridge", null, [], config["python"], cancel);
+
 	/// <summary>The interpreter for a device that an installed package offers: an environment with the package (a pip requirement, or the
 	/// folder or wheel of one) and its dependencies. A folder is installed editable, so that changes to it are seen by the next start.</summary>
 	public Task<string> GetPackagePythonAsync(string deviceId, string package, string? explicitPython, CancellationToken cancel) =>
