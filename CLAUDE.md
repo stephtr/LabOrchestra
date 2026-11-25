@@ -135,7 +135,7 @@ Layered, so a Python-only device author gets a UI without touching JavaScript:
 - **Oscilloscope** (`server/Plugins/Oscilloscope`): `OscilloscopeBase<TOptions>` has everything that does not depend on the hardware: native-memory rings (`NativeRing`, one writer, one reader, an overrun makes the reader drop its backlog), window functions (as before), a radix-2 real FFT (`ManagedRealFft`, about 44 MS/s on one thread; **pffft through P/Invoke is used when built, `PffftRealFft`/`FftFactory`; the managed FFT is the fallback**; state `fft_engine` says which; the FFT input is native aligned memory and the ring writes windowed samples straight into it, `NativeRing.ReadWindowed`), the old averaging modes (`prefer-data`, `prefer-display`, duration), the `display` stream (spectrum or time trace, min/max envelope when decimated, per-client range), recording of the raw channels as `<device>_C<n>.npy` plus the final spectra, `GetFft`, and all the old controls as actions. A driver only implements `AcquireAsync(sink)` (and programs the hardware): `SimulatedOscilloscope` is one; the Picoscope drivers (`server/Plugins/Picoscope`: `picoscope_4000a`, `picoscope_5000a`, one `PicoscopeBase` over a thin `IPicoApi` adapter per series) are two more. They compile and report a missing PicoSDK/unit as a device error; **untested on hardware**. A channel change while running restarts the stream.
 - `.npy` files get their length when the writer finishes; the server repairs them from the file size after a crash (`NpyFile.RepairAny`), together with `events.json`.
 
-### Device conventions: profiles *(proposed)*
+### Device conventions: profiles *(Python side implemented: `laborchestra.profiles`, `docs/device-contract.md`)*
 - A **profile** (`PressureSensor`, `FrequencyGenerator`, `RotationStage`, `LinearStage`, `Polarimeter`, `Oscilloscope`) is a versioned contract: typed state, required actions, optional capabilities (the UI hides what a driver lacks). Drivers may add extra fields and actions. Consumers and widgets bind to profiles, not drivers.
 - Multi-channel devices need per-channel profiles: an Elliptec bus mixes rotation, linear and slider channels.
 - **Every API is written once, in code; JSON Schema is never hand-written.** The worker exports it from type hints at registration, for UI, MCP and validation. One-off devices need no profile: the class is the definition.
@@ -271,8 +271,8 @@ Layered, so a Python-only device author gets a UI without touching JavaScript:
 ## To do
 
 - [ ] Proper exception management and logging: server, client, device workers, procedures
-- [ ] Naming rule and unit metadata
-- [ ] Profiles with schema export from code
+- [x] Naming rule (snake_case checked at registration, C# converted) and unit metadata (Python profiles; units for C# devices with the C# profiles)
+- [x] Profiles with schema export from code (Python; C# `Oscilloscope` profile still to do)
 - [ ] Procedures, recording service, event triggers; port the detuning scan
 - [ ] MCP server
 - [ ] Updates, rollback, compatibility policy

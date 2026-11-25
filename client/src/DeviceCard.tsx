@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from './api';
-import { formatNumber } from './format';
+import { formatNumber, unitFor } from './format';
 import {
 	ActionSchema,
 	callAction,
@@ -55,7 +55,7 @@ export const STATUS_STYLE: Record<string, string> = {
 	stopped: 'bg-zinc-200 text-zinc-700 dark:bg-slate-800 dark:text-zinc-300',
 };
 
-function Value({ id, path, value }: { id: string; path: string; value: unknown }) {
+function Value({ id, path, value, units }: { id: string; path: string; value: unknown; units?: Record<string, string> }) {
 	if (value !== null && typeof value === 'object') {
 		const entries = Array.isArray(value) ? value.map((v, i) => [String(i), v] as const) : Object.entries(value);
 		return (
@@ -64,7 +64,7 @@ function Value({ id, path, value }: { id: string; path: string; value: unknown }
 					<div key={key} className="contents">
 						<dt className="text-zinc-500">{key}</dt>
 						<dd>
-							<Value id={id} path={path ? `${path}.${key}` : key} value={item} />
+							<Value id={id} path={path ? `${path}.${key}` : key} value={item} units={units} />
 						</dd>
 					</div>
 				))}
@@ -72,10 +72,14 @@ function Value({ id, path, value }: { id: string; path: string; value: unknown }
 		);
 	}
 	const text = typeof value === 'number' ? formatNumber(value) : typeof value === 'string' ? value || '""' : String(value);
+	const unit = typeof value === 'number' ? unitFor(units, path) : undefined;
 	return (
-		<span data-testid={`state-${id}-${path}`} className="font-mono tabular-nums">
-			{text}
-		</span>
+		<>
+			<span data-testid={`state-${id}-${path}`} className="font-mono tabular-nums">
+				{text}
+			</span>
+			{unit && <span className="ml-1 text-zinc-500" data-testid={`unit-${id}-${path}`}>{unit}</span>}
+		</>
 	);
 }
 
@@ -186,6 +190,11 @@ export function DeviceCard({ id, info }: { id: string; info: DeviceInfo }) {
 			<div className="mb-2 flex items-center gap-2">
 				<h2 className="font-mono text-lg">{id}</h2>
 				{info.schema && <span className="text-sm text-zinc-500">{info.schema.class}</span>}
+				{info.schema?.profiles?.map((p) => (
+					<span key={p.name} data-testid={`profile-${id}-${p.name}`} className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-600 dark:bg-slate-800 dark:text-zinc-300" title={`Conforms to the profile ${p.name}, version ${p.version}`}>
+						{p.name}
+					</span>
+				))}
 				<span className="flex-1" />
 				<span
 					data-testid={`status-${id}`}
@@ -212,7 +221,7 @@ export function DeviceCard({ id, info }: { id: string; info: DeviceInfo }) {
 			)}
 			{info.state && (
 				<div className={`mb-3 text-sm ${ready ? '' : 'opacity-50'}`}>
-					<Value id={id} path="" value={info.state} />
+					<Value id={id} path="" value={info.state} units={info.schema?.units} />
 				</div>
 			)}
 			<div className={`flex flex-col gap-2 ${ready ? '' : 'pointer-events-none opacity-50'}`}>

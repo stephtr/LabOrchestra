@@ -8,6 +8,7 @@ power in watts."""
 import random
 
 from laborchestra import Device
+from laborchestra.profiles import Polarimeter
 
 FLAGS = [  # first match wins, as in the manual
     (0x01, "motor speed too low"),
@@ -24,6 +25,8 @@ def status_of(flags: int) -> str:
 
 
 class ThorlabsPolarimeter(Device):
+    profiles = [Polarimeter]
+
     device: str = ""  # VISA resource, e.g. "USB0::0x1313::0x8031::M00503241::INSTR"; not needed when simulating
     wavelength_nm = 1550.0
     simulate = False  # no hardware: a polarization that hardly changes

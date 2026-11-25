@@ -99,7 +99,7 @@ Track A, Python devices:
 - [x] Elliptec, polarimeter and PolarizationLock ported to `drivers/` (simulated in CI, closed-loop test); the API changes they led to are in CLAUDE.md (flush before the result, `lock`, `wait_for`, `simulate`)
 - [x] Smaract (SmarAct MCS2; `stop` interrupts a move, found and fixed the one-call-at-a-time SignalR default) and Pfeiffer (streaming device) ported (Smaract CTL calls untested on hardware); RS SMA100B ported and the contract declared v1 (`docs/device-contract.md`). The lab's own locks (polarization, Smaract z) are not part of the public drivers
 - [x] Pfeiffer, RS SMA100B, Smaract
-- [ ] Profiles extracted from at least two devices each where possible (real + simulator), conformance tests
+- [x] Profiles in code (`laborchestra.profiles`): `PressureSensor` (Pfeiffer, demo gauge), `Polarimeter` (Thorlabs, physics test device), `Positioner` (Elliptec, Smaract; Elliptec linear stages now in micrometers), `FrequencyGenerator` (SMA100B); JSON derived from the classes, units shown in the card, conformance tests on every driver and on the running simulated devices. Open: a C# `Oscilloscope` profile, a second `FrequencyGenerator` driver
 
 Track B, oscilloscope:
 - [x] `OscilloscopeWithStreaming` split: `OscilloscopeBase` (rings, FFT, averaging, display, recording) + a driver that only acquires; simulated oscilloscope; 8 tests (tones where they belong, zoom, decimation, time trace, controls, FFT against a DFT, stop/start, continuous `.npy` channels, crash repair)

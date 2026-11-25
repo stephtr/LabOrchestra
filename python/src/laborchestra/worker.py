@@ -80,6 +80,19 @@ def load_class(target: str) -> type[Device]:
     return next(iter(found.values()))
 
 
+def _profile_schema(cls: type[Device]) -> dict:
+    """The profiles of a device and the units of its fields. A driver that does not fit a profile it names is refused, with what is wrong."""
+    from .profiles import check_driver, units
+
+    all_units: dict[str, str] = {}
+    for profile in cls.profiles:
+        if problems := check_driver(profile, cls):
+            raise SchemaError(f"{cls.__name__} says it is a {profile.name} (version {profile.version}), but " + "; ".join(problems))
+        all_units.update(units(profile))
+    all_units.update(cls.units)
+    return {"profiles": [{"name": p.name, "version": p.version} for p in cls.profiles], "units": all_units}
+
+
 def build_schema(device_id: str, cls: type[Device], actions: dict) -> dict:
     for key in cls.persist:
         check_name(key, "Persisted state key")
@@ -94,6 +107,7 @@ def build_schema(device_id: str, cls: type[Device], actions: dict) -> dict:
         "config": config_options(cls, Device),
         "actions": [action_schema(n, f) for n, f in sorted(actions.items())],
         "persist": list(cls.persist),
+        **_profile_schema(cls),
     }
 
 
@@ -167,6 +181,7 @@ class Worker:
         self.exit_code = EXIT_OK
         self._registered_gen = -1  # the connection generation we registered on; -1: never, so nothing is sent before
         self._run_thread: threading.Thread | None = None
+        self._profile_problems: set[str] = set()
         self._run_task: asyncio.Task | None = None
 
     # ---------------------------------------------------------------------------------------
@@ -348,9 +363,20 @@ class Worker:
     async def _register(self) -> None:
         generation = self.hub.connects
         snapshot = self._snapshot()
+        self._check_profiles(snapshot)
         await self.hub.invoke("register", self.schema, snapshot)
         self._sent = snapshot
         self._registered_gen = generation
+
+    def _check_profiles(self, state: dict) -> None:
+        """Warns (once per problem, until it is gone) when the state does not fit a profile of the device. The update is still sent: a
+        device that is a little wrong must stay visible; the log says what to fix."""
+        from .profiles import check_state
+
+        current = {f"{p.name}: {problem}" for p in self.device.profiles for problem in check_state(p, state)}
+        for problem in sorted(current - self._profile_problems):
+            log.warning("The state does not fit the profile (%s)", problem)
+        self._profile_problems = current
 
     async def _flush_loop(self) -> None:
         while True:
@@ -368,6 +394,7 @@ class Worker:
             state = self._snapshot()
             try:
                 validate_state(state)
+                self._check_profiles(state)
                 patch = diff(self._sent, state)
                 by = self._take_callers()
                 if patch:

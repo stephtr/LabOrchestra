@@ -99,6 +99,9 @@ try {
 	assert.equal(await text('state-pressure-channels.0.pressure'), '0.037');
 	assert.ok(!page.url().includes('token'), 'token is removed from the address');
 	ok('device card with status and state; token removed from the address');
+	assert.equal(await text('unit-pressure-channels.0.pressure'), 'mbar'); // the unit comes from the profile
+	assert.equal(await text('profile-pressure-pressure_sensor'), 'pressure_sensor');
+	ok('units and profiles from the schema are shown');
 
 	await run('set_pressure', { channel: 0, pressure: 0.0123 });
 	await waitText('result-pressure-set_pressure', 'done');

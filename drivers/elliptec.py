@@ -12,8 +12,11 @@ absolute and reads change nothing, so trying again is safe."""
 import time
 
 from laborchestra import Device, action
+from laborchestra.profiles import Positioner
 
 KINDS = ("rotation", "linear", "slider")
+UNIT = {"rotation": "deg", "linear": "um", "slider": "slot"}  # what the state has (the Positioner profile)
+SCALE = {"rotation": 1.0, "linear": 1000.0, "slider": 1.0}  # the library speaks mm for linear stages; the state has micrometers
 
 
 class _Simulated:
@@ -49,7 +52,9 @@ class _Axis:
 
 
 class Elliptec(Device):
-    """Elliptec stages on one bus. Positions are degrees (rotation), mm (linear) or the slot number (slider)."""
+    """Elliptec stages on one bus. Positions are degrees (rotation), micrometers (linear) or the slot number (slider)."""
+
+    profiles = [Positioner]
 
     port: str = ""  # e.g. "COM3"; not needed when simulating
     channels = [{"type": "rotation", "address": "0"}]  # one entry per stage, in the order of the channels below
@@ -76,9 +81,9 @@ class Elliptec(Device):
             controller = elliptec.Controller(self.port, debug=False)
             self._axes = [_Axis(elliptec, controller, c["type"], c["address"]) for c in self.channels]
         self.state["simulated"] = self.simulate
-        positions = [self._attempt(f"Channel {i}: reading the position", axis.read) for i, axis in enumerate(self._axes)]
+        positions = [self._attempt(f"Channel {i}: reading the position", axis.read) * SCALE[c["type"]] for i, (c, axis) in enumerate(zip(self.channels, self._axes))]
         self.state["channels"] = [
-            {"type": c["type"], "target_position": p, "actual_position": p, "status": "ok"} for c, p in zip(self.channels, positions)
+            {"type": c["type"], "unit": UNIT[c["type"]], "target_position": p, "actual_position": p, "status": "ok"} for c, p in zip(self.channels, positions)
         ]
 
     def _attempt(self, what, access):
@@ -105,9 +110,10 @@ class Elliptec(Device):
         try:
             with self.lock:
                 axis = self._axes[channel]
-                self._attempt(f"Channel {channel}: move", lambda: axis.move(position))
+                scale = SCALE[state["type"]]
+                self._attempt(f"Channel {channel}: move", lambda: axis.move(position / scale))
                 if self.read_after_move:
-                    state["actual_position"] = self._attempt(f"Channel {channel}: reading the position", axis.read)
+                    state["actual_position"] = self._attempt(f"Channel {channel}: reading the position", axis.read) * scale
             state["status"] = "ok"
         except Exception:
             state["status"] = "error"
@@ -119,7 +125,7 @@ class Elliptec(Device):
         with self.lock:
             for i, (state, axis) in enumerate(zip(self.state["channels"], self._axes)):
                 try:
-                    state["actual_position"] = self._attempt(f"Channel {i}: reading the position", axis.read)
+                    state["actual_position"] = self._attempt(f"Channel {i}: reading the position", axis.read) * SCALE[state["type"]]
                     state["status"] = "ok"
                 except Exception as e:  # all attempts failed
                     if state["status"] != "error":  # say it once, not at every poll

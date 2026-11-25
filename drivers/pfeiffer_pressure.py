@@ -14,12 +14,15 @@ import random
 import time
 
 from laborchestra import Device
+from laborchestra.profiles import PressureSensor
 
 STATUS = ["ok", "underrange", "overrange", "error", "off", "no sensor", "identification error"]
 ACK, NAK, ENQ = "\x06", "\x15", b"\x05"
 
 
 class PfeifferPressure(Device):
+    profiles = [PressureSensor]
+
     port: str = ""  # e.g. "COM4"; not needed when simulating
     simulate = False  # no hardware: pressures that drift and wiggle
     channel_count = 2  # with `simulate`: how many gauges; with hardware the controller says

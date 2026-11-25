@@ -26,6 +26,7 @@ def drivers_server(tmp_path_factory):
         "elliptec": {"file": "devices/elliptec.py", "config": {"simulate": True, "channels": CHANNELS, "poll_seconds": 1}},
         "elliptec_quiet": {"file": "devices/elliptec.py", "config": {"simulate": True, "channels": CHANNELS[:1], "poll_seconds": 3600}},
         "elliptec_checked": {"file": "devices/elliptec.py", "config": {"simulate": True, "channels": CHANNELS[:1], "poll_seconds": 3600, "read_after_move": True}},
+        "elliptec_linear": {"file": "devices/elliptec.py", "config": {"simulate": True, "channels": [{"type": "linear", "address": "7"}, {"type": "rotation", "address": "A"}], "poll_seconds": 3600}},
         "elliptec_flaky": {"file": "devices/elliptec.py", "config": {"simulate": True, "channels": CHANNELS[:1], "poll_seconds": 3600, "simulate_timeouts": 2, "attempts": 3, "retry_delay_s": 0.01}},
         "elliptec_hopeless": {"file": "devices/elliptec.py", "config": {"simulate": True, "channels": CHANNELS[:1], "simulate_timeouts": 3, "attempts": 2, "retry_delay_s": 0.01}},
         "tweezer_polarization": {"file": "devices/physics_polarimeter.py"},
@@ -49,7 +50,7 @@ def drivers_server(tmp_path_factory):
 @pytest.fixture()
 def lab(drivers_server):
     with laborchestra.connect(drivers_server[0], PASSPHRASE) as lab:
-        for name in ("elliptec", "elliptec_quiet", "elliptec_checked", "elliptec_flaky", "tweezer_polarization", "real_polarimeter", "polarization_lock", "pressure", "pressure_faulty", "stage", "rf"):
+        for name in ("elliptec", "elliptec_linear", "elliptec_quiet", "elliptec_checked", "elliptec_flaky", "tweezer_polarization", "real_polarimeter", "polarization_lock", "pressure", "pressure_faulty", "stage", "rf"):
             lab[name].wait_ready(30)
         yield lab
 
@@ -57,7 +58,7 @@ def lab(drivers_server):
 def test_elliptec_moves_channels_and_keeps_its_state_honest(lab):
     state = lab.elliptec.state
     assert state["simulated"] is True and [c["type"] for c in state["channels"]] == ["rotation", "rotation", "slider"]
-    assert set(state["channels"][0]) == {"type", "target_position", "actual_position", "status"}
+    assert set(state["channels"][0]) == {"type", "unit", "target_position", "actual_position", "status"}
 
     assert lab.elliptec.set_position(0, 12.5) is None  # returns when the stage got there
     assert lab.elliptec.state["channels"][0]["target_position"] == 12.5 and lab.elliptec.state["channels"][0]["status"] == "ok"
@@ -388,3 +389,38 @@ def test_the_generator_without_an_address_says_what_to_set():
     device._setup("rf", coerce_config(module.RohdeSchwarzSma100b, {}))
     with pytest.raises(ValueError, match="'address'"):
         device.connect()
+
+
+# --- profiles in operation -------------------------------------------------------------------------------------------------
+def test_every_running_device_with_a_profile_fits_it_and_says_so_in_its_schema(lab):
+    from laborchestra.profiles import STANDARD, check_state
+
+    by_name = {p.name: p for p in STANDARD}
+    checked = 0
+    for device in ("elliptec", "elliptec_linear", "stage", "pressure", "pressure_faulty", "rf", "real_polarimeter", "tweezer_polarization"):
+        schema = lab[device].schema
+        assert schema["profiles"], device
+        for named in schema["profiles"]:
+            assert check_state(by_name[named["name"]], lab[device].state) == [], device  # what the server holds is what the profile says
+            checked += 1
+        assert not [e for e in lab[device].logs() if "does not fit the profile" in e["message"]], device
+    assert checked == 8
+    assert lab.pressure.schema["units"] == {"channels.*.pressure": "mbar"}
+    assert lab.rf.schema["units"] == {"channels.*.frequency": "Hz", "channels.*.power": "dBm"}
+
+
+def test_positions_have_the_unit_of_the_profile_whatever_the_library_speaks(lab):
+    linear, rotation = lab.elliptec_linear.state["channels"]
+    assert (linear["unit"], rotation["unit"]) == ("um", "deg")
+    lab.elliptec_linear.set_position(0, 12500.0)  # micrometers; the simulated bus is given 12.5 mm, like the real library
+    lab.elliptec_linear.update_positions()
+    assert lab.elliptec_linear.state["channels"][0]["actual_position"] == pytest.approx(12500.0)
+    assert lab.elliptec_linear.state["channels"][0]["target_position"] == 12500.0
+    lab.elliptec_linear.set_position(1, 33.0)  # degrees stay degrees
+    lab.elliptec_linear.update_positions()
+    assert lab.elliptec_linear.state["channels"][1]["actual_position"] == pytest.approx(33.0)
+    assert [c["unit"] for c in lab.stage.state["channels"]] in (["um", "deg"], ["steps", "deg"], ["percent", "deg"])  # a stage with modes follows its mode
+    lab.stage.set_mode(0, "scan")
+    assert lab.stage.state["channels"][0]["unit"] == "percent"
+    lab.stage.set_mode(0, "closed-loop")
+    assert lab.stage.state["channels"][0]["unit"] == "um"

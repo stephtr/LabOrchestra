@@ -7,6 +7,7 @@
 The state is read back from the instrument every `poll_s`, so a change at its front panel shows up too."""
 
 from laborchestra import Device, action
+from laborchestra.profiles import FrequencyGenerator
 
 
 class _Simulated:
@@ -51,6 +52,8 @@ class _Instrument:
 
 
 class RohdeSchwarzSma100b(Device):
+    profiles = [FrequencyGenerator]
+
     address: str = ""  # IP address or host name, e.g. "192.168.0.10"; not needed when simulating
     simulate = False  # no hardware: a generator that remembers what it is told
     poll_s = 2.0  # how often the instrument is read back

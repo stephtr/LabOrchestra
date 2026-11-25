@@ -42,6 +42,18 @@ class Generator(Device):
   `wait_ready()`, `wait_for(lambda state: ...)`.
 - A single file with a PEP 723 header (`# /// script`) is a complete device; its dependencies get their own environment.
 
-## Not part of version 1
-Profiles (shared contracts per instrument kind), units as metadata, `requires_confirmation`, per-field recording rates. They are additive
-and will come with the profiles work.
+## Profiles (additive to version 1)
+A profile is the common shape of devices of a kind, written once as a Python class (`laborchestra.profiles`): annotations are typed state
+fields, `Annotated[float | None, Unit("mbar")]` fixes the unit (drivers convert; the wire and the recordings have it), public methods are the
+actions (`@optional` marks a capability a driver may leave out). A driver says `profiles = [PressureSensor]`; it may add fields and actions.
+
+- Shipped: `PressureSensor`, `Polarimeter`, `Positioner` (rotation deg, linear um, slider slot, with `unit` in each channel), `FrequencyGenerator`.
+- The JSON for UIs, MCP and docs is derived from the class (`describe(profile)`), never written by hand; the schema of a device lists its
+  `profiles` and the `units` of its fields (`channels.*.pressure`: `mbar`), and the generated card shows them.
+- A driver whose actions do not fit its profile is refused at start with what is wrong. State that does not fit is logged once per problem
+  (the update is still sent, so that a slightly wrong device stays visible).
+- Conformance: `check_driver(profile, DriverClass)` (actions) and `check_state(profile, state)`; the tests run both on every driver of
+  `drivers/` and on the running simulated devices.
+- New profiles are plain classes with a `name` and a `version`; changes to a published profile need a new version.
+
+Not yet: C# profiles (an `Oscilloscope` interface in the SDK), `requires_confirmation`, per-field recording rates.

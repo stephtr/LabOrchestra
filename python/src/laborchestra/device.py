@@ -25,6 +25,8 @@ class Device:
     state: dict = {}
     persist: list = []
     widget: str | None = None  # name of a built-in widget of the client; without one the generated card is used
+    profiles: list = []  # the profiles this device conforms to, e.g. [PressureSensor] (laborchestra.profiles)
+    units: dict = {}  # units of fields that no profile names: {"channels.*.temperature": "K"}
 
     # set by the worker -----------------------------------------------------------------------
     id: str

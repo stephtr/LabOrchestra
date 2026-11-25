@@ -1,6 +1,7 @@
 import math
 
 from laborchestra import Device
+from laborchestra.profiles import Polarimeter
 
 
 class PhysicsPolarimeter(Device):
@@ -8,6 +9,7 @@ class PhysicsPolarimeter(Device):
     terms) when the half-wave plate is at 40 degrees and the quarter-wave plate at 10 degrees. It follows the commanded
     positions: the light feels the plates at once, while `actual_position` is only read now and then."""
 
+    profiles = [Polarimeter]
     waveplates = "elliptec"
     state = {"status": "ok", "theta": 0.0, "eta": 0.0, "dop": 0.95, "power": 1e-5}
 

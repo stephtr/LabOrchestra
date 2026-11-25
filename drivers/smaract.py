@@ -15,8 +15,16 @@ import threading
 import time
 
 from laborchestra import Device, action
+from laborchestra.profiles import Positioner
 
 MODES = ["closed-loop", "open-loop", "scan"]
+
+
+def unit_of(kind: str, mode: str) -> str:
+    """The unit of the positions of a channel (the Positioner profile): they depend on what kind of axis it is and on its mode."""
+    if kind == "unknown":
+        return "none"
+    return {"closed-loop": {"linear": "um", "rotation": "deg"}.get(kind, "um"), "scan": "percent", "open-loop": "steps"}.get(mode, "um")
 
 
 class _Simulated:
@@ -137,6 +145,8 @@ class _Hardware:
 
 
 class Smaract(Device):
+    profiles = [Positioner]
+
     locator: str = ""  # e.g. "usb:ix:0" or "network:sn:MCS2-00001234"; not needed when simulating
     simulate = False  # no hardware: stages that move at their velocity
     channel_count = 2  # with `simulate`: how many channels
@@ -154,9 +164,9 @@ class Smaract(Device):
             info = self._hardware.info(i)
             known = info["mode"] in MODES
             channels.append({
-                "type": info["type"], "mode": info["mode"], "supported_modes": MODES if known else [],  # todo: ask the device
-                "target_position": info["target"], "actual_position": info["position"], "velocity": info["velocity"],
-                "moving": False, "status": "ok" if known else "unknown",
+                "type": info["type"], "unit": unit_of(info["type"], info["mode"]), "mode": info["mode"], "supported_modes": MODES if known else [],  # todo: ask the device
+                "target_position": info["target"] if known else None, "actual_position": info["position"] if known else None,
+                "velocity": info["velocity"], "moving": False, "status": "ok" if known else "unsupported",
             })
         self.state["channels"] = channels
 
@@ -181,7 +191,7 @@ class Smaract(Device):
             raise ValueError(f"Invalid move mode '{mode}' ({', '.join(MODES)})")
         with self.lock:
             target, velocity = self._hardware.set_mode(channel, mode)
-        state.update(mode=mode, target_position=target, velocity=velocity)
+        state.update(mode=mode, unit=unit_of(state["type"], mode), target_position=target, velocity=velocity)
 
     @action
     def set_velocity(self, channel: int, velocity: float):

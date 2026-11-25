@@ -2,11 +2,13 @@ import os
 import random
 
 from laborchestra import Device, action
+from laborchestra.profiles import PressureSensor
 
 
 class DemoPressure(Device):
     """Simulated two-channel vacuum gauge (fore-vacuum and chamber)."""
 
+    profiles = [PressureSensor]
     noise = 0.02  # relative noise of the chamber reading
 
     state = {
