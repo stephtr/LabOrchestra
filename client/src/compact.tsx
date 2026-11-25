@@ -10,7 +10,7 @@ const INPUT = 'w-full min-w-0 rounded border border-zinc-300 bg-transparent px-1
 const BUTTON_BASE = 'rounded px-1.5 text-sm disabled:opacity-40';
 const BUTTON = `${BUTTON_BASE} bg-zinc-200 hover:bg-brand hover:text-white dark:bg-slate-800`;
 
-function Tile({ label, testId, children, problem }: { label: string; testId: string; children: ReactNode; problem?: string | null }) {
+export function Tile({ label, testId, children, problem }: { label: string; testId: string; children: ReactNode; problem?: string | null }) {
 	return (
 		<div data-testid={testId} title={problem ?? undefined} className={`flex h-full flex-col justify-center rounded-lg bg-white px-3 py-1 shadow dark:bg-slate-900 ${problem ? 'ring-1 ring-amber-500' : ''}`}>
 			<div className="truncate text-xs text-zinc-500">{label}</div>
@@ -20,7 +20,7 @@ function Tile({ label, testId, children, problem }: { label: string; testId: str
 }
 
 /** Runs actions of a device and remembers the last failure (shown as a tooltip and a red outline). */
-function useRun(device: string) {
+export function useRun(device: string) {
 	const [error, setError] = useState<string | null>(null);
 	const run = async (action: string, ...args: unknown[]) => {
 		try {
@@ -34,7 +34,7 @@ function useRun(device: string) {
 }
 
 /** A number the user can type: shows the device's value until the user starts editing, applies on Enter or when leaving the field. */
-function Field({ value, format, parse, onCommit, testId, label }: { value: number | null | undefined; format: (v: number) => string; parse: (text: string) => number; onCommit: (v: number) => void; testId: string; label: string }) {
+export function Field({ value, format, parse, onCommit, testId, label }: { value: number | null | undefined; format: (v: number) => string; parse: (text: string) => number; onCommit: (v: number) => void; testId: string; label: string }) {
 	const [draft, setDraft] = useState<string | null>(null);
 	const shown = draft ?? (typeof value === 'number' ? format(value) : '—');
 	const commit = () => {

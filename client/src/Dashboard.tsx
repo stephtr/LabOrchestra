@@ -21,6 +21,7 @@ import {
 	widget,
 	WidgetInstance,
 } from './layout';
+import { CustomForm } from './generic';
 import { navigate, usePath } from './router';
 import { DeviceInfo, deleteView, saveView, useStore } from './store';
 import { DeviceCard } from './DeviceCard';
@@ -269,6 +270,13 @@ function Picker({ onPick }: { onPick: (instance: WidgetInstance) => void }) {
 	const { devices } = useContext(DashboardContext);
 	const ids = Object.keys(devices).sort();
 	const button = 'rounded bg-zinc-200 px-2 py-0.5 text-xs hover:bg-brand hover:text-white dark:bg-slate-800';
+	const [custom, setCustom] = useState<{ type: 'value' | 'number' | 'button'; device: string } | null>(null);
+	if (custom && devices[custom.device])
+		return (
+			<div data-testid="picker" className="border-b border-zinc-300 bg-white p-2 text-sm dark:border-slate-700 dark:bg-slate-900">
+				<CustomForm type={custom.type} device={custom.device} info={devices[custom.device]!} onCreate={onPick} onCancel={() => setCustom(null)} />
+			</div>
+		);
 	return (
 		<div data-testid="picker" className="max-h-64 overflow-auto border-b border-zinc-300 bg-white p-2 text-sm dark:border-slate-700 dark:bg-slate-900">
 			<div className="flex flex-wrap items-center gap-2 py-0.5">
@@ -289,7 +297,7 @@ function Picker({ onPick }: { onPick: (instance: WidgetInstance) => void }) {
 								key={`${d.type}${v.label}`}
 								data-testid={`add-${d.type}-${id}${v.props && 'channel' in v.props ? `-${v.props.channel}` : ''}`}
 								className={button}
-								onClick={() => onPick(widget(d.type, id, v.props))}
+								onClick={() => (d.configure ? setCustom({ type: d.type as 'value' | 'number' | 'button', device: id }) : onPick(widget(d.type, id, v.props)))}
 							>
 								{d.title}{v.label ? ` · ${v.label}` : ''}
 							</button>

@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react';
 import { DeviceCard, STATUS_STYLE } from './DeviceCard';
 import { formatNumber, unitFor } from './format';
+import { ButtonWidget, NumberWidget, ValueWidget } from './generic';
 import { FrequencyWidget, PolarimeterWidget, PositionerWidget, PressureWidget, RecordingWidget, TurboPumpWidget } from './compact';
 import { OscilloscopeWidget } from './OscilloscopeWidget';
 import type { DeviceInfo } from './store';
@@ -17,6 +18,8 @@ export type WidgetDef = {
 	size: WidgetSize;
 	/** Whether the widget can show this device. */
 	accepts: (info: DeviceInfo) => boolean;
+	/** The user chooses a state field and/or an action in a form before the widget is added. */
+	configure?: boolean;
 	/** False for widgets of the whole server (recording): no device is chosen. */
 	needsDevice?: boolean;
 	/** What the picker offers for a device: one instance per channel (props {channel}); default one instance without props. */
@@ -64,6 +67,9 @@ const definitions: WidgetDef[] = [
 	{ type: 'frequency', title: 'Frequency', size: 'S', accepts: (i) => hasProfile(i, 'frequency_generator'), variants: perChannel, component: FrequencyWidget },
 	{ type: 'polarimeter', title: 'Polarization', size: 'S', accepts: (i) => hasProfile(i, 'polarimeter'), component: PolarimeterWidget },
 	{ type: 'recording', title: 'Recording', size: 'S', needsDevice: false, accepts: () => false, component: RecordingWidget },
+	{ type: 'value', title: 'Value…', size: 'S', configure: true, accepts: () => true, component: ValueWidget },
+	{ type: 'number', title: 'Number…', size: 'S', configure: true, accepts: () => true, component: NumberWidget },
+	{ type: 'button', title: 'Button…', size: 'S', configure: true, accepts: () => true, component: ButtonWidget },
 	{ type: 'summary', title: 'Summary', size: 'S', accepts: () => true, component: Summary },
 ];
 

@@ -446,6 +446,40 @@ try {
 	await page.keyboard.press('Escape');
 	await panel.waitFor({ state: 'detached' });
 	ok('turbo pump widget: details panel starts, sets the speed and stops only its pump');
+
+	// generic widgets, configured in the picker: a state field, a number with its action, a button
+	const pick = async (type) => {
+		await page.getByTestId('add-widget').click();
+		await page.getByTestId(`add-${type}-scope`).click();
+	};
+	await pick('value');
+	await page.getByTestId('custom-path').selectOption('sample_rate');
+	await page.getByTestId('custom-label').fill('Rate');
+	await page.getByTestId('custom-create').click();
+	await page.getByTestId('value-text-scope-sample_rate').waitFor();
+	assert.match(await text('value-text-scope-sample_rate'), /MHz/); // a unit of Hz is shown with an SI prefix
+	await pick('number');
+	await page.getByTestId('custom-path').selectOption('test_signal_frequency');
+	await page.getByTestId('custom-action').selectOption('set_test_signal_frequency');
+	await page.getByTestId('custom-create').click();
+	const signal = page.getByTestId('number-input-scope-test_signal_frequency');
+	await signal.fill('250 kHz');
+	await signal.press('Enter');
+	await page.waitForFunction(() => document.querySelector('[data-testid="number-input-scope-test_signal_frequency"]')?.value === '250 kHz');
+	assert.equal(Number(script("print(lab.scope.state['test_signal_frequency'])")), 250000);
+	await pick('button');
+	await page.getByTestId('custom-action').selectOption('reset_fft_storage');
+	await page.getByTestId('custom-create').click();
+	await page.getByTestId('button-scope-reset_fft_storage').click();
+	await page.waitForTimeout(300);
+	assert.equal(await page.getByTestId('button-scope-reset_fft_storage').locator('..').getAttribute('title'), null); // no error
+	const widgetsOfView = readView();
+	assert.deepEqual(widgetsOfView.strip.filter((w) => ['value', 'number', 'button'].includes(w.type)).map((w) => w.props), [
+		{ path: 'sample_rate', label: 'Rate' },
+		{ path: 'test_signal_frequency', action: 'set_test_signal_frequency' },
+		{ action: 'reset_fft_storage' },
+	]);
+	ok('generic widgets: value, number (SI input) and button, configured in the picker');
 	await page.getByTestId('edit-toggle').click(); // Done
 
 	// a hand edit of the file reaches the open page; a missing device gives a placeholder
