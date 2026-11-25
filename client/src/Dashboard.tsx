@@ -113,9 +113,9 @@ function Pane({ instance }: { instance: WidgetInstance }) {
 	const ctx = useContext(DashboardContext);
 	const over = ctx.drop && 'pane' in ctx.drop && ctx.drop.pane === instance.id ? ctx.drop.side : null;
 	return (
-		<div data-testid={`pane-${instance.id}`} className="relative h-full overflow-auto" onDragOver={undefined}>
+		<div data-testid={`pane-${instance.id}`} className="relative flex h-full flex-col">
 			{ctx.editing && (
-				<div className="sticky top-0 z-10 flex items-center gap-2 bg-zinc-200/90 px-2 py-0.5 text-xs dark:bg-slate-800/90">
+				<div className="z-10 flex flex-none items-center gap-2 bg-zinc-200/90 px-2 py-0.5 text-xs dark:bg-slate-800/90">
 					<span {...dragProps(instance.id, ctx)} className="cursor-grab select-none" title="Drag to move" data-testid={`handle-${instance.id}`}>
 						⠿ {instance.type}{instance.device ? ` · ${instance.device}` : ''}
 					</span>
@@ -126,7 +126,9 @@ function Pane({ instance }: { instance: WidgetInstance }) {
 					</button>
 				</div>
 			)}
-			<WidgetView instance={instance} />
+			<div className="min-h-0 flex-1 overflow-auto">
+				<WidgetView instance={instance} />
+			</div>
 			{ctx.editing && ctx.dragging && ctx.dragging !== instance.id && (
 				<div
 					className="absolute inset-0 z-20"

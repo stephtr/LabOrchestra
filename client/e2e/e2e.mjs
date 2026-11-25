@@ -244,6 +244,14 @@ try {
 	await page.waitForFunction(() => document.querySelector('[data-testid="osc-canvas"]')?.dataset.channels === '0,1,2');
 	await page.getByTestId('osc-channel-2').click();
 	await page.waitForFunction(() => document.querySelector('[data-testid="osc-canvas"]')?.dataset.channels === '0,1');
+	await page.getByLabel('Settings of channel 1').click();
+	await page.getByLabel('Range of channel 1').selectOption('2000');
+	await page.getByTestId('osc-settings').click();
+	await page.getByLabel('Window function').selectOption('hann');
+	await page.waitForFunction(() => true);
+	for (let i = 0; i < 50 && script("print(lab.scope.state['channels'][0]['range_in_millivolts'], lab.scope.state['fft_window_function'])") !== '2000 hann'; i++) await new Promise((r) => setTimeout(r, 100));
+	assert.equal(script("print(lab.scope.state['channels'][0]['range_in_millivolts'], lab.scope.state['fft_window_function'])"), '2000 hann');
+	ok('channel range (under the arrow) and FFT settings (gear)');
 	ok('oscilloscope controls: time trace / FFT, FFT length, channels');
 
 	await page.waitForFunction(() => document.querySelector('[data-testid="osc-canvas"]')?.dataset.fftLength === '8192');
@@ -448,6 +456,7 @@ try {
 	assert.match(await text('placeholder-w_gone'), /does not exist/);
 	ok('a changed view file reaches the page; a missing device shows a placeholder');
 
+	if (process.env.E2E_SCREENSHOT) await page.screenshot({ path: process.env.E2E_SCREENSHOT });
 	failed = false;
 	console.log('OK');
 } catch (e) {

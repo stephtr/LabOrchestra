@@ -7,7 +7,8 @@ import type { WidgetProps } from './widgets';
 /** The compact widgets: small, for the strip, bound to profiles (so any driver of the profile works) and to one channel each. */
 
 const INPUT = 'w-full min-w-0 rounded border border-zinc-300 bg-transparent px-1 text-right font-mono text-sm tabular-nums dark:border-slate-700';
-const BUTTON = 'rounded bg-zinc-200 px-1.5 text-sm hover:bg-brand hover:text-white disabled:opacity-40 dark:bg-slate-800';
+const BUTTON_BASE = 'rounded px-1.5 text-sm disabled:opacity-40';
+const BUTTON = `${BUTTON_BASE} bg-zinc-200 hover:bg-brand hover:text-white dark:bg-slate-800`;
 
 function Tile({ label, testId, children, problem }: { label: string; testId: string; children: ReactNode; problem?: string | null }) {
 	return (
@@ -121,7 +122,7 @@ export function FrequencyWidget(p: WidgetProps) {
 					data-testid={`frequency-on-${p.device}-${channel}`}
 					aria-pressed={c?.is_on ?? false}
 					disabled={!c}
-					className={`${BUTTON} ${c?.is_on ? 'bg-emerald-600 text-white dark:bg-emerald-700' : ''}`}
+					className={c?.is_on ? `${BUTTON_BASE} bg-emerald-600 text-white` : BUTTON}
 					onClick={() => run('set_on', channel, !c?.is_on)}
 				>
 					{c?.is_on ? 'On' : 'Off'}
@@ -181,7 +182,7 @@ export function RecordingWidget(_: WidgetProps) {
 				<button className={BUTTON} data-testid="snapshot" disabled={!name.trim() && !recording.active} onClick={() => call('snapshot', name.trim() || recording.name, null)}>Snapshot</button>
 				{recording.active ? (
 					<>
-						<button className={`${BUTTON} bg-red-600 text-white`} data-testid="record-stop" onClick={() => call('stop_recording')}>
+						<button className={`${BUTTON_BASE} bg-red-600 text-white`} data-testid="record-stop" onClick={() => call('stop_recording')}>
 							■ {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}
 						</button>
 						<button className={BUTTON} data-testid="record-discard" title="Stop and delete the recording" onClick={() => call('abort_recording', true)}>Discard</button>

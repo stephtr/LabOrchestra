@@ -7,7 +7,6 @@ const FFT_LENGTHS = Array.from({ length: 12 }, (_, i) => 2 ** (i + 9));
 const WINDOWS = ['rectangular', 'hann', 'blackman', 'nuttall', 'blackman-nuttall'];
 const AVERAGING = [0, 50, 100, 200, 500, 1000, 2000, 5000, 10000, -1];
 const RANGES = [50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000];
-const SELECT = 'rounded border border-zinc-300 bg-transparent px-1 py-0.5 text-sm dark:border-slate-700';
 
 /** 1.5e6 -> "1.5 MHz", 2e-4 -> "200 µs" */
 export function formatSI(value: number, unit: string): string {
@@ -172,74 +171,97 @@ export function OscilloscopeWidget({ id, info }: { id: string; info: DeviceInfo 
 	}
 
 	const channels: { channel_active: boolean; range_in_millivolts: number }[] = state.channels ?? [];
+	const [expanded, setExpanded] = useState<number[]>([]);
+	const [settings, setSettings] = useState(false);
+	const toggleExpanded = (i: number) => setExpanded((e) => (e.includes(i) ? e.filter((x) => x !== i) : [...e, i]));
+	const BAR = 'rounded border border-zinc-300 bg-white px-2 py-1 text-sm disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900';
 	return (
-		<section data-testid={`device-${id}`} className="rounded-lg bg-white p-3 shadow dark:bg-slate-900 md:col-span-2">
-			<div className="mb-2 flex flex-wrap items-center gap-2">
-				<h2 className="font-mono text-lg">{id}</h2>
-				<span data-testid={`status-${id}`} className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" hidden={ready}>
-					{info.status}
+		<section data-testid={`device-${id}`} className="flex h-full min-h-96 flex-col gap-1 bg-zinc-100 p-1 dark:bg-slate-950">
+			<div className="flex flex-none flex-wrap items-center gap-1">
+				<span data-testid={`status-${id}`} className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-300" hidden={ready}>
+					{id}: {info.status}
 				</span>
-				<button data-testid="osc-run" className="rounded bg-brand px-3 py-1 text-sm text-white disabled:opacity-50" disabled={!ready} onClick={() => void call(state.running ? 'stop' : 'start')}>
-					{state.running ? 'Stop' : 'Start'}
+				<button data-testid="osc-run" className={`${BAR} min-w-20 font-medium ${state.running ? '' : 'bg-brand text-white dark:bg-brand'}`} disabled={!ready} onClick={() => void call(state.running ? 'stop' : 'start')}>
+					{state.running ? '■ Stop' : '▶ Start'}
 				</button>
 				<span className="flex overflow-hidden rounded border border-zinc-300 dark:border-slate-700" role="group" aria-label="Display">
 					{(['time', 'fft'] as const).map((mode) => (
 						<button key={mode} data-testid={`osc-mode-${mode}`} aria-pressed={state.display_mode === mode} disabled={!ready}
-							className={`px-2 py-1 text-sm ${state.display_mode === mode ? 'bg-zinc-200 dark:bg-slate-700' : ''}`} onClick={() => void call('set_display_mode', mode)}>
+							className={`px-2 py-1 text-sm ${state.display_mode === mode ? 'bg-zinc-300 dark:bg-slate-700' : 'bg-white dark:bg-slate-900'}`} onClick={() => void call('set_display_mode', mode)}>
 							{mode === 'time' ? 'Time trace' : 'FFT'}
 						</button>
 					))}
 				</span>
-				<select aria-label="FFT length" data-testid="osc-fft-length" className={SELECT} disabled={!ready} value={state.fft_length ?? 8192} onChange={(e) => void call('set_fft_bin_count', Number(e.target.value))}>
+				<select aria-label="FFT length" data-testid="osc-fft-length" className={BAR} disabled={!ready} value={state.fft_length ?? 8192} onChange={(e) => void call('set_fft_bin_count', Number(e.target.value))}>
 					{FFT_LENGTHS.map((n) => <option key={n} value={n}>{n}</option>)}
 				</select>
-				<select aria-label="Window function" className={SELECT} disabled={!ready} value={state.fft_window_function ?? 'blackman'} onChange={(e) => void call('set_fft_window_function', e.target.value)}>
-					{WINDOWS.map((w) => <option key={w}>{w}</option>)}
-				</select>
-				<select aria-label="Averaging" className={SELECT} disabled={!ready} value={state.fft_averaging_duration_ms ?? 200} onChange={(e) => void call('set_fft_averaging_duration', Number(e.target.value))}>
-					{AVERAGING.map((a) => <option key={a} value={a}>{a === 0 ? 'no averaging' : a < 0 ? 'average all' : `average ${a} ms`}</option>)}
-				</select>
+				<button data-testid="osc-settings" className={BAR} aria-label="FFT settings" aria-expanded={settings} onClick={() => setSettings(!settings)}>⚙</button>
+				{settings && (
+					<>
+						<select aria-label="Window function" className={BAR} disabled={!ready} value={state.fft_window_function ?? 'blackman'} onChange={(e) => void call('set_fft_window_function', e.target.value)}>
+							{WINDOWS.map((w) => <option key={w}>{w}</option>)}
+						</select>
+						<select aria-label="Averaging" className={BAR} disabled={!ready} value={state.fft_averaging_duration_ms ?? 200} onChange={(e) => void call('set_fft_averaging_duration', Number(e.target.value))}>
+							{AVERAGING.map((a) => <option key={a} value={a}>{a === 0 ? 'no averaging' : a < 0 ? 'average all' : `average ${a} ms`}</option>)}
+						</select>
+					</>
+				)}
 				<span className="flex-1" />
 				{state.recording && <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-800 dark:bg-red-950 dark:text-red-300">recording</span>}
 			</div>
-			<div className="mb-2 flex flex-wrap items-center gap-2">
-				{channels.map((ch, i) => (
-					<span key={i} className="flex items-center overflow-hidden rounded border" style={{ borderColor: COLORS[i % COLORS.length] }}>
-						<button data-testid={`osc-channel-${i}`} aria-pressed={ch.channel_active} disabled={!ready} onClick={() => void call('set_channel_active', i, !ch.channel_active)}
-							className="px-2 py-1 text-sm" style={ch.channel_active ? { background: COLORS[i % COLORS.length], color: 'white' } : undefined}>
-							C{i + 1}
-						</button>
-						{ch.channel_active && (
-							<select aria-label={`Range of channel ${i + 1}`} className="bg-transparent px-1 text-xs" disabled={!ready} value={ch.range_in_millivolts} onChange={(e) => void call('set_range', i, Number(e.target.value))}>
-								{(RANGES.includes(ch.range_in_millivolts) ? RANGES : [...RANGES, ch.range_in_millivolts].sort((a, b) => a - b)).map((r) => <option key={r} value={r}>{r >= 1000 ? `${r / 1000} V` : `${r} mV`}</option>)}
-							</select>
-						)}
-					</span>
-				))}
-				<span className="text-xs text-zinc-500">
-					{state.sample_rate ? formatSI(state.sample_rate, 'S/s') : ''} {state.ffts_per_second ? `· ${state.ffts_per_second} FFT/s` : ''}
-					{state.overruns > 0 && <span className="text-amber-600"> · {state.overruns} overruns (the FFT is behind)</span>}
-					{state.recording_overruns > 0 && <span className="text-red-600"> · {state.recording_overruns} overruns in the recording: samples lost!</span>}
-				</span>
-				<span className="flex-1" />
-				<span className="text-xs text-zinc-500">
-					<span data-testid="osc-range" ref={range} /> · frames <span data-testid="osc-frames" ref={counter}>0</span>
-					{view && <button className="ml-2 underline" onClick={() => setView(null)}>whole range</button>}
-				</span>
+			<div className="flex min-h-0 flex-1 gap-1">
+				<div className="flex w-32 flex-none flex-col gap-1 overflow-y-auto">
+					{channels.map((ch, i) => {
+						const color = COLORS[i % COLORS.length];
+						const open = expanded.includes(i);
+						return (
+							<div key={i} className="overflow-hidden rounded-lg bg-white dark:bg-slate-900" style={{ borderLeft: `4px solid ${color}` }}>
+								<div className="flex items-center">
+									<button data-testid={`osc-channel-${i}`} aria-pressed={ch.channel_active} disabled={!ready} onClick={() => void call('set_channel_active', i, !ch.channel_active)}
+										className={`flex-1 px-3 py-2 text-left text-sm ${ch.channel_active ? 'font-semibold' : 'text-zinc-400'}`}
+										title={ch.channel_active ? 'Click to switch the channel off' : 'Click to switch the channel on'}>
+										C{i + 1}
+									</button>
+									<button aria-label={`Settings of channel ${i + 1}`} aria-expanded={open} className="px-2 text-zinc-500 hover:text-brand" onClick={() => toggleExpanded(i)}>{open ? '⌄' : '›'}</button>
+								</div>
+								{open && (
+									<div className="px-2 pb-2 text-xs">
+										<label className="block text-zinc-500">Range
+											<select aria-label={`Range of channel ${i + 1}`} className={`${BAR} mt-0.5 w-full`} disabled={!ready} value={ch.range_in_millivolts} onChange={(e) => void call('set_range', i, Number(e.target.value))}>
+												{(RANGES.includes(ch.range_in_millivolts) ? RANGES : [...RANGES, ch.range_in_millivolts].sort((a, b) => a - b)).map((r) => <option key={r} value={r}>{r >= 1000 ? `${r / 1000} V` : `${r} mV`}</option>)}
+											</select>
+										</label>
+									</div>
+								)}
+							</div>
+						);
+					})}
+					<div className="mt-auto px-1 text-xs text-zinc-500">
+						{state.sample_rate ? <div>{formatSI(state.sample_rate, 'S/s')}</div> : null}
+						{state.ffts_per_second ? <div>{state.ffts_per_second} FFT/s</div> : null}
+						<div className="mt-1"><span data-testid="osc-range" ref={range} /></div>
+						<div>frames <span data-testid="osc-frames" ref={counter}>0</span></div>
+						{view && <button className="underline" onClick={() => setView(null)}>whole range</button>}
+						{state.overruns > 0 && <div className="text-amber-600">{state.overruns} overruns (the FFT is behind)</div>}
+						{state.recording_overruns > 0 && <div className="text-red-600">{state.recording_overruns} overruns in the recording: samples lost!</div>}
+					</div>
+				</div>
+				<div className="relative min-h-0 min-w-0 flex-1">
+					<canvas
+						ref={canvas}
+						data-testid="osc-canvas"
+						className="h-full w-full cursor-crosshair rounded bg-[#05070d]"
+						onWheel={zoom}
+						onMouseDown={startDrag}
+						onMouseMove={moveDrag}
+						onMouseUp={() => (drag.current = null)}
+						onMouseLeave={() => (drag.current = null)}
+						onDoubleClick={() => setView(null)}
+					/>
+				</div>
 			</div>
-			<canvas
-				ref={canvas}
-				data-testid="osc-canvas"
-				className="h-80 w-full cursor-crosshair rounded bg-[#05070d]"
-				onWheel={zoom}
-				onMouseDown={startDrag}
-				onMouseMove={moveDrag}
-				onMouseUp={() => (drag.current = null)}
-				onMouseLeave={() => (drag.current = null)}
-				onDoubleClick={() => setView(null)}
-			/>
-			{error && <p role="alert" className="mt-1 text-sm text-red-600">{error}</p>}
-			{info.error && <pre className="mt-1 overflow-x-auto rounded bg-red-50 p-2 text-xs text-red-800 dark:bg-red-950 dark:text-red-300">{info.error}</pre>}
+			{error && <p role="alert" className="flex-none text-sm text-red-600">{error}</p>}
+			{info.error && <pre className="max-h-24 flex-none overflow-auto rounded bg-red-50 p-2 text-xs text-red-800 dark:bg-red-950 dark:text-red-300">{info.error}</pre>}
 		</section>
 	);
 }
