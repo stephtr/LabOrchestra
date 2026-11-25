@@ -176,7 +176,7 @@ export function OscilloscopeWidget({ id, info }: { id: string; info: DeviceInfo 
 	const toggleExpanded = (i: number) => setExpanded((e) => (e.includes(i) ? e.filter((x) => x !== i) : [...e, i]));
 	const BAR = 'rounded border border-zinc-300 bg-white px-2 py-1 text-sm disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900';
 	return (
-		<section data-testid={`device-${id}`} className="flex h-full min-h-96 flex-col gap-1 bg-zinc-100 p-1 dark:bg-slate-950">
+		<section data-testid={`device-${id}`} className="flex h-full min-h-0 flex-col gap-1 bg-zinc-100 p-1 dark:bg-slate-950">
 			<div className="flex flex-none flex-wrap items-center gap-1">
 				<span data-testid={`status-${id}`} className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-300" hidden={ready}>
 					{id}: {info.status}

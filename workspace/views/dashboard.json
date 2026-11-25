@@ -1,23 +1,102 @@
 {
 	"version": 1,
 	"title": "Dashboard",
+	"order": 0,
 	"root": {
-		"id": "nmwvt8lpj2oo8",
-		"kind": "main",
-		"widget": {
-			"id": "wmwvt8lpj12n1",
-			"type": "oscilloscope",
-			"device": "acq"
-		}
+		"id": "n_root",
+		"kind": "split",
+		"dir": "column",
+		"sizes": [
+			50,
+			50
+		],
+		"children": [
+			{
+				"id": "n_acq",
+				"kind": "main",
+				"widget": {
+					"id": "w_acq",
+					"type": "oscilloscope",
+					"device": "acq"
+				}
+			},
+			{
+				"id": "n_acq2",
+				"kind": "main",
+				"widget": {
+					"id": "w_acq2",
+					"type": "oscilloscope",
+					"device": "acq2"
+				}
+			}
+		]
 	},
 	"strip": [
 		{
-			"id": "wmwvt8lpj3nfg",
-			"type": "summary",
-			"device": "pressure"
+			"id": "w_detuning",
+			"type": "frequency",
+			"device": "rf",
+			"props": {
+				"channel": 0,
+				"label": "Cavity detuning (EOM)"
+			}
 		},
 		{
-			"id": "wmwvt8xdf44oc",
+			"id": "w_qwp",
+			"type": "positioner",
+			"device": "waveplates",
+			"props": {
+				"channel": 0,
+				"label": "QWP"
+			}
+		},
+		{
+			"id": "w_hwp",
+			"type": "positioner",
+			"device": "waveplates",
+			"props": {
+				"channel": 1,
+				"label": "HWP"
+			}
+		},
+		{
+			"id": "w_turbo2",
+			"type": "turbo_pump",
+			"device": "turbo",
+			"props": {
+				"channel": 1,
+				"label": "Turbo 2"
+			}
+		},
+		{
+			"id": "w_turbo1",
+			"type": "turbo_pump",
+			"device": "turbo",
+			"props": {
+				"channel": 0,
+				"label": "Turbo 1"
+			}
+		},
+		{
+			"id": "w_forevacuum",
+			"type": "pressure",
+			"device": "pressure",
+			"props": {
+				"channel": 0,
+				"label": "Vorvakuum"
+			}
+		},
+		{
+			"id": "w_chamber",
+			"type": "pressure",
+			"device": "pressure",
+			"props": {
+				"channel": 1,
+				"label": "Kammer"
+			}
+		},
+		{
+			"id": "w_recording",
 			"type": "recording"
 		}
 	]

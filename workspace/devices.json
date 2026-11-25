@@ -1,10 +1,53 @@
 {
 	"devices": {
+		"acq": {
+			"driver": "simulated_oscilloscope",
+			"description": "Simulated oscilloscope (tones and noise). With a real PicoScope: \"driver\": \"picoscope_5000a\"."
+		},
+		"acq2": {
+			"driver": "simulated_oscilloscope",
+			"config": {
+				"active_channels": 3
+			}
+		},
+		"waveplates": {
+			"file": "devices/elliptec.py",
+			"config": {
+				"simulate": true,
+				"channels": [
+					{
+						"type": "rotation",
+						"address": "0"
+					},
+					{
+						"type": "rotation",
+						"address": "1"
+					}
+				]
+			}
+		},
+		"rf": {
+			"file": "devices/rs_sma100b.py",
+			"config": {
+				"simulate": true
+			}
+		},
 		"pressure": {
 			"file": "devices/demo_pressure.py"
 		},
-		"acq": {
-			"driver": "simulated_oscilloscope"
+		"turbo": {
+			"file": "devices/pfeiffer_turbo_pump.py",
+			"config": {
+				"simulate": true,
+				"pumps": [
+					{
+						"name": "Turbo 1"
+					},
+					{
+						"name": "Turbo 2"
+					}
+				]
+			}
 		}
 	}
 }

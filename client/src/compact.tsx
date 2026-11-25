@@ -6,7 +6,7 @@ import { profileState, type WidgetProps } from './widgets';
 
 /** The compact widgets: small, for the strip, bound to profiles (so any driver of the profile works) and to one channel each. */
 
-const INPUT = 'w-full min-w-0 rounded border border-zinc-300 bg-transparent px-1 text-right font-mono text-sm tabular-nums dark:border-slate-700';
+const INPUT = 'min-w-0 rounded border border-zinc-300 bg-transparent px-1 text-right font-mono text-sm tabular-nums dark:border-slate-700';
 const BUTTON_BASE = 'rounded px-1.5 text-sm disabled:opacity-40';
 const BUTTON = `${BUTTON_BASE} bg-zinc-200 hover:bg-brand hover:text-white dark:bg-slate-800`;
 
@@ -47,7 +47,7 @@ export function Field({ value, format, parse, onCommit, testId, label }: { value
 		<input
 			data-testid={testId}
 			aria-label={label}
-			className={INPUT}
+			className={`${INPUT} w-28`}
 			value={shown}
 			onChange={(e) => setDraft(e.target.value)}
 			onFocus={(e) => e.target.select()}

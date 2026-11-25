@@ -317,7 +317,7 @@ function AutoGrid({ devices }: { devices: Record<string, DeviceInfo> }) {
 	return (
 		<div className="grid gap-4 p-2 md:grid-cols-2" data-testid="auto-grid">
 			{Object.keys(devices).sort().map((id) =>
-				devices[id]!.schema?.widget === 'oscilloscope' ? <OscilloscopeWidget key={id} id={id} info={devices[id]!} /> : <DeviceCard key={id} id={id} info={devices[id]!} />,
+				devices[id]!.schema?.widget === 'oscilloscope' ? <div key={id} className="h-96 md:col-span-2"><OscilloscopeWidget id={id} info={devices[id]!} /></div> : <DeviceCard key={id} id={id} info={devices[id]!} />,
 			)}
 		</div>
 	);

@@ -9,7 +9,7 @@ Design and decisions: [CLAUDE.md](CLAUDE.md). Plan: [REWRITE.md](REWRITE.md). Th
 | `server/LabOrchestra.Server` | .NET 11 host: hubs, device registry, token authentication, worker supervisor |
 | `python/` | the `laborchestra` package: `Device`, `@action`, worker runner, `connect()` for scripts |
 | `client/` | Vite + React + Tailwind 4 web client |
-| `workspace/` | example workspace: `devices.json` and a simulated device |
+| `workspace/` | example workspace with simulators only: two oscilloscopes, waveplates, an RF generator, pressure gauge and turbo pumps, and `views/dashboard.json` (two oscilloscope panes with a strip of compact widgets). Its copies of drivers are checked against `drivers/` by a test |
 | `spikes/` | throwaway experiments of phase 0 |
 
 ## Run it

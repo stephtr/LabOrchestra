@@ -119,7 +119,7 @@ Track B, oscilloscope:
 - [x] Views: split tree with movable gutters + compact strip (S/M), edit mode with drag and drop, picker, several views, server-side files (phone layout dropped: not a priority)
 - [ ] Runtime widgets, widget SDK, error boundary, reload on change
 
-**Exit:** today's hard-coded dashboard is reproduced as a view without code changes.
+**Exit:** today's hard-coded dashboard is reproduced as a view without code changes. *(Reproduced with simulators as `workspace/views/dashboard.json`; open: the voltage output "X" as a `number` widget, the lock buttons, and checking the real devices on the lab PC.)*
 
 ## Phase 5: procedures
 
