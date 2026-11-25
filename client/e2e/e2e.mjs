@@ -46,6 +46,7 @@ function startServer() {
 			LABORCHESTRA_PASSPHRASE: PASSPHRASE,
 			LABORCHESTRA_DATA_DIR: path.join(dir, 'data'),
 			LABORCHESTRA_EDITOR: editor,
+			LABORCHESTRA_HISTORY_INTERVAL_S: '0.3', // the history widgets have something to show within a test
 		},
 		stdio: ['ignore', 'pipe', 'pipe'],
 	});
@@ -822,6 +823,31 @@ export default function BigPressure({ device, props }: { device: string; props: 
 	ok('a changed view file reaches the page; a missing device shows a placeholder');
 
 	if (process.env.E2E_SCREENSHOT) await page.screenshot({ path: process.env.E2E_SCREENSHOT });
+	// a trace widget: the history of a state field, from the server's own history
+	await page.getByTestId('edit-toggle').click();
+	await openPicker();
+	await page.getByTestId('add-trace').click();
+	await page.getByTestId('pick-device').selectOption('pressure');
+	await page.getByTestId('custom-path').selectOption('channels.1.pressure');
+	await page.getByTestId('picker-preview').getByTestId('trace-value-pressure-channels.1.pressure').waitFor(); // the preview is live, too
+	await page.getByTestId('custom-create').click();
+	await page.getByLabel('Close panel').click();
+	await page.getByTestId('trace-svg-pressure-channels.1.pressure').waitFor({ timeout: 60000 });
+	await page.waitForFunction(() => Number(document.querySelector('[data-testid="trace-svg-pressure-channels.1.pressure"]')?.getAttribute('data-points')) >= 2);
+	assert.match(await text("trace-value-pressure-channels.1.pressure"), /\d.* mbar$/); // the live value, with its unit
+	assert.match(await page.getByTestId('trace-pressure-channels.1.pressure').textContent(), /min .* max .* mbar/);
+	ok('trace widget: the value now, min and max, and the curve from the history');
+
+	// editing ends by itself after a while without activity
+	await page.evaluate(() => localStorage.setItem('laborchestra.editIdleMs', '1500'));
+	await page.getByTestId('edit-toggle').click(); // Done
+	await page.getByTestId('edit-toggle').click(); // Edit again: the timer starts
+	await page.getByTestId('add-widget').waitFor();
+	await page.waitForFunction(() => document.querySelector('[data-testid="edit-toggle"]')?.getAttribute('aria-pressed') === 'false', null, { timeout: 15000 });
+	assert.match(await text('edit-note'), /no activity/);
+	assert.equal(await page.getByTestId('add-widget').count(), 0);
+	ok('editing ends by itself after a while without activity');
+
 	failed = false;
 	console.log('OK');
 } catch (e) {

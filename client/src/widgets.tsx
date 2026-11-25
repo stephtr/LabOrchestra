@@ -5,6 +5,7 @@ import { formatNumber, unitFor } from './format';
 import { ButtonWidget, NumberWidget, ValueWidget } from './generic';
 import { FrequencyWidget, PolarimeterWidget, PositionerWidget, PressureWidget, RecordingWidget, TurboPumpWidget } from './compact';
 import { OscilloscopeWidget } from './OscilloscopeWidget';
+import { TraceWidget } from './TraceWidget';
 import type { DeviceInfo } from './store';
 import type { PropSpec } from './settings';
 import { RuntimeWidget, runtimeWidgets, useRuntimeWidgets, WidgetBoundary } from './runtimeWidgets';
@@ -23,6 +24,8 @@ export type WidgetDef = {
 	accepts: (info: DeviceInfo) => boolean;
 	/** The settings of an instance (besides the label every widget has): what the settings dialog offers. */
 	props?: PropSpec[];
+	/** Width in pixels in the strip (default: as wide as it is). */
+	width?: number;
 	/** One line for the picker: what the widget is for. */
 	description?: string;
 	/** Fits every device: the picker lists it once and asks for the device. */
@@ -86,6 +89,7 @@ const definitions: WidgetDef[] = [
 	{ type: 'value', description: 'Shows one value of a device', generic: true, title: 'Value', size: 'S', props: [{ name: 'path', label: 'State field', type: 'text' }], configure: true, accepts: () => true, component: ValueWidget },
 	{ type: 'number', description: 'A number to type, sent with an action', generic: true, title: 'Number', size: 'S', props: [{ name: 'path', label: 'State field', type: 'text' }, { name: 'action', label: 'Action', type: 'text' }, { name: 'channel', label: 'Channel (for actions that take one)', type: 'integer', min: 0 }], configure: true, accepts: () => true, component: NumberWidget },
 	{ type: 'button', description: 'Runs an action', generic: true, title: 'Button', size: 'S', props: [{ name: 'action', label: 'Action', type: 'text' }, { name: 'confirm', label: 'Ask before running', type: 'boolean' }], configure: true, accepts: () => true, component: ButtonWidget },
+	{ type: 'trace', generic: true, description: 'A value over the last hours: now, change per hour, min and max, and its curve', title: 'Trace', size: 'M', width: 320, configure: true, props: [{ name: 'path', label: 'State field', type: 'text' }, { name: 'range', label: 'Time range', type: 'select', options: ['1h', '6h', '24h', '7d'], default: '6h' }, { name: 'scale', label: 'Scale', type: 'select', options: ['linear', 'log'], default: 'linear', help: 'Log suits pressures that change by orders of magnitude' }], accepts: (i) => Object.keys(i.state ?? {}).length > 0, component: TraceWidget },
 	{ type: 'summary', description: 'Status and the first values of a device', generic: true, title: 'Summary', size: 'S', accepts: () => true, component: Summary },
 ];
 

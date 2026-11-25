@@ -33,6 +33,18 @@ import { OscilloscopeWidget } from './OscilloscopeWidget';
 import { COMPACT_HEIGHT, runtimeWidgetsReady, useWidgetDefs, widgetDef, WidgetDef } from './widgets';
 
 const AUTO_ID = 'dashboard';
+
+/** Editing ends by itself after this long without any activity in the page (so that a forgotten edit mode does not stay open on a lab screen).
+ *  A client can change it: localStorage "laborchestra.editIdleMs" (the e2e test does). */
+const EDIT_IDLE_MS = 3 * 60 * 1000;
+function editIdleMs(): number {
+	try {
+		const set = Number(localStorage.getItem('laborchestra.editIdleMs'));
+		return set > 0 ? set : EDIT_IDLE_MS;
+	} catch {
+		return EDIT_IDLE_MS;
+	}
+}
 const NO_DEVICE: DeviceInfo = { status: 'ready', error: null, schema: null, state: null, revision: 0 };
 
 type DropTarget = { pane: string; side: Side | 'swap' } | { strip: number } | { edge: Side } | null;
@@ -282,7 +294,7 @@ function Strip({ widgets }: { widgets: WidgetInstance[] }) {
 						key={w.id}
 						data-testid={`strip-${w.id}`}
 						data-dropzone
-						style={{ height }}
+						style={{ height, ...(widgetDef(w.type)?.width ? { width: widgetDef(w.type)!.width } : {}) }}
 						className={`group relative min-w-28 flex-none ${ctx.editing ? 'cursor-grab active:cursor-grabbing' : ''} ${dropAt === i ? 'before:absolute before:inset-y-0 before:-left-1 before:w-0.5 before:rounded before:bg-accent' : ''}`}
 						{...dragProps(() => w, ctx)}
 						{...(ctx.editing ? acceptDrop(i) : {})}
@@ -310,7 +322,7 @@ function Preview({ type, device, props }: { type: string; device: string; props?
 	if (def.size === 'main') return <Thumbnail type={type} large />;
 	const Component = def.component;
 	return (
-		<div inert className="pointer-events-none w-fit min-w-28 max-w-full overflow-hidden" style={{ height: COMPACT_HEIGHT[def.size] }}>
+		<div inert className="pointer-events-none w-fit min-w-28 max-w-full overflow-hidden" style={{ height: COMPACT_HEIGHT[def.size], ...(def.width ? { width: def.width } : {}) }}>
 			<Component id="preview" device={device} info={info} props={props ?? {}} />
 		</div>
 	);
@@ -428,7 +440,7 @@ function Picker({ chosen, setChosen, onPick, onClose, onNewWidget }: { /** A wid
 					</Select>
 				</FormRow>
 				{info && def.configure ? (
-					<CustomForm key={chosen.device} type={def.type as 'value' | 'number' | 'button'} device={chosen.device} info={info} preview={preview} onCreate={done} onCancel={() => setChosen(null)} />
+					<CustomForm key={chosen.device} type={def.type as 'value' | 'number' | 'button' | 'trace'} device={chosen.device} info={info} preview={preview} onCreate={done} onCancel={() => setChosen(null)} />
 				) : (
 					<>
 						{preview()}
@@ -545,6 +557,7 @@ export function Dashboard() {
 	const [editing, setEditing] = useState(false);
 	const [picking, setPicking] = useState(false);
 	const [creatingWidget, setCreatingWidget] = useState(false);
+	const [note, setNote] = useState<string | null>(null);
 	const [naming, setNaming] = useState<'new' | 'rename' | null>(null);
 	const [configuring, setConfiguring] = useState<WidgetInstance | null>(null);
 	const [dragging, setDragging] = useState<WidgetInstance | null>(null);
@@ -653,6 +666,34 @@ export function Dashboard() {
 		setChosen(null);
 	}
 
+	// editing ends by itself when nothing has happened for a few minutes
+	useEffect(() => {
+		if (!editing) return;
+		const wait = editIdleMs();
+		let timer: ReturnType<typeof setTimeout>;
+		const restart = () => {
+			clearTimeout(timer);
+			timer = setTimeout(() => {
+				setEditing(false);
+				setPicking(false);
+				setChosen(null);
+				setNote(`Editing ended: no activity for ${wait >= 60_000 ? `${Math.round(wait / 60_000)} min` : `${Math.round(wait / 1000)} s`}.`);
+			}, wait);
+		};
+		const events = ['pointerdown', 'pointermove', 'keydown', 'wheel', 'dragstart', 'touchstart'] as const;
+		restart();
+		for (const e of events) window.addEventListener(e, restart, { capture: true, passive: true });
+		return () => {
+			clearTimeout(timer);
+			for (const e of events) window.removeEventListener(e, restart, { capture: true });
+		};
+	}, [editing]);
+	useEffect(() => {
+		if (!note) return;
+		const timer = setTimeout(() => setNote(null), 10_000);
+		return () => clearTimeout(timer);
+	}, [note]);
+
 	// the highlight of a drop zone goes away when the pointer leaves it (there is no event for "left every zone")
 	useEffect(() => {
 		if (!dragging) return;
@@ -688,6 +729,7 @@ export function Dashboard() {
 				actions={
 					<>
 						{error && <span role="alert" className="text-xs text-bad">{error}</span>}
+						{note && <span role="status" data-testid="edit-note" className="text-xs text-muted">{note}</span>}
 						{editing && (
 							<>
 								{selected && (
@@ -709,6 +751,7 @@ export function Dashboard() {
 							icon={editing ? 'check' : 'edit'}
 							onClick={() => {
 								if (noViews) return createFirstView();
+								setNote(null);
 								setEditing(!editing);
 								setPicking(false);
 								setChosen(null);

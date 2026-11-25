@@ -99,7 +99,7 @@ export function ButtonWidget({ device, info, props }: WidgetProps) {
 }
 
 /** What a user picks for a widget of this kind: a state field, an action, a channel for actions that take one. */
-export function CustomForm({ type, device, info, onCreate, onCancel, preview }: { type: 'value' | 'number' | 'button'; device: string; info: DeviceInfo; onCreate: (w: WidgetInstance) => void; onCancel: () => void; /** Shows what the widget would look like with these props. */ preview: (props: Record<string, unknown>) => ReactNode }) {
+export function CustomForm({ type, device, info, onCreate, onCancel, preview }: { type: 'value' | 'number' | 'button' | 'trace'; device: string; info: DeviceInfo; onCreate: (w: WidgetInstance) => void; onCancel: () => void; /** Shows what the widget would look like with these props. */ preview: (props: Record<string, unknown>) => ReactNode }) {
 	const paths = leafPaths(info.state).filter((l) => type === 'value' || typeof l.value === 'number');
 	const actions = info.schema?.actions ?? [];
 	const [path, setPath] = useState(paths[0]?.path ?? '');
@@ -123,7 +123,7 @@ export function CustomForm({ type, device, info, onCreate, onCancel, preview }: 
 	}
 	const props: Record<string, unknown> = {};
 	if (type !== 'button') props.path = path;
-	if (type !== 'value') props.action = action;
+	if (type === 'number' || type === 'button') props.action = action;
 	if (needsChannel) props.channel = Number(channel);
 	if (type === 'button' && parsedArgs?.length) props.args = parsedArgs;
 	if (name.trim()) props.label = name.trim();
@@ -144,7 +144,7 @@ export function CustomForm({ type, device, info, onCreate, onCancel, preview }: 
 					</Select>
 				</FormRow>
 			)}
-			{type !== 'value' && (
+			{type !== 'value' && type !== 'trace' && (
 				<FormRow label="Action" htmlFor="custom-action" hint={chosen?.doc ?? undefined}>
 					<Select id="custom-action" data-testid="custom-action" value={action} onChange={(e) => setAction(e.target.value)}>
 						{actions.map((a) => <option key={a.name}>{a.name}</option>)}

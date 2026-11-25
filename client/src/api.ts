@@ -41,6 +41,8 @@ export type PackageContents = {
 };
 
 export const api = {
+	/** A numeric state field over time as [unix time, value] pairs (the server keeps one value per ten seconds for 30 days). */
+	history: (device: string, path: string, since: number, until: number, maxPoints: number) => invokeHub<[number, number][]>('get_history', device, path, since, until, maxPoints),
 	openFile: (path: string, how: 'editor' | 'folder') => invokeHub<string>('open_file', path, how),
 	describePackage: (pkg: string, entry: string | null, python: string | null) => invokeHub<PackageContents>('describe_package', pkg, entry, python),
 	listWidgetTemplates: () => invokeHub<TemplateInfo[]>('list_widget_templates'),
