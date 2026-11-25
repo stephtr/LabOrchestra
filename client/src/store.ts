@@ -77,6 +77,8 @@ type Store = {
 	recording: RecordingStatus;
 	/** The latest runs of procedures by id (the running ones are kept up to date by events). */
 	runs: Record<string, RunInfo>;
+	/** Counts every time the connection was made or restored and everything fetched: a page that loaded something once loads it again when this changes. */
+	epoch: number;
 	loginError: string | null;
 };
 
@@ -93,7 +95,7 @@ export function onProceduresChanged(listener: () => void): () => void {
 
 const TOKEN_KEY = 'laborchestra.token';
 export const getToken = () => localStorage.getItem(TOKEN_KEY) ?? '';
-let store: Store = { info: null, connection: 'connecting', devices: {}, logs: {}, views: {}, recording: { active: false }, runs: {}, loginError: null };
+let store: Store = { info: null, connection: 'connecting', devices: {}, logs: {}, views: {}, recording: { active: false }, runs: {}, epoch: 0, loginError: null };
 const subscribedLogs = new Set<string>();
 const listeners = new Set<() => void>();
 let hub: HubConnection | null = null;
@@ -261,7 +263,7 @@ async function sync(connection: HubConnection) {
 		connection.invoke<Record<string, string>>('get_views'),
 		connection.invoke<RecordingStatus>('get_recording'),
 	]);
-	set({ connection: 'connected', devices, info, views, recording });
+	set({ connection: 'connected', devices, info, views, recording, epoch: store.epoch + 1 });
 	connection.invoke<RunInfo[]>('list_runs', 50).then((list) => set({ runs: Object.fromEntries(list.map((r) => [r.id, r])) }), () => undefined);
 	connection.invoke('list_widgets').then((listing) => widgetsHandler?.(listing), () => undefined);
 	await Promise.all([...subscribedLogs].map((source) => loadLogs(connection, source)));

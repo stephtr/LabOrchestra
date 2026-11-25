@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, EnvironmentInfo } from './api';
 import { Section, TABLE } from './Section';
+import { useStore } from './store';
 import { Button } from './ui';
 
 /** The Python environments on disk (one per set of dependencies, shared by devices that need the same) and their clean-up. */
@@ -8,8 +9,9 @@ export function EnvironmentsPanel() {
 	const [environments, setEnvironments] = useState<EnvironmentInfo[] | null>(null);
 	const [message, setMessage] = useState<string | null>(null);
 
+	const { epoch } = useStore();
 	const refresh = () => api.listEnvironments().then(setEnvironments, (e: Error) => setMessage(e.message));
-	useEffect(() => void refresh(), []);
+	useEffect(() => { setMessage(null); void refresh(); }, [epoch]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	async function cleanUp(days: number) {
 		try {

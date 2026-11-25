@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from './api';
 import { Section } from './Section';
+import { useStore } from './store';
 import { Button, IconButton, Input } from './ui';
 
 /** Secrets (API keys, tokens) are stored by the server, outside the workspace. Their values are never shown again. */
@@ -10,8 +11,9 @@ export function SecretsPanel() {
 	const [value, setValue] = useState('');
 	const [error, setError] = useState<string | null>(null);
 
-	const refresh = () => api.listSecrets().then(setNames, (e: Error) => setError(e.message));
-	useEffect(() => void refresh(), []);
+	const { epoch } = useStore();
+	const refresh = () => api.listSecrets().then((n) => { setNames(n); setError(null); }, (e: Error) => setError(e.message));
+	useEffect(() => void refresh(), [epoch]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	async function save() {
 		try {

@@ -13,7 +13,7 @@ import { useStore } from './store';
 
 /** Add, change, restart and remove the devices of the workspace (devices.json), and manage secrets. */
 export function DevicesPage() {
-	const { devices } = useStore();
+	const { devices, epoch } = useStore();
 	const [entries, setEntries] = useState<Record<string, DeviceEntry>>({});
 	const [dialog, setDialog] = useState<{ id: string | null } | null>(null);
 	const [creating, setCreating] = useState(false);
@@ -21,8 +21,8 @@ export function DevicesPage() {
 	const ids = Object.keys(devices).sort();
 
 	useEffect(() => {
-		void api.listDeviceEntries().then(setEntries, (e: Error) => setError(e.message));
-	}, [ids.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
+		void api.listDeviceEntries().then((loaded) => { setEntries(loaded); setError(null); }, (e: Error) => setError(e.message));
+	}, [ids.join(','), epoch]); // eslint-disable-line react-hooks/exhaustive-deps
 	const sourceOf = (id: string) => (entries[id]?.package ? `package: ${entries[id]!.package}${entries[id]!.entry ? ` (${entries[id]!.entry})` : ''}` : entries[id]?.driver ? `driver: ${entries[id]!.driver}` : entries[id]?.remote ? 'remote worker' : (entries[id]?.file ?? ''));
 
 	async function run(action: Promise<unknown>) {

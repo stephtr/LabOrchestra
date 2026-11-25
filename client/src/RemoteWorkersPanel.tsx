@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, CreatedToken, DeviceEntry, TokenInfo } from './api';
 import { Section, TABLE } from './Section';
+import { useStore } from './store';
 import { Button, IconButton, Input, Select } from './ui';
 
 /** Tokens for workers on other machines. A token belongs to one device and is shown once; revoking it stops the worker from connecting again. */
@@ -12,8 +13,9 @@ export function RemoteWorkersPanel({ entries }: { entries: Record<string, Device
 	const [created, setCreated] = useState<CreatedToken | null>(null);
 	const [error, setError] = useState<string | null>(null);
 
-	const refresh = () => api.listTokens().then((t) => setTokens(t.filter((x) => x.kind === 'worker')), (e: Error) => setError(e.message));
-	useEffect(() => void refresh(), []);
+	const { epoch } = useStore();
+	const refresh = () => api.listTokens().then((t) => { setTokens(t.filter((x) => x.kind === 'worker')); setError(null); }, (e: Error) => setError(e.message));
+	useEffect(() => void refresh(), [epoch]); // eslint-disable-line react-hooks/exhaustive-deps
 	useEffect(() => {
 		if (!remote.includes(device)) setDevice(remote[0] ?? '');
 	}, [remote.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps

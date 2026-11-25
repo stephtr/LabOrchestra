@@ -388,6 +388,23 @@ try {
 	ok('oscilloscope: the stream is subscribed again after the server restarted');
 	ok('server restart: the page reconnects and shows the new state');
 
+	// the Devices page while the server restarts: it reconnects, loads again, and shows no error
+	await page.getByTestId('nav-devices').click();
+	await page.getByTestId('row-pressure').waitFor();
+	const stoppedAgain = new Promise((resolve) => server.once('exit', resolve));
+	server.kill('SIGTERM');
+	await page.waitForFunction(() => document.querySelector('[data-testid="connection"]')?.textContent === 'reconnecting');
+	await page.getByRole('button', { name: 'Remove pressure' }).click({ trial: true }).catch(() => undefined); // asking things now must not break the page
+	await stoppedAgain;
+	server = startServer();
+	await waitText('connection', 'connected');
+	await waitText('row-status-pressure', 'ready');
+	await page.waitForTimeout(500);
+	assert.equal(await page.getByRole('alert').count(), 0, 'the Devices page shows no error after the server came back');
+	assert.ok((await page.getByTestId('environments').textContent()).length > 0 && (await page.getByTestId('secrets').count()) === 1);
+	ok('devices page: survives a server restart without an error');
+	await page.getByTestId('nav-dashboard').click();
+
 	// views: the first view is made from the devices, then edited
 	const viewFile = path.join(dir, 'workspace/views/dashboard.json');
 	const readView = () => JSON.parse(fs.readFileSync(viewFile, 'utf8'));

@@ -167,14 +167,14 @@ function RunPanel({ run, title }: { run: RunInfo; title: string }) {
 }
 
 export function ProceduresPage() {
-	const { runs } = useStore();
+	const { runs, epoch } = useStore();
 	const [listing, setListing] = useState<ProcedureListing[] | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [running, setRunning] = useState<Procedure | null>(null);
 	const [selected, setSelected] = useState<string | null>(null);
 
 	const load = () => api.listProcedures().then((l) => { setListing(l); setError(null); }, (e: Error) => setError(e.message));
-	useEffect(() => { void load(); return onProceduresChanged(() => void load()); }, []);
+	useEffect(() => { void load(); return onProceduresChanged(() => void load()); }, [epoch]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	const all = useMemo(() => Object.values(runs).sort((a, b) => b.started - a.started), [runs]);
 	const active = all.filter(ACTIVE);
