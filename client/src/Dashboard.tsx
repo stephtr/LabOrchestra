@@ -2,7 +2,9 @@ import { createContext, ReactNode, useContext, useEffect, useMemo, useRef, useSt
 import { Group, Panel, Separator, useGroupRef } from 'react-resizable-panels';
 import {
 	addMain,
-	addToStrip,
+	addToArea,
+	areas,
+	fixArea,
 	defaultView,
 	emptyView,
 	equal,
@@ -11,7 +13,7 @@ import {
 	parseView,
 	placeAtEdge,
 	placeInMain,
-	placeInStrip,
+	placeInArea,
 	removeWidget,
 	setProps,
 	Side,
@@ -47,7 +49,7 @@ function editIdleMs(): number {
 }
 const NO_DEVICE: DeviceInfo = { status: 'ready', error: null, schema: null, state: null, revision: 0 };
 
-type DropTarget = { pane: string; side: Side | 'swap' } | { strip: number } | { edge: Side } | null;
+type DropTarget = { pane: string; side: Side | 'swap' } | { area: string; index: number } | { edge: Side } | null;
 type Chosen = { type: string; device: string; /** Where it was dropped (without: at the end). */ place?: Place };
 type Place = (view: View, w: WidgetInstance) => View;
 type Ctx = {
@@ -88,6 +90,9 @@ function WidgetView({ instance }: { instance: WidgetInstance }) {
 	const Component = def.component;
 	return <Component id={instance.id} device={instance.device} info={info} props={instance.props ?? {}} />;
 }
+
+/** A compact widget (S or M) rather than one that fills a pane: beside a pane or at an edge it gets an area of its own. */
+const isCompact = (w: WidgetInstance) => (widgetDef(w.type)?.size ?? 'main') !== 'main';
 
 function dragProps(w: () => WidgetInstance, ctx: Ctx, image?: (from: HTMLElement) => Element | null) {
 	return ctx.editing
@@ -160,7 +165,7 @@ function Pane({ instance }: { instance: WidgetInstance }) {
 					onDrop={(e) => {
 						e.preventDefault();
 						const side = sideAt(e, e.currentTarget, isMain);
-						ctx.dropped((v, w) => (side === 'swap' ? swapMains(v, w.id, instance.id) : placeInMain(v, w, { id: instance.id, side })));
+						ctx.dropped((v, w) => (side === 'swap' ? swapMains(v, w.id, instance.id) : placeInMain(v, w, { id: instance.id, side }, isCompact(w))));
 					}}
 				>
 					{over && <div className={`pointer-events-none absolute rounded-lg bg-accent/20 ring-2 ring-inset ring-accent ${HIGHLIGHT[over]}`} />}
@@ -197,7 +202,7 @@ function EdgeRails() {
 					}}
 					onDrop={(e) => {
 						e.preventDefault();
-						ctx.dropped((v, w) => placeAtEdge(v, w, side));
+						ctx.dropped((v, w) => placeAtEdge(v, w, side, isCompact(w)));
 					}}
 				/>
 			))}
@@ -221,11 +226,46 @@ function layoutOf(node: Extract<Node, { kind: 'split' }>): Record<string, number
 function SplitView({ node }: { node: Extract<Node, { kind: 'split' }> }) {
 	const ctx = useContext(DashboardContext);
 	const group = useGroupRef();
+	const wrapper = useRef<HTMLDivElement>(null);
 	const reported = useRef<string>('');
+	/** The layout that was set to fit the areas to their content (not by the user), to tell the two apart when the group reports a change. */
+	const expected = useRef<Record<string, number> | null>(null);
+	const [natural, setNatural] = useState<Record<string, number>>({});
+	const [height, setHeight] = useState(0);
+	// areas of a column fit their content (until the user drags their size): their share is what their content needs
+	const fitIds = node.dir === 'column' ? node.children.filter((c) => c.kind === 'area' && !c.fixed).map((c) => c.id) : [];
+	const fitKey = fitIds.map((id) => `${id}:${natural[id] ?? '?'}`).join();
+	useEffect(() => {
+		const element = wrapper.current;
+		if (!element || fitIds.length === 0) return;
+		const observer = new ResizeObserver(() => setHeight(element.clientHeight));
+		observer.observe(element);
+		setHeight(element.clientHeight);
+		return () => observer.disconnect();
+	}, [fitIds.length > 0]); // eslint-disable-line react-hooks/exhaustive-deps
+	useEffect(() => {
+		if (fitIds.length === 0) {
+			expected.current = null;
+			return;
+		}
+		if (height <= 0 || fitIds.some((id) => natural[id] === undefined)) return;
+		const share: Record<string, number> = {};
+		for (const id of fitIds) share[id] = Math.min(60, Math.max(4, ((natural[id]! + 2) / height) * 100));
+		const left = 100 - Object.values(share).reduce((a, b) => a + b, 0);
+		const others = node.children.filter((c) => !fitIds.includes(c.id));
+		const weight = others.reduce((sum, c) => sum + (node.sizes[node.children.indexOf(c)] ?? 1), 0) || 1;
+		for (const c of others) share[c.id] = (left * (node.sizes[node.children.indexOf(c)] ?? 1)) / weight;
+		expected.current = share;
+		try {
+			group.current?.setLayout(share);
+		} catch {
+			/* not mounted yet */
+		}
+	}, [fitKey, height, node.children.map((c) => c.id).join()]); // eslint-disable-line react-hooks/exhaustive-deps
 	// a resize by another client (or a file edit) reaches this one without remounting the widgets
 	const wanted = JSON.stringify(node.sizes.map((s) => Math.round(s * 10)));
 	useEffect(() => {
-		if (reported.current === wanted) return;
+		if (reported.current === wanted || fitIds.length > 0) return;
 		try {
 			group.current?.setLayout(layoutOf(node));
 		} catch {
@@ -233,82 +273,121 @@ function SplitView({ node }: { node: Extract<Node, { kind: 'split' }> }) {
 		}
 	}, [wanted]); // eslint-disable-line react-hooks/exhaustive-deps
 	return (
-		<Group
-			key={node.children.map((c) => c.id).join()}
-			id={node.id}
-			groupRef={group}
-			orientation={node.dir === 'row' ? 'horizontal' : 'vertical'}
-			defaultLayout={layoutOf(node)}
-			onLayoutChanged={(layout) => {
-				const sizes = node.children.map((c) => layout[c.id] ?? 0);
-				reported.current = JSON.stringify(sizes.map((s) => Math.round(s * 10)));
-				if (sizes.some((s, i) => Math.abs(s - (node.sizes[i] ?? 0)) > 0.05)) ctx.apply((v) => setSizes(v, node.id, sizes));
-			}}
-		>
-			{node.children.flatMap((child, i) => [
-				...(i > 0 ? [<Gutter key={`g${child.id}`} direction={node.dir} />] : []),
-				<Panel key={child.id} id={child.id} minSize="8">
-					<NodeView node={child} />
-				</Panel>,
-			])}
-		</Group>
+		<div ref={wrapper} className="h-full">
+			<Group
+				key={node.children.map((c) => c.id).join()}
+				id={node.id}
+				groupRef={group}
+				orientation={node.dir === 'row' ? 'horizontal' : 'vertical'}
+				defaultLayout={layoutOf(node)}
+				onLayoutChanged={(layout) => {
+					const sizes = node.children.map((c) => layout[c.id] ?? 0);
+					const target = expected.current;
+					if (target && node.children.every((c) => Math.abs((layout[c.id] ?? 0) - (target[c.id] ?? 0)) < 0.6)) return; // our own fitting, not the user
+					reported.current = JSON.stringify(sizes.map((s) => Math.round(s * 10)));
+					// the user dragged: an area that was fitted keeps the size it has now
+					const moved = target ? fitIds.filter((id) => Math.abs((layout[id] ?? 0) - (target[id] ?? 0)) >= 0.6) : [];
+					if (moved.length > 0 || sizes.some((s, i) => Math.abs(s - (node.sizes[i] ?? 0)) > 0.05))
+						ctx.apply((v) => setSizes(moved.reduce((view, id) => fixArea(view, id), v), node.id, sizes));
+				}}
+			>
+				{node.children.flatMap((child, i) => [
+					...(i > 0 ? [<Gutter key={`g${child.id}`} direction={node.dir} />] : []),
+					<Panel key={child.id} id={child.id} minSize={child.kind === 'area' ? '4' : '8'}>
+						<NodeView node={child} onNatural={(id, px) => setNatural((n) => (n[id] === px ? n : { ...n, [id]: px }))} />
+					</Panel>,
+				])}
+			</Group>
+		</div>
 	);
 }
 
-function NodeView({ node }: { node: Node }) {
-	return node.kind === 'main' ? <Pane instance={node.widget} /> : <SplitView node={node} />;
+function NodeView({ node, onNatural }: { node: Node; onNatural?: (id: string, px: number) => void }) {
+	return node.kind === 'main' ? <Pane instance={node.widget} /> : node.kind === 'area' ? <AreaView node={node} onNatural={onNatural} /> : <SplitView node={node} />;
 }
 
-function Strip({ widgets }: { widgets: WidgetInstance[] }) {
+/** Compact widgets that wrap like text: each keeps its height (S or M); those with a width (a trace) grow a little to fill their row. */
+function AreaView({ node, onNatural }: { node: Extract<Node, { kind: 'area' }>; onNatural?: (id: string, px: number) => void }) {
 	const ctx = useContext(DashboardContext);
-	const fits = !ctx.dragging || widgetDef(ctx.dragging.type)?.size !== 'main';
-	const dropAt = ctx.drop && 'strip' in ctx.drop ? ctx.drop.strip : null;
+	const inner = useRef<HTMLDivElement>(null);
+	useEffect(() => {
+		const element = inner.current;
+		if (!element || !onNatural) return;
+		const observer = new ResizeObserver(() => onNatural(node.id, element.offsetHeight));
+		observer.observe(element);
+		onNatural(node.id, element.offsetHeight);
+		return () => observer.disconnect();
+	}, [node.id]); // eslint-disable-line react-hooks/exhaustive-deps
+	const fits = !ctx.dragging || isCompact(ctx.dragging);
+	const dropAt = ctx.drop && 'area' in ctx.drop && ctx.drop.area === node.id ? ctx.drop.index : null;
+	const widgets = node.widgets;
 	const acceptDrop = (index: number) => ({
 		onDragOver: (e: React.DragEvent) => {
 			if (!ctx.dragging || !fits) return;
 			e.preventDefault();
 			e.stopPropagation();
-			if (dropAt !== index) ctx.setDrop({ strip: index });
+			if (dropAt !== index) ctx.setDrop({ area: node.id, index });
 		},
 		onDrop: (e: React.DragEvent) => {
 			if (!ctx.dragging || !fits) return;
 			e.preventDefault();
 			e.stopPropagation();
-			ctx.dropped((v, w) => placeInStrip(v, w, index));
+			ctx.dropped((v, w) => placeInArea(v, w, node.id, index));
 		},
 	});
-	if (widgets.length === 0 && !ctx.editing) return null;
 	return (
 		<div
-			data-testid="strip"
+			data-testid="area"
 			data-dropzone
-			className={`flex min-h-16 flex-none flex-wrap items-start gap-1.5 border-t border-line p-1.5 ${ctx.editing ? 'bg-raised' : ''} ${ctx.dragging && fits && dropAt === widgets.length ? 'outline-2 -outline-offset-2 outline-accent' : ''}`}
+			className={`relative z-40 h-full overflow-y-auto border-t border-line ${ctx.editing ? 'bg-raised' : ''} ${ctx.dragging && fits && dropAt === widgets.length ? 'outline-2 -outline-offset-2 outline-accent' : ''}`}
 			{...(ctx.editing ? acceptDrop(widgets.length) : {})}
 		>
-			{widgets.length === 0 && <span className="self-center px-2 text-xs text-muted">Compact widgets go here.</span>}
-			{widgets.map((w, i) => {
-				const size = widgetDef(w.type)?.size;
-				const height = COMPACT_HEIGHT[size === 'M' ? 'M' : 'S'];
-				return (
-					<div
-						key={w.id}
-						data-testid={`strip-${w.id}`}
-						data-dropzone
-						style={{ height, ...(widgetDef(w.type)?.width ? { width: widgetDef(w.type)!.width } : {}) }}
-						className={`group relative min-w-28 flex-none ${ctx.editing ? 'cursor-grab active:cursor-grabbing' : ''} ${dropAt === i ? 'before:absolute before:inset-y-0 before:-left-1 before:w-0.5 before:rounded before:bg-accent' : ''}`}
-						{...dragProps(() => w, ctx)}
-						{...(ctx.editing ? acceptDrop(i) : {})}
-					>
-						<WidgetView instance={w} />
-						{ctx.editing && (
-							<span className="absolute right-px top-px flex rounded-tr-lg bg-panel opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
-								<IconButton small icon="settings" label="Widget settings" data-testid={`settings-${w.id}`} onClick={() => ctx.configure(w)} />
-								<IconButton small icon="close" variant="danger" label="Remove widget" onClick={() => ctx.apply((v) => removeWidget(v, w.id))} />
-							</span>
-						)}
-					</div>
-				);
-			})}
+			{ctx.editing && ctx.dragging && !fits && (
+				// a pane dragged over an area goes beside it (the area itself holds compact widgets only)
+				<div
+					className="absolute inset-0 z-20"
+					data-dropzone
+					data-testid={`drop-${node.id}`}
+					onDragOver={(e) => {
+						e.preventDefault();
+						const side = sideAt(e, e.currentTarget, false) as Side;
+						if (!(ctx.drop && 'pane' in ctx.drop && ctx.drop.pane === node.id && ctx.drop.side === side)) ctx.setDrop({ pane: node.id, side });
+					}}
+					onDrop={(e) => {
+						e.preventDefault();
+						const side = sideAt(e, e.currentTarget, false) as Side;
+						ctx.dropped((v, w) => placeInMain(v, w, { id: node.id, side }));
+					}}
+				>
+					{ctx.drop && 'pane' in ctx.drop && ctx.drop.pane === node.id && <div className={`pointer-events-none absolute rounded-lg bg-accent/20 ring-2 ring-inset ring-accent ${HIGHLIGHT[ctx.drop.side]}`} />}
+				</div>
+			)}
+			<div ref={inner} className="flex min-h-16 flex-wrap items-start gap-1.5 p-1.5">
+				{widgets.map((w, i) => {
+					const def = widgetDef(w.type);
+					const height = COMPACT_HEIGHT[def?.size === 'M' ? 'M' : 'S'];
+					const width = def?.width;
+					return (
+						<div
+							key={w.id}
+							data-testid={`area-${w.id}`}
+							data-dropzone
+							style={{ height, ...(width ? { flex: `1 1 ${width}px`, minWidth: width * 0.85, maxWidth: width * 1.5 } : {}) }}
+							className={`group relative min-w-28 ${width ? '' : 'flex-none'} ${ctx.editing ? 'cursor-grab active:cursor-grabbing' : ''} ${dropAt === i ? 'before:absolute before:inset-y-0 before:-left-1 before:w-0.5 before:rounded before:bg-accent' : ''}`}
+							{...dragProps(() => w, ctx)}
+							{...(ctx.editing ? acceptDrop(i) : {})}
+						>
+							<WidgetView instance={w} />
+							{ctx.editing && (
+								<span className="absolute right-px top-px flex rounded-tr-lg bg-panel opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+									<IconButton small icon="settings" label="Widget settings" data-testid={`settings-${w.id}`} onClick={() => ctx.configure(w)} />
+									<IconButton small icon="close" variant="danger" label="Remove widget" onClick={() => ctx.apply((v) => removeWidget(v, w.id))} />
+								</span>
+							)}
+						</div>
+					);
+				})}
+			</div>
 		</div>
 	);
 }
@@ -654,8 +733,8 @@ export function Dashboard() {
 		setEditing(true);
 	}
 
-	/** The end of the list: main widgets below everything, compact ones at the end of the strip. */
-	const atTheEnd: Place = (v, w) => ((widgetDef(w.type)?.size ?? 'main') === 'main' ? addMain(v, w) : addToStrip(v, w));
+	/** The end of the list: main widgets below everything, compact ones at the end of the last area (the first one makes an area along the bottom). */
+	const atTheEnd: Place = (v, w) => ((widgetDef(w.type)?.size ?? 'main') === 'main' ? addMain(v, w) : addToArea(v, w));
 
 	function dropped(place: Place) {
 		const w = dragging;
@@ -723,7 +802,7 @@ export function Dashboard() {
 	}, [dragging]);
 
 	const ctx: Ctx = { editing, devices, dragging, setDragging, drop, setDrop, apply, dropped, view, configure: setConfiguring };
-	const empty = !view.root && view.strip.length === 0;
+	const empty = !view.root;
 	return (
 		<DashboardContext.Provider value={ctx}>
 			<Header
@@ -818,7 +897,7 @@ export function Dashboard() {
 										onDragOver: (e: React.DragEvent) => e.preventDefault(),
 										onDrop: (e: React.DragEvent) => {
 											e.preventDefault();
-											dropped((v, w) => placeInMain(v, w));
+											dropped((v, w) => placeInMain(v, w, undefined, isCompact(w)));
 										},
 									}
 								: {})}
@@ -847,7 +926,6 @@ export function Dashboard() {
 						)
 					)}
 				</div>
-						{!noViews && <Strip widgets={view.strip} />}
 					</div>
 					{editing && picking && (
 						<Picker

@@ -58,9 +58,19 @@ class PressureUpload(Service):
         while self.running:
             self.sleep(1)
 `);
-const view = JSON.parse(fs.readFileSync(path.join(ws, 'views/dashboard.json'), 'utf8'));
-for (const w of view.strip) if (w.props?.label === 'Vorvakuum') w.props.label = 'Fore vacuum'; else if (w.props?.label === 'Kammer') w.props.label = 'Chamber';
-view.strip = view.strip.filter((w, i, all) => !(w.type === 'turbo_pump' && !w.props?.label)); // the stripped copy has one tile per pump
+// the example view as committed (a live workspace may have been edited); version 1 has a strip, which becomes an area along the bottom
+const view = JSON.parse(execFileSync('git', ['show', 'HEAD:workspace/views/dashboard.json'], { cwd: root, encoding: 'utf8' }));
+if (view.strip) {
+	view.root = { id: 'n_root', kind: 'split', dir: 'column', children: [view.root, { id: 'a_strip', kind: 'area', widgets: view.strip }], sizes: [80, 20] };
+	delete view.strip;
+	view.version = 2;
+}
+// the layout has areas of compact widgets (version 2): drop the duplicate pump tile, add two traces
+const area = (n) => (n.kind === 'area' ? n : n.kind === 'split' ? n.children.map(area).find(Boolean) : null);
+const compact = area(view.root);
+compact.widgets = compact.widgets.filter((w) => !(w.type === 'turbo_pump' && !w.props?.label));
+compact.widgets.push({ id: 'w_trace1', type: 'trace', device: 'pressure', props: { path: 'channels.1.pressure', scale: 'log', label: 'Chamber pressure' } }, { id: 'w_trace2', type: 'trace', device: 'pressure', props: { path: 'channels.0.pressure', label: 'Fore vacuum' } });
+for (const w of area(view.root).widgets) if (w.props?.label === 'Vorvakuum') w.props.label = 'Fore vacuum'; else if (w.props?.label === 'Kammer') w.props.label = 'Chamber';
 fs.writeFileSync(path.join(ws, 'views/dashboard.json'), JSON.stringify(view, null, '\t'));
 
 const port = await new Promise((resolve) => { const s = net.createServer().listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => resolve(p)); }); });

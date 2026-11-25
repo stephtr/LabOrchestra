@@ -25,13 +25,15 @@ def test_the_example_view_shows_devices_of_the_example_workspace_and_only_those(
     def walk(node):
         if node["kind"] == "main":
             widgets.append(node["widget"])
+        elif node["kind"] == "area":
+            widgets.extend(node["widgets"])
         else:
             assert len(node["sizes"]) == len(node["children"]) and abs(sum(node["sizes"]) - 100) < 1e-6
             for child in node["children"]:
                 walk(child)
 
     walk(view["root"])
-    widgets += view["strip"]
+    widgets += view.get("strip", [])  # version 1 views have a strip; version 2 has areas in the tree
     assert len({w["id"] for w in widgets}) == len(widgets)
     for w in widgets:
         assert "device" not in w or w["device"] in devices, w

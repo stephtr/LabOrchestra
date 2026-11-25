@@ -407,7 +407,17 @@ try {
 
 	// views: the first view is made from the devices, then edited
 	const viewFile = path.join(dir, 'workspace/views/dashboard.json');
-	const readView = () => JSON.parse(fs.readFileSync(viewFile, 'utf8'));
+	// version 2 has areas in the tree; `strip` is all their widgets in reading order (not written back), `panes` the main widgets
+	const flatten = (v) => {
+		const strip = [], panes = [];
+		const walk = (n) => { if (!n) return; if (n.kind === 'area') strip.push(...n.widgets); else if (n.kind === 'main') panes.push(n.widget); else n.children.forEach(walk); };
+		walk(v.root);
+		Object.defineProperty(v, 'strip', { value: strip, enumerable: false });
+		Object.defineProperty(v, 'panes', { value: panes, enumerable: false });
+		return v;
+	};
+	const firstArea = (v) => { let found; const walk = (n) => { if (!n || found) return; if (n.kind === 'area') found = n; else if (n.kind === 'split') n.children.forEach(walk); }; walk(v.root); return found; };
+	const readView = () => flatten(JSON.parse(fs.readFileSync(viewFile, 'utf8')));
 	const waitView = async (check, what) => {
 		for (let i = 0; i < 100; i++) {
 			try {
@@ -420,30 +430,31 @@ try {
 		throw new Error(`view file never showed: ${what}\n${fs.existsSync(viewFile) ? fs.readFileSync(viewFile, 'utf8') : '(no file)'}`);
 	};
 	await page.getByTestId('edit-toggle').click(); // "Edit layout": creates the view from the devices
-	await page.getByTestId('strip').waitFor();
-	let view = await waitView((v) => v.root?.kind === 'main' && v.strip.length === 1, 'oscilloscope pane and one summary');
-	assert.equal(view.root.widget.type, 'oscilloscope');
+	await page.getByTestId('area').waitFor();
+	let view = await waitView((v) => v.panes.length === 1 && v.strip.length === 1, 'oscilloscope pane and one summary');
+	assert.equal(view.panes[0].type, 'oscilloscope');
 	assert.equal(view.strip[0].type, 'summary');
 	await page.getByTestId('summary-pressure').waitFor();
 	await page.getByTestId('osc-canvas').waitFor();
 	ok('first view is created from the devices: oscilloscope pane, summary in the strip');
 
 	await addWidget('device_card', 'pressure');
-	view = await waitView((v) => v.root?.kind === 'split' && v.root.children.length === 2, 'a second pane');
+	view = await waitView((v) => v.panes.length === 2, 'a second pane');
 	assert.equal(view.root.dir, 'column');
 	await page.getByTestId('device-pressure').waitFor();
 	ok('a widget picked from the list becomes a second pane');
 
 	// the gutter moves with the mouse and the size is stored
+	const sizeBefore = readView().root.sizes[0];
 	const gutter = page.getByRole('separator').first();
 	const box = await gutter.boundingBox();
 	await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
 	await page.mouse.down();
 	await page.mouse.move(box.x + box.width / 2, box.y - 150, { steps: 8 });
 	await page.mouse.up();
-	view = await waitView((v) => Math.abs(v.root.sizes[0] - 50) > 5, 'resized panes');
-	assert.ok(view.root.sizes[0] < 45, `the upper pane got smaller: ${view.root.sizes}`);
-	assert.ok(Math.abs(view.root.sizes[0] + view.root.sizes[1] - 100) < 0.01);
+	view = await waitView((v) => Math.abs(v.root.sizes[0] - sizeBefore) > 5, 'resized panes');
+	assert.ok(view.root.sizes[0] < sizeBefore, `the upper pane got smaller: ${view.root.sizes}`);
+	assert.ok(Math.abs(view.root.sizes.reduce((a, b) => a + b, 0) - 100) < 0.01);
 	ok('the gutter can be dragged; the sizes are stored');
 
 	// drag one pane to the side of the other: a row
@@ -451,15 +462,15 @@ try {
 	const target = page.locator('[data-testid^="pane-"]').first();
 	const targetBox = await target.boundingBox();
 	await handles.nth(1).dragTo(target, { targetPosition: { x: targetBox.width - 90, y: targetBox.height / 2 } });
-	view = await waitView((v) => v.root?.kind === 'split' && v.root.dir === 'row', 'panes side by side');
-	assert.equal(view.root.children.length, 2);
+	view = await waitView((v) => v.root?.kind === 'split' && v.root.children[0].kind === 'split' && v.root.children[0].dir === 'row', 'panes side by side');
+	assert.equal(view.root.children[0].children.length, 2);
 	ok('dropping on the right edge of a pane puts the dragged one next to it');
 
 	// reorder in the strip
 	await addWidget('summary', 'scope');
 	view = await waitView((v) => v.strip.length === 2, 'two summaries');
 	const order = view.strip.map((w) => w.device);
-	const strip = page.locator('[data-testid^="strip-"]:not([data-testid="strip"])');
+	const strip = page.locator('[data-testid^="area-"]');
 	await strip.nth(1).dragTo(strip.nth(0), { targetPosition: { x: 5, y: 10 } });
 	view = await waitView((v) => v.strip[0].device === order[1], 'strip reordered');
 	ok('summaries can be reordered in the strip');
@@ -469,7 +480,7 @@ try {
 	await page.getByTestId('summary-pressure').waitFor();
 	await page.getByTestId('device-pressure').waitFor();
 	assert.equal(await page.locator('[data-testid^="pane-"]').count(), 2);
-	assert.equal(await page.getByRole('separator').count(), 1);
+	assert.equal(await page.getByRole('separator').count(), 2);
 	ok('the layout survives a reload');
 
 	// compact widgets: a pressure readout (labelled), the recording bar
@@ -479,7 +490,7 @@ try {
 	await page.getByTestId('pressure-value-pressure-0').waitFor();
 	assert.equal(await text('pressure-value-pressure-0'), await text('state-pressure-channels.0.pressure'));
 	const pressureId = (await waitView((v) => v.strip.some((w) => w.type === 'pressure'), 'pressure widget')).strip.find((w) => w.type === 'pressure').id;
-	await page.getByTestId('strip-' + pressureId).getByLabel('Widget settings').click();
+	await page.getByTestId('area-' + pressureId).getByLabel('Widget settings').click();
 	const settings = page.getByTestId('widget-settings');
 	await settings.getByTestId('prop-channel').fill('1.5');
 	await settings.getByTestId('settings-save').click();
@@ -663,7 +674,7 @@ export default function BigPressure({ device, props }: { device: string; props: 
 	ok('runtime widget: a crash stays inside the widget; the widget is part of the saved view');
 	await page.getByTestId('edit-toggle').click();
 	const runtimeId = readView().strip.find((w) => w.type === 'ws:pressure_big').id;
-	await page.getByTestId('strip-' + runtimeId).getByLabel('Widget settings').click(); // the widget declares a "Gauge" setting in its meta
+	await page.getByTestId('area-' + runtimeId).getByLabel('Widget settings').click(); // the widget declares a "Gauge" setting in its meta
 	await page.getByTestId('widget-settings').getByLabel('Gauge').fill('1');
 	await page.getByTestId('settings-save').click();
 	await page.waitForFunction(() => /e-8/.test(document.querySelector('[data-testid="rw-value"]')?.textContent ?? ''));
@@ -720,7 +731,7 @@ export default function BigPressure({ device, props }: { device: string; props: 
 	// drag out of the picker: a preview into the strip, a large widget to the side of a pane, a widget for any device (asks for it, keeps the place)
 	await openPicker();
 	const undragged = readView();
-	await page.getByTestId('add-pressure-pressure-1').dragTo(page.getByTestId('strip-' + undragged.strip[0].id), { targetPosition: { x: 4, y: 20 } });
+	await page.getByTestId('add-pressure-pressure-1').dragTo(page.getByTestId('area-' + undragged.strip[0].id), { targetPosition: { x: 4, y: 20 } });
 	view = await waitView((v) => v.strip.length === undragged.strip.length + 1, 'the dragged preview');
 	assert.deepEqual([view.strip[0].type, view.strip[0].props], ['pressure', { channel: 1 }]);
 	const panes = page.locator('[data-testid^="pane-"]');
@@ -728,13 +739,13 @@ export default function BigPressure({ device, props }: { device: string; props: 
 	const paneBox = await panes.first().boundingBox();
 	await page.getByTestId('add-oscilloscope-scope').dragTo(panes.first(), { targetPosition: { x: 80, y: paneBox.height / 2 } });
 	await page.waitForFunction((n) => document.querySelectorAll('[data-testid^="pane-"]').length === n + 1, paneCount);
-	await page.getByTestId('add-summary').dragTo(page.getByTestId('strip-' + view.strip[0].id), { targetPosition: { x: 4, y: 20 } });
+	await page.getByTestId('add-summary').dragTo(page.getByTestId('area-' + view.strip[0].id), { targetPosition: { x: 4, y: 20 } });
 	await page.getByTestId('pick-device').selectOption('rf');
 	await page.getByTestId('pick-add').click();
 	view = await waitView((v) => v.strip[0].type === 'summary', 'the summary where it was dropped');
 	assert.equal(view.strip[0].device, 'rf');
 	await page.getByTestId('add-value').click();
-	await page.getByTestId('drag-preview').dragTo(page.getByTestId('strip-' + view.strip[0].id), { targetPosition: { x: 4, y: 20 } });
+	await page.getByTestId('drag-preview').dragTo(page.getByTestId('area-' + view.strip[0].id), { targetPosition: { x: 4, y: 20 } });
 	await waitView((v) => v.strip[0].type === 'value' && v.strip[0].device, 'the configured widget');
 	await page.locator('[data-testid^="pane-"]').first().getByLabel('Remove widget').click(); // the second oscilloscope again
 	await page.getByLabel('Close panel').click();
@@ -743,14 +754,14 @@ export default function BigPressure({ device, props }: { device: string; props: 
 	// the highlight of a drop zone goes away when the pointer leaves it; an edge of the layout takes the widget along its whole side
 	await openPicker();
 	const stripCount = readView().strip.length;
-	const stripBox = await page.getByTestId('strip').boundingBox();
+	const stripBox = await page.getByTestId('area').boundingBox();
 	const source = await page.getByTestId('add-pressure-pressure-0').boundingBox();
 	await page.mouse.move(source.x + 8, source.y + 8);
 	await page.mouse.down();
-	await page.mouse.move(stripBox.x + 40, stripBox.y + stripBox.height - 6, { steps: 8 });
-	await page.waitForFunction(() => /outline-accent/.test(document.querySelector('[data-testid=strip]').className));
+	await page.mouse.move(stripBox.x + 40, stripBox.y + stripBox.height - 3, { steps: 8 });
+	await page.waitForFunction(() => /outline-accent/.test(document.querySelector('[data-testid=area]').className));
 	await page.mouse.move(source.x + 100, source.y + 300, { steps: 8 }); // back over the panel
-	await page.waitForFunction(() => !/outline-accent/.test(document.querySelector('[data-testid=strip]').className));
+	await page.waitForFunction(() => !/outline-accent/.test(document.querySelector('[data-testid=area]').className));
 	await page.mouse.up();
 	await new Promise((r) => setTimeout(r, 500));
 	assert.equal(readView().strip.length, stripCount, 'a drop on the panel itself adds nothing');
@@ -762,7 +773,7 @@ export default function BigPressure({ device, props }: { device: string; props: 
 	await page.getByTestId('view-tab-dashboard_copy').waitFor();
 	const copy = JSON.parse(fs.readFileSync(path.join(dir, 'workspace/views/dashboard_copy.json'), 'utf8'));
 	assert.equal(copy.title, 'Dashboard (copy)');
-	assert.equal(copy.strip.length, readView().strip.length); // the same widgets
+	assert.equal(flatten(copy).strip.length, readView().strip.length); // the same widgets
 	await page.getByTestId('view-rename').click();
 	await page.getByTestId('name-input').fill('Second view');
 	await page.getByTestId('name-save').click();
@@ -811,7 +822,7 @@ export default function BigPressure({ device, props }: { device: string; props: 
 	const emptyView = async (check, what) => {
 		for (let i = 0; i < 100; i++) {
 			try {
-				const v = JSON.parse(fs.readFileSync(emptyFile, 'utf8'));
+				const v = flatten(JSON.parse(fs.readFileSync(emptyFile, 'utf8')));
 				if (check(v)) return v;
 			} catch {
 				/* not written yet */
@@ -844,7 +855,7 @@ export default function BigPressure({ device, props }: { device: string; props: 
 
 	// a hand edit of the file reaches the open page; a missing device gives a placeholder
 	view = readView();
-	view.strip.push({ id: 'w_gone', type: 'summary', device: 'no_such_device' });
+	firstArea(view).widgets.push({ id: 'w_gone', type: 'summary', device: 'no_such_device' });
 	fs.writeFileSync(viewFile, JSON.stringify(view));
 	await page.getByTestId('placeholder-w_gone').waitFor();
 	assert.match(await text('placeholder-w_gone'), /does not exist/);

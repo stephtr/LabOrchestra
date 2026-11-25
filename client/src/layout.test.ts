@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { addMain, addToStrip, defaultView, emptyView, mains, parseView, placeAtEdge, placeInMain, placeInStrip, removeWidget, setSizes, swapMains, widget } from './layout.ts';
+import { addMain, addToArea, allWidgets, areas, defaultView, emptyView, mains, parseView, placeAtEdge, placeInArea, placeInMain, removeWidget, setSizes, swapMains, widget } from './layout.ts';
+
+const inAreas = (v: ReturnType<typeof emptyView>) => areas(v.root).flatMap((a) => a.widgets.map((w) => w.id));
 
 const ids = (v: ReturnType<typeof emptyView>) => mains(v.root).map((m) => m.widget.id);
 
@@ -44,24 +46,41 @@ test('removing from a nested split keeps the proportions of the rest', () => {
 	assert.ok(Math.abs(sizes.reduce((x, y) => x + y, 0) - 100) < 1e-9);
 });
 
-test('moving between strip and panes', () => {
+test('moving between areas and panes', () => {
 	const a = widget('x');
 	const s = widget('summary', 'd');
-	let view = addToStrip(addMain(emptyView(), a), s);
+	let view = addToArea(addMain(emptyView(), a), s);
+	assert.deepEqual(inAreas(view), [s.id]);
+	assert.deepEqual(ids(view), [a.id]); // the area is below the pane, not a pane itself
 	view = placeInMain(view, s, { id: a.id, side: 'top' });
 	assert.deepEqual(ids(view), [s.id, a.id]);
-	assert.equal(view.strip.length, 0);
-	view = placeInStrip(view, a, 0);
-	assert.deepEqual(view.strip.map((w) => w.id), [a.id]);
+	assert.equal(areas(view.root).length, 0); // an area without widgets is gone
+	view = placeInArea(view, a, undefined, 0);
+	assert.deepEqual(inAreas(view), [a.id]);
 	assert.deepEqual(ids(view), [s.id]);
 });
 
-test('reordering inside the strip', () => {
+test('the first compact widget makes an area, the next ones join the last area; reordering inside it', () => {
 	const [a, b, c] = [widget('s'), widget('s'), widget('s')] as const;
 	let view = emptyView();
-	for (const w of [a, b, c]) view = addToStrip(view, w);
-	assert.deepEqual(placeInStrip(view, a, 3).strip.map((w) => w.id), [b.id, c.id, a.id]);
-	assert.deepEqual(placeInStrip(view, c, 0).strip.map((w) => w.id), [c.id, a.id, b.id]);
+	for (const w of [a, b, c]) view = addToArea(view, w);
+	assert.equal(areas(view.root).length, 1);
+	const area = areas(view.root)[0]!;
+	assert.deepEqual(placeInArea(view, a, area.id, 3).root && inAreas(placeInArea(view, a, area.id, 3)), [b.id, c.id, a.id]);
+	assert.deepEqual(inAreas(placeInArea(view, c, area.id, 0)), [c.id, a.id, b.id]);
+});
+
+test('a compact widget dropped beside a pane or at an edge gets an area of its own, next to an area it can make a second one', () => {
+	const [p, s, t] = [widget('x'), widget('s'), widget('s')] as const;
+	let view = addMain(emptyView(), p);
+	view = placeInMain(view, s, { id: p.id, side: 'right' }, true);
+	assert.deepEqual([ids(view), inAreas(view)], [[p.id], [s.id]]);
+	const first = areas(view.root)[0]!;
+	view = placeInMain(view, t, { id: first.id, side: 'bottom' }, true); // beside the area: a second area
+	assert.equal(areas(view.root).length, 2);
+	view = placeAtEdge(view, widget('s'), 'bottom', true);
+	assert.equal(areas(view.root).length, 3);
+	assert.equal(allWidgets(view).length, 4);
 });
 
 test('swap and sizes; the argument is never changed', () => {
@@ -77,7 +96,7 @@ test('swap and sizes; the argument is never changed', () => {
 });
 
 test('parseView accepts what it wrote and refuses nonsense and newer formats', () => {
-	const view = addToStrip(addMain(emptyView('T'), widget('oscilloscope', 'o')), widget('summary', 'p'));
+	const view = addToArea(addMain(emptyView('T'), widget('oscilloscope', 'o')), widget('summary', 'p'));
 	assert.deepEqual(parseView(JSON.parse(JSON.stringify(view))), view);
 	assert.equal(typeof parseView('x'), 'string');
 	assert.match(String(parseView({ version: 99 })), /newer/);
@@ -95,10 +114,34 @@ test('parseView repairs sizes that do not fit', () => {
 	assert.deepEqual(fixed.root?.kind === 'split' && fixed.root.sizes, [50, 50]);
 });
 
-test('the default view shows oscilloscopes as panes and other devices in the strip', () => {
+test('the default view shows oscilloscopes as panes and other devices in an area', () => {
 	const view = defaultView({ scope: { schema: { widget: 'oscilloscope' } }, pressure: { schema: {} }, other: { schema: null } });
 	assert.deepEqual(mains(view.root).map((m) => m.widget.device), ['scope']);
-	assert.deepEqual(view.strip.map((w) => w.device), ['other', 'pressure']);
+	assert.deepEqual(areas(view.root)[0]!.widgets.map((w) => w.device), ['other', 'pressure']);
+});
+
+test('a new pane goes below the panes but above the area along the bottom', () => {
+	const [a, b, c] = [widget('x'), widget('x'), widget('s')] as const;
+	let view = addToArea(addMain(emptyView(), a), c);
+	view = addMain(view, b);
+	assert.deepEqual([ids(view), inAreas(view)], [[a.id, b.id], [c.id]]);
+	assert.equal(view.root?.kind === 'split' && view.root.children.at(-1)?.kind, 'area');
+	assert.ok(Math.abs((view.root?.kind === 'split' ? view.root.sizes : []).reduce((x, y) => x + y, 0) - 100) < 1e-9);
+	assert.deepEqual(ids(addMain(addToArea(emptyView(), c), a)), [a.id]); // only an area so far
+});
+
+test('a version 1 view (a strip) becomes an area along the bottom', () => {
+	const pane = { id: 'n1', kind: 'main', widget: { id: 'w1', type: 'oscilloscope', device: 'o' } };
+	const old = { version: 1, title: 'Old', root: pane, strip: [{ id: 'w2', type: 'summary', device: 'p' }] };
+	const view = parseView(old);
+	assert.ok(typeof view !== 'string');
+	assert.equal(view.version, 2);
+	assert.deepEqual([ids(view), inAreas(view)], [['w1'], ['w2']]);
+	assert.equal(view.root?.kind === 'split' && view.root.dir, 'column');
+	const onlyStrip = parseView({ version: 1, title: 'S', root: null, strip: [{ id: 'w3', type: 'summary' }] });
+	assert.ok(typeof onlyStrip !== 'string' && onlyStrip.root?.kind === 'area');
+	assert.ok(typeof parseView({ version: 1, title: 'E', root: null, strip: [] }) !== 'string');
+	assert.ok(typeof parseView({ version: 2, title: 'Bad', root: { id: 'a', kind: 'area', widgets: [1] } }) === 'string');
 });
 
 test('a widget that is not in the view yet is added where it is dropped', () => {
@@ -106,9 +149,10 @@ test('a widget that is not in the view yet is added where it is dropped', () => 
 	const n = widget('x');
 	assert.deepEqual(ids(placeInMain(addMain(emptyView(), a), n, { id: a.id, side: 'left' })), [n.id, a.id]);
 	assert.deepEqual(ids(placeInMain(emptyView(), n)), [n.id]); // an empty view
-	const strip = addToStrip(addToStrip(emptyView(), widget('s')), widget('s'));
-	assert.equal(placeInStrip(strip, n, 1).strip[1]!.id, n.id);
-	assert.equal(placeInStrip(strip, n, 1).strip.length, 3);
+	const strip = addToArea(addToArea(emptyView(), widget('s')), widget('s'));
+	const area = areas(strip.root)[0]!;
+	assert.equal(inAreas(placeInArea(strip, n, area.id, 1))[1], n.id);
+	assert.equal(inAreas(placeInArea(strip, n, area.id, 1)).length, 3);
 });
 
 test('a widget placed at an edge spans the whole layout', () => {

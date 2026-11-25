@@ -9,7 +9,7 @@ namespace LabOrchestra.Server;
 /// so a new kind of widget needs no server change. The folder is watched, so a manual edit or a <c>git pull</c> reaches every client.</summary>
 public sealed partial class ViewStore : IDisposable
 {
-	public const int CurrentVersion = 1;
+	public const int CurrentVersion = 2;
 	private const int MaxBytes = 1024 * 1024;
 
 	private static readonly JsonSerializerOptions WriteOptions = new() { WriteIndented = true, IndentCharacter = '\t', IndentSize = 1 };
