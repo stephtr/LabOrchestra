@@ -86,6 +86,45 @@ class FrequencyGenerator(Profile):
         """Switches the output on or off."""
 
 
+class TurboPumpChannel(TypedDict):
+    name: str  # what the controller is called ("Turbo 1")
+    status: str  # "ok", or why the values are not valid (not connected, no answer, ...)
+    is_running: bool | None  # None unless the status is ok
+    is_standby: bool | None  # the reduced speed some controllers offer
+    actual_speed: Annotated[float | None, Unit("Hz")]
+    target_speed: Annotated[float | None, Unit("Hz")]
+    current: Annotated[float | None, Unit("A")]
+    power: Annotated[float | None, Unit("W")]
+    voltage: Annotated[float | None, Unit("V")]
+    operating_hours: Annotated[int | None, Unit("h")]
+    error_code: str | None  # the controller's own error, None when it reports none
+
+
+class TurboPump(Profile):
+    """Turbo molecular pumps, one channel each (a controller per pump or several in one box)."""
+
+    name = "turbo_pump"
+    version = 1
+    channels: list[TurboPumpChannel]
+
+    def start(self, channel: int):
+        """Switches the pump on; the speed follows."""
+
+    def stop(self, channel: int):
+        """Switches the pump off; it runs down."""
+
+    def set_speed(self, channel: int, speed: float):
+        """The speed the pump runs at, in Hz."""
+
+    @optional
+    def set_standby(self, channel: int, is_standby: bool):
+        """Switches the reduced-speed mode on or off."""
+
+    @optional
+    def emergency_stop(self, channel: int):
+        """Switches the pump off and leaves standby, without waiting for anything else."""
+
+
 class OscilloscopeChannel(TypedDict):
     channel_active: bool
     range_in_millivolts: Annotated[int, Unit("mV")]  # the full range of the input

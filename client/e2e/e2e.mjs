@@ -391,10 +391,11 @@ try {
 	ok('recording bar: record, stop, snapshot');
 
 	// stage and RF generator widgets, with the simulated drivers
-	for (const f of ['elliptec.py', 'rs_sma100b.py']) fs.copyFileSync(path.join(root, 'drivers', f), path.join(dir, 'workspace/devices', f));
+	for (const f of ['elliptec.py', 'rs_sma100b.py', 'pfeiffer_turbo_pump.py']) fs.copyFileSync(path.join(root, 'drivers', f), path.join(dir, 'workspace/devices', f));
 	const devicesJson = path.join(dir, 'workspace/devices.json');
 	const current = JSON.parse(fs.readFileSync(devicesJson, 'utf8'));
 	current.devices.stages = { file: 'devices/elliptec.py', config: { simulate: true, channels: [{ type: 'rotation', address: '0' }, { type: 'rotation', address: '1' }] } };
+	current.devices.turbo = { file: 'devices/pfeiffer_turbo_pump.py', config: { simulate: true, poll_s: 0.2, pumps: [{ name: 'Turbo 1' }, { name: 'Turbo 2' }] } };
 	current.devices.rf = { file: 'devices/rs_sma100b.py', config: { simulate: true } };
 	fs.writeFileSync(devicesJson, JSON.stringify(current));
 	await page.getByTestId('edit-toggle').click();
@@ -402,6 +403,8 @@ try {
 	await page.getByTestId('add-positioner-stages-1').click();
 	await page.getByTestId('add-widget').click();
 	await page.getByTestId('add-frequency-rf-0').click();
+	await page.getByTestId('add-widget').click();
+	await page.getByTestId('add-turbo_pump-turbo-1').click();
 	const positionInput = page.getByTestId('positioner-input-stages-1');
 	await positionInput.fill('42.5');
 	await positionInput.press('Enter');
@@ -419,6 +422,22 @@ try {
 	await page.getByTestId('frequency-on-rf-0').click();
 	await page.waitForFunction(() => document.querySelector('[data-testid="frequency-on-rf-0"]')?.getAttribute('aria-pressed') === 'true');
 	ok('RF widget: frequency with SI suffix, output on');
+
+	await page.getByTestId('turbo-mode-turbo-1').waitFor();
+	assert.match(await text('turbo-mode-turbo-1'), /STOP/);
+	await page.getByTestId('turbo-turbo-1').dblclick();
+	const panel = page.getByTestId('pump-panel-turbo-1');
+	await panel.getByTestId('pump-speed').fill('400');
+	await panel.getByTestId('pump-set-speed').click();
+	await panel.getByTestId('pump-start').click();
+	await page.waitForFunction(() => /RUN/.test(document.querySelector('[data-testid="turbo-mode-turbo-1"]')?.textContent ?? ''));
+	await page.waitForFunction(() => Number(document.querySelector('[data-testid="turbo-speed-turbo-1"]')?.textContent?.replace(/[^0-9.]/g, '')) >= 100);
+	assert.equal(script("print(lab.turbo.state['channels'][1]['target_speed'], lab.turbo.state['channels'][0]['is_running'])"), '400 False'); // only the chosen pump
+	await panel.getByTestId('pump-stop').click();
+	await page.waitForFunction(() => /STOP/.test(document.querySelector('[data-testid="turbo-mode-turbo-1"]')?.textContent ?? ''));
+	await page.keyboard.press('Escape');
+	await panel.waitFor({ state: 'detached' });
+	ok('turbo pump widget: details panel starts, sets the speed and stops only its pump');
 	await page.getByTestId('edit-toggle').click(); // Done
 
 	// a hand edit of the file reaches the open page; a missing device gives a placeholder

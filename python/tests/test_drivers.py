@@ -18,7 +18,7 @@ def drivers_server(tmp_path_factory):
     build_server()
     workspace, data = tmp_path_factory.mktemp("workspace"), tmp_path_factory.mktemp("data")
     (workspace / "devices").mkdir()
-    for name in ("elliptec.py", "thorlabs_polarimeter.py", "pfeiffer_pressure.py", "smaract.py", "rs_sma100b.py"):
+    for name in ("elliptec.py", "thorlabs_polarimeter.py", "pfeiffer_pressure.py", "smaract.py", "rs_sma100b.py", "pfeiffer_turbo_pump.py"):
         shutil.copy(ROOT / "drivers" / name, workspace / "devices" / name)
     for name in ("physics_polarimeter.py", "polarization_lock.py"):  # test devices: a lab-internal control loop and some physics
         shutil.copy(DEVICES / name, workspace / "devices" / name)
@@ -36,6 +36,7 @@ def drivers_server(tmp_path_factory):
         "pressure_faulty": {"file": "devices/pfeiffer_pressure.py", "config": {"simulate": True, "simulate_fault": True}},
         "stage": {"file": "devices/smaract.py", "config": {"simulate": True}},
         "rf": {"file": "devices/rs_sma100b.py", "config": {"simulate": True, "poll_s": 0.2}},
+        "turbo": {"file": "devices/pfeiffer_turbo_pump.py", "config": {"simulate": True, "poll_s": 0.1, "pumps": [{"name": "Turbo 1"}, {"name": "Turbo 2"}]}},
         "no_hardware": {"file": "devices/elliptec.py"},  # neither a port nor simulate
     }
     (workspace / "devices.json").write_text(json.dumps({"devices": devices}))
@@ -50,7 +51,7 @@ def drivers_server(tmp_path_factory):
 @pytest.fixture()
 def lab(drivers_server):
     with laborchestra.connect(drivers_server[0], PASSPHRASE) as lab:
-        for name in ("elliptec", "elliptec_linear", "elliptec_quiet", "elliptec_checked", "elliptec_flaky", "tweezer_polarization", "real_polarimeter", "polarization_lock", "pressure", "pressure_faulty", "stage", "rf"):
+        for name in ("elliptec", "elliptec_linear", "elliptec_quiet", "elliptec_checked", "elliptec_flaky", "tweezer_polarization", "real_polarimeter", "polarization_lock", "pressure", "pressure_faulty", "stage", "rf", "turbo"):
             lab[name].wait_ready(30)
         yield lab
 
@@ -424,3 +425,114 @@ def test_positions_have_the_unit_of_the_profile_whatever_the_library_speaks(lab)
     assert lab.stage.state["channels"][0]["unit"] == "percent"
     lab.stage.set_mode(0, "closed-loop")
     assert lab.stage.state["channels"][0]["unit"] == "um"
+
+
+# --- Pfeiffer turbo pumps ---------------------------------------------------------------------------------------------------
+
+def test_turbo_pumps_run_up_and_down_and_the_state_shows_the_effect_when_the_action_returns(lab):
+    pumps = lab.turbo
+    assert pumps.state["simulated"] is True and [c["name"] for c in pumps.state["channels"]] == ["Turbo 1", "Turbo 2"]
+    assert pumps.state["channels"][0]["is_running"] is False and pumps.state["channels"][0]["status"] == "ok"
+    pumps.set_speed(0, 600)
+    pumps.start(0)
+    assert pumps.state["channels"][0]["is_running"] is True and pumps.state["channels"][0]["target_speed"] == 600
+    assert pumps.state["channels"][1]["is_running"] is False  # the other pump is not affected
+    wait_for(lambda: pumps.state["channels"][0]["actual_speed"] >= 590, 10, "the pump to reach its speed")
+    assert pumps.state["channels"][0]["power"] > 0 and pumps.state["channels"][0]["error_code"] is None
+    pumps.set_standby(0, True)
+    assert pumps.state["channels"][0]["is_standby"] is True
+    pumps.emergency_stop(0)
+    assert pumps.state["channels"][0]["is_running"] is False and pumps.state["channels"][0]["is_standby"] is False
+    wait_for(lambda: pumps.state["channels"][0]["actual_speed"] == 0, 10, "the pump to stand still")
+
+
+def test_turbo_pumps_refuse_nonsense_and_say_why(lab):
+    with pytest.raises(RemoteError, match="There is no pump 5"):
+        lab.turbo.start(5)
+    with pytest.raises(RemoteError, match="between 0 and 1500"):
+        lab.turbo.set_speed(0, 5000)
+
+
+class FakeDriveUnit:
+    """What a TM 700 does, with faults that can be switched on."""
+
+    def __init__(self, fail_reading=False, garble=0):
+        self.fail_reading, self.garble, self.running, self.speed = fail_reading, garble, False, 0
+
+    def read_fast(self):
+        if self.fail_reading:
+            raise OSError("no answer from the drive unit")
+        return float(self.speed), 0.2, 50, self.running
+
+    def read_slow(self):
+        return 24.0, 99, "Err043", False, 800
+
+    def set_running(self, running):
+        self.running = running
+        self.speed = 800 if running else 0
+
+    def set_target(self, speed):
+        pass
+
+    def set_standby(self, standby):
+        pass
+
+    def close(self):
+        pass
+
+
+def turbo(units, **config):
+    spec = importlib.util.spec_from_file_location("pfeiffer_turbo_pump", ROOT / "drivers" / "pfeiffer_turbo_pump.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    class Device(module.PfeifferTurboPump):
+        def _open(self, channel):  # the real one would open the serial port; here the unit is given (or missing)
+            unit = units[channel]
+            if isinstance(unit, Exception):
+                self._units[channel] = None
+                self._next_try[channel] = time.monotonic() + self.reconnect_s
+                self._fail(channel, f"not connected: {unit}")
+            else:
+                self._units[channel] = unit
+                self._poll(channel, slow=True)
+
+    device = Device()
+    pumps = [{"name": f"Pump {i}", "port": f"COM{i}"} for i in range(len(units))]
+    device._setup("turbo", coerce_config(Device, {"pumps": pumps, "poll_s": 0.05, "reconnect_s": 0.2, "attempts": 2, **config}))
+    device.connect()
+    return device
+
+
+def test_a_pump_that_is_not_connected_does_not_stop_the_other_and_is_connected_later():
+    unit = FakeDriveUnit()
+    units = [OSError("port COM0 not found"), unit]
+    device = turbo(units)
+    first, second = device.state["channels"]
+    assert first["status"] == "not connected: port COM0 not found" and first["actual_speed"] is None and first["is_running"] is None
+    assert second["status"] == "ok" and second["actual_speed"] == 0.0
+    assert second["error_code"] == "Err043"  # the unit's own error is reported as it is
+    with pytest.raises(RuntimeError, match="Pump 0 is not connected"):
+        device.start(0)
+    device.start(1)
+    assert device.state["channels"][1]["is_running"] is True
+    units[0] = FakeDriveUnit()  # the cable is plugged in
+    run_until(device, lambda: device.state["channels"][0]["status"] == "ok", 5)
+
+
+def test_reading_errors_become_a_channel_status_with_no_old_values_and_are_logged_once(caplog):
+    unit = FakeDriveUnit()
+    device = turbo([unit])
+    assert device.state["channels"][0]["status"] == "ok"
+    unit.fail_reading = True
+    with caplog.at_level("WARNING"):
+        run_until(device, lambda: device.state["channels"][0]["status"].startswith("error"))
+        time.sleep(0.3)
+    channel = device.state["channels"][0]
+    assert channel["status"] == "error: no answer from the drive unit"
+    assert channel["actual_speed"] is None and channel["is_running"] is None and channel["power"] is None  # never the old numbers
+    assert len([r for r in caplog.records if "no answer" in r.getMessage()]) == 1
+    unit.fail_reading = False
+    device._stop.clear()  # run_until stopped the device
+    run_until(device, lambda: device.state["channels"][0]["status"] == "ok")
+    assert device.state["channels"][0]["actual_speed"] == 0.0

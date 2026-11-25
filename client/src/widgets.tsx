@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react';
 import { DeviceCard, STATUS_STYLE } from './DeviceCard';
 import { formatNumber, unitFor } from './format';
-import { FrequencyWidget, PolarimeterWidget, PositionerWidget, PressureWidget, RecordingWidget } from './compact';
+import { FrequencyWidget, PolarimeterWidget, PositionerWidget, PressureWidget, RecordingWidget, TurboPumpWidget } from './compact';
 import { OscilloscopeWidget } from './OscilloscopeWidget';
 import type { DeviceInfo } from './store';
 
@@ -59,6 +59,7 @@ const definitions: WidgetDef[] = [
 	{ type: 'oscilloscope', title: 'Oscilloscope', size: 'main', accepts: (i) => i.schema?.widget === 'oscilloscope', component: ({ device, info }) => <OscilloscopeWidget id={device} info={info} /> },
 	{ type: 'device_card', title: 'Device card', size: 'main', accepts: () => true, component: ({ device, info }) => <DeviceCard id={device} info={info} /> },
 	{ type: 'pressure', title: 'Pressure', size: 'S', accepts: (i) => hasProfile(i, 'pressure_sensor'), variants: perChannel, component: PressureWidget },
+	{ type: 'turbo_pump', title: 'Turbo pump', size: 'S', accepts: (i) => hasProfile(i, 'turbo_pump'), variants: perChannel, component: TurboPumpWidget },
 	{ type: 'positioner', title: 'Stage', size: 'S', accepts: (i) => hasProfile(i, 'positioner'), variants: perChannel, component: PositionerWidget },
 	{ type: 'frequency', title: 'Frequency', size: 'S', accepts: (i) => hasProfile(i, 'frequency_generator'), variants: perChannel, component: FrequencyWidget },
 	{ type: 'polarimeter', title: 'Polarization', size: 'S', accepts: (i) => hasProfile(i, 'polarimeter'), component: PolarimeterWidget },

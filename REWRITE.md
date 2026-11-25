@@ -125,7 +125,7 @@ Track B, oscilloscope:
 
 - [ ] `@procedure`, generated form, progress, logs, pause/abort, reservations
 - [ ] Event bus, `@on("recording.finished")`
-- [ ] Port the detuning scan, ParticleName, PressureUploader
+- [ ] Port the detuning scan, ParticleName, PressureUploader, TurboUploader, and the Slack remote control of the pumps (`bot start|stop|status <pump>`; was inside the pump device, now a procedure/trigger script using the `turbo_pump` profile)
 
 **Exit:** aborting or killing a scan leaves the recording closed and devices in a defined state.
 
@@ -148,6 +148,13 @@ Track B, oscilloscope:
 - [ ] Remove lab-specific values; example workspace with simulators only
 
 **Exit:** someone outside the group installs it on a clean PC and writes a device using only the docs.
+
+## Legacy inventory from the lab PC (`legacy/legacy-devices`, `legacy/legacy-widgets`)
+
+- Done: `PfeifferTurboPumps.py` + `TurboPump.tsx` -> `drivers/pfeiffer_turbo_pump.py`, profile `TurboPump`, widget `turbo_pump` (Slack control left out, see phase 5).
+- `Verdi.py` + `verdi.tsx` (+ `Verdi/`): Coherent Verdi laser and chiller with a power-on sequence (chiller, cooling water, key switch, laser on; shutter closed), temperature upload. Not ported: needs a laser profile (power, shutter, on/off) and a multi-step action with progress; do with the first procedure work.
+- `Innolas.cs` + `innolas.tsx`: C# driver, simple start/stop shooting; port as a C# plugin (Later).
+- `Laser status.py`: lab-internal service (Slack message + web page for the lab network, checks which scripts run). Not a driver; stays lab-specific, to be re-done on top of the event bus and the sensor-website idea.
 
 ## Later
 

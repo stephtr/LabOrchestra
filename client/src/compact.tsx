@@ -193,3 +193,103 @@ export function RecordingWidget(_: WidgetProps) {
 		</Tile>
 	);
 }
+
+type Pump = {
+	name: string;
+	status: string;
+	is_running: boolean | null;
+	is_standby: boolean | null;
+	actual_speed: number | null;
+	target_speed: number | null;
+	current: number | null;
+	power: number | null;
+	voltage: number | null;
+	operating_hours: number | null;
+	error_code: string | null;
+};
+
+function pumpMode(c: Pump): { text: string; color: string } {
+	if (c.status !== 'ok') return { text: '? NO DATA', color: 'text-zinc-500' };
+	if (c.error_code) return { text: '⚠ ERROR', color: 'text-red-600' };
+	if (c.is_running) return { text: c.is_standby ? '▶ STANDBY' : '▶ RUN', color: c.is_standby ? 'text-yellow-600' : 'text-emerald-600' };
+	return { text: '■ STOP', color: 'text-orange-600' };
+}
+
+const number = (v: number | null, digits = 0) => (typeof v === 'number' ? v.toFixed(digits) : '—');
+
+function PumpPanel({ p, channel, c, onClose }: { p: WidgetProps; channel: number; c: Pump; onClose: () => void }) {
+	const { run, error } = useRun(p.device);
+	const [speed, setSpeed] = useState<string | null>(null);
+	useEffect(() => {
+		const close = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+		window.addEventListener('keydown', close);
+		return () => window.removeEventListener('keydown', close);
+	}, [onClose]);
+	const mode = pumpMode(c);
+	const stat = (label: string, value: string, unit: string, extra?: string) => (
+		<div className="rounded-lg bg-zinc-100 p-3 dark:bg-slate-800">
+			<div className="text-xs text-zinc-500">{label}</div>
+			<div className="font-mono text-2xl tabular-nums">{value}<span className="ml-1 text-sm text-zinc-500">{unit}</span></div>
+			{extra && <div className="text-xs text-zinc-500">{extra}</div>}
+		</div>
+	);
+	return (
+		<div data-testid={`pump-panel-${p.device}-${channel}`} role="dialog" aria-label={c.name} className="fixed bottom-24 left-1/2 z-50 w-[28rem] max-w-[95vw] -translate-x-1/2 rounded-xl bg-white p-4 shadow-2xl ring-1 ring-zinc-300 dark:bg-slate-900 dark:ring-slate-700">
+			<div className="mb-3 flex items-center gap-2">
+				<h2 className="text-lg font-semibold">{typeof p.props.label === 'string' && p.props.label ? p.props.label : c.name}</h2>
+				<span className={`font-bold ${mode.color}`} data-testid={`pump-mode-${p.device}-${channel}`}>{mode.text}</span>
+				<span className="flex-1" />
+				<button className={BUTTON} aria-label="Close" onClick={onClose}>✕</button>
+			</div>
+			{c.status !== 'ok' && <p className="mb-2 text-sm text-amber-700">{c.status}</p>}
+			{c.error_code && <p className="mb-2 text-sm text-red-600">The controller reports the error {c.error_code}.</p>}
+			<div className="grid grid-cols-2 gap-2">
+				{stat('Speed', number(c.actual_speed), 'Hz', `target ${number(c.target_speed)} Hz`)}
+				{stat('Motor current', number(c.current, 2), 'A')}
+				{stat('Power', number(c.power), 'W')}
+				{stat('Voltage', number(c.voltage, 1), 'V')}
+			</div>
+			<p className="mt-2 text-xs text-zinc-500">Operating hours: {number(c.operating_hours)} h</p>
+			<div className="mt-3 flex gap-2">
+				<button className={`${BUTTON} flex-1 py-1`} data-testid="pump-start" disabled={c.is_running === true} onClick={() => run('start', channel)}>▶ Start</button>
+				<button className={`${BUTTON} flex-1 py-1`} data-testid="pump-stop" disabled={c.is_running === false} onClick={() => run('stop', channel)}>■ Stop</button>
+				<button className="flex-1 rounded bg-red-600 py-1 text-sm text-white hover:bg-red-700" data-testid="pump-emergency" onClick={() => window.confirm('Emergency stop?') && run('emergency_stop', channel)}>⚠ Emergency stop</button>
+			</div>
+			<div className="mt-3 flex items-center gap-2">
+				<label className="text-sm" htmlFor={`pump-speed-${p.device}-${channel}`}>Target speed (Hz)</label>
+				<input id={`pump-speed-${p.device}-${channel}`} data-testid="pump-speed" type="number" min={0} className={`${INPUT} w-24 flex-none`} value={speed ?? (c.target_speed ?? '')} onChange={(e) => setSpeed(e.target.value)} />
+				<button className={BUTTON} data-testid="pump-set-speed" disabled={speed === null || speed === ''} onClick={() => run('set_speed', channel, Number(speed)).then(() => setSpeed(null))}>Set</button>
+				<span className="flex-1" />
+				<label className="flex items-center gap-1 text-sm">
+					<input type="checkbox" data-testid="pump-standby" checked={c.is_standby ?? false} onChange={(e) => run('set_standby', channel, e.target.checked)} /> Standby
+				</label>
+			</div>
+			{error && <p role="alert" className="mt-2 text-xs text-red-600">{error}</p>}
+		</div>
+	);
+}
+
+/** One pump: state, speed and current in the tile; double click for all values and the controls. */
+export function TurboPumpWidget(p: WidgetProps) {
+	const channel = channelOf(p);
+	const [open, setOpen] = useState(false);
+	const channels = (p.info.state?.channels ?? []) as Pump[];
+	const c = channels[channel];
+	const mode = c ? pumpMode(c) : null;
+	return (
+		<>
+			<div onDoubleClick={() => setOpen(true)} className="h-full cursor-pointer" title="Double click for details and controls">
+				<Tile label={typeof p.props.label === 'string' && p.props.label ? p.props.label : (c?.name ?? labelOf(p, channel, channels.length > 1))} testId={`turbo-${p.device}-${channel}`} problem={!c ? `no pump ${channel}` : c.status !== 'ok' ? c.status : null}>
+					{c && mode && (
+						<div className="flex items-center gap-3 text-xs">
+							<span className={`font-bold ${mode.color}`} data-testid={`turbo-mode-${p.device}-${channel}`}>{mode.text}</span>
+							<span><span className="text-zinc-500">Speed:</span> <span className="font-bold text-sky-600" data-testid={`turbo-speed-${p.device}-${channel}`}>{number(c.actual_speed)} Hz</span></span>
+							<span><span className="text-zinc-500">I:</span> <span className="font-bold text-emerald-600">{number(c.current, 2)} A</span></span>
+						</div>
+					)}
+				</Tile>
+			</div>
+			{open && c && <PumpPanel p={p} channel={channel} c={c} onClose={() => setOpen(false)} />}
+		</>
+	);
+}

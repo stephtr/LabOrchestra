@@ -47,7 +47,7 @@ A profile is the common shape of devices of a kind, written once as a Python cla
 fields, `Annotated[float | None, Unit("mbar")]` fixes the unit (drivers convert; the wire and the recordings have it), public methods are the
 actions (`@optional` marks a capability a driver may leave out). A driver says `profiles = [PressureSensor]`; it may add fields and actions.
 
-- Shipped: `PressureSensor`, `Polarimeter`, `Positioner` (rotation deg, linear um, slider slot, with `unit` in each channel), `FrequencyGenerator`.
+- Shipped: `PressureSensor`, `Polarimeter`, `Positioner` (rotation deg, linear um, slider slot, with `unit` in each channel), `FrequencyGenerator`, `TurboPump` (per channel: running, standby, speed, current, power, voltage, hours, the controller's error code; `start`, `stop`, `set_speed`, optional `set_standby` and `emergency_stop`).
 - The JSON for UIs, MCP and docs is derived from the class (`describe(profile)`), never written by hand; the schema of a device lists its
   `profiles` and the `units` of its fields (`channels.*.pressure`: `mbar`), and the generated card shows them.
 - A driver whose actions do not fit its profile is refused at start with what is wrong. State that does not fit is logged once per problem
