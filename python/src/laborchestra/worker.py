@@ -90,7 +90,7 @@ def _profile_schema(cls: type[Device]) -> dict:
             raise SchemaError(f"{cls.__name__} says it is a {profile.name} (version {profile.version}), but " + "; ".join(problems))
         all_units.update(units(profile))
     all_units.update(cls.units)
-    return {"profiles": [{"name": p.name, "version": p.version} for p in cls.profiles], "units": all_units}
+    return {"profiles": [{"name": p.name, "version": p.version, **({"at": p.mount} if p.mount else {})} for p in cls.profiles], "units": all_units}
 
 
 def build_schema(device_id: str, cls: type[Device], actions: dict) -> dict:

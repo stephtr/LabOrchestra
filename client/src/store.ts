@@ -16,7 +16,8 @@ export type Schema = {
 	actions: ActionSchema[];
 	persist: string[];
 	/** The profiles the device conforms to, and the units of its state fields by path ("channels.*.pressure": "mbar"). */
-	profiles?: { name: string; version: number }[];
+	/** `at`: the state key under which the profile's fields live (a device that is two things at once, e.g. oscilloscope + generator). */
+	profiles?: { name: string; version: number; at?: string }[];
 	units?: Record<string, string>;
 	streams?: string[];
 	/** A built-in widget of the client for this device (e.g. "oscilloscope"); without one the generated card is used. */

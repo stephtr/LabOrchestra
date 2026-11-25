@@ -38,6 +38,9 @@ internal sealed class Api5000a : IPicoApi
 	public uint Stop(short handle) => Imports.Stop(handle);
 	public uint Close(short handle) => Imports.CloseUnit(handle);
 
-	public uint? SetTestSignal(short handle, double frequency) =>
-		Imports.SetSigGenBuiltInV2(handle, 0, 800_000, Imports.WaveType.PS5000A_GAUSSIAN, (int)frequency, (int)frequency, 0, 0, Imports.SweepType.PS5000A_UP, 0, 0xFFFFFFFF, 0, 0, Imports.SigGenTrigSource.PS5000A_SIGGEN_NONE, 0);
+	public bool HasSignalGenerator => true;
+
+	// The waveform is the one the legacy dashboard used for its test signal (Gaussian pulses), not a sine.
+	public uint SetSignal(short handle, double frequency, uint peakToPeakMicrovolts) =>
+		Imports.SetSigGenBuiltInV2(handle, 0, peakToPeakMicrovolts, Imports.WaveType.PS5000A_GAUSSIAN, (int)frequency, (int)frequency, 0, 0, Imports.SweepType.PS5000A_UP, 0, 0xFFFFFFFF, 0, 0, Imports.SigGenTrigSource.PS5000A_SIGGEN_NONE, 0);
 }

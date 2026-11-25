@@ -38,6 +38,16 @@ class Profile:
 
     name: typing.ClassVar[str]
     version: typing.ClassVar[int] = 1
+    #: The key of the state under which this profile's fields live; None: at the top. See ``at``.
+    mount: typing.ClassVar[str | None] = None
+
+    @classmethod
+    def at(cls, key: str) -> "type[Profile]":
+        """This profile with its state fields under ``key`` (``FrequencyGenerator.at("generator")``): for a device that is two things at
+        once, e.g. an oscilloscope (``channels`` are its inputs) with a signal generator (``generator.channels`` are its outputs). The
+        actions keep their names, so they must not clash with the other profile's."""
+        check_name(key, "Mount of the profile " + cls.name)
+        return type(cls.__name__, (cls,), {"name": cls.name, "version": cls.version, "mount": key, "__module__": cls.__module__})
 
     @classmethod
     def validate(cls, state: dict) -> list[str]:
@@ -60,14 +70,16 @@ class Profile:
 # --- reading the declaration ---------------------------------------------------------------------------------------
 def state_fields(profile: type[Profile]) -> dict[str, Any]:
     hints = typing.get_type_hints(profile, include_extras=True)
-    return {k: v for k, v in hints.items() if get_origin(v) is not typing.ClassVar and k not in ("name", "version")}
+    return {k: v for k, v in hints.items() if get_origin(v) is not typing.ClassVar and k not in ("name", "version", "mount")}
 
 
 def profile_actions(profile: type[Profile]) -> dict[str, Callable]:
     return {
         n: f
-        for n, f in vars(profile).items()
-        if inspect.isfunction(f) and not n.startswith("_")
+        for klass in reversed(profile.__mro__)
+        if klass not in (Profile, object)
+        for n, f in vars(klass).items()
+        if inspect.isfunction(f) and not n.startswith("_") and n not in ("validate", "at")
     }
 
 
@@ -145,7 +157,7 @@ def units(profile: type[Profile]) -> dict[str, str]:
                 walk(sub, f"{path}.{key}")
 
     for field, annotation in state_fields(profile).items():
-        walk(annotation, field)
+        walk(annotation, f"{profile.mount}.{field}" if profile.mount else field)
     return found
 
 
@@ -161,6 +173,7 @@ def describe(profile: type[Profile]) -> dict:
     return {
         "name": profile.name,
         "version": profile.version,
+        **({"at": profile.mount} if profile.mount else {}),
         "doc": inspect.getdoc(profile),
         "state": {k: _type_schema(v) for k, v in state_fields(profile).items()},
         "units": units(profile),
@@ -209,12 +222,17 @@ def check_value(value: Any, annotation: Any, path: str) -> list[str]:
 
 def check_state(profile: type[Profile], state: dict) -> list[str]:
     """Problems of a device's state against the profile (empty when it conforms)."""
+    prefix = f"{profile.mount}." if profile.mount else ""
+    if profile.mount:
+        if not isinstance(state.get(profile.mount), dict):
+            return [f"{profile.mount} is missing"]
+        state = state[profile.mount]
     problems = []
     for field, annotation in state_fields(profile).items():
         if field not in state:
-            problems.append(f"{field} is missing")
+            problems.append(f"{prefix}{field} is missing")
         else:
-            problems += check_value(state[field], annotation, field)
+            problems += check_value(state[field], annotation, prefix + field)
     return problems if problems else profile.validate(state)
 
 

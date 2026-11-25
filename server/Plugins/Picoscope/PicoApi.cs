@@ -20,8 +20,10 @@ internal interface IPicoApi
 	uint GetLatestValues(short handle, StreamingReady callback);
 	uint Stop(short handle);
 	uint Close(short handle);
-	/// <summary>A sine of the given frequency on the signal generator output; null when the unit has none.</summary>
-	uint? SetTestSignal(short handle, double frequency);
+	/// <summary>Whether the unit has a built-in signal generator.</summary>
+	bool HasSignalGenerator { get; }
+	/// <summary>Signal of the given frequency and peak-to-peak voltage (microvolts; 0 switches the output off) on the generator output.</summary>
+	uint SetSignal(short handle, double frequency, uint peakToPeakMicrovolts);
 }
 
 internal delegate void StreamingReady(int sampleCount, uint startIndex, bool autoStop);

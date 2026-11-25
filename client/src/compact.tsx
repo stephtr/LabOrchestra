@@ -2,7 +2,7 @@ import { ReactNode, useEffect, useState } from 'react';
 import { formatNumber, parseFrequency } from './format';
 import { formatSI } from './OscilloscopeWidget';
 import { callAction, invokeHub, useStore } from './store';
-import type { WidgetProps } from './widgets';
+import { profileState, type WidgetProps } from './widgets';
 
 /** The compact widgets: small, for the strip, bound to profiles (so any driver of the profile works) and to one channel each. */
 
@@ -69,7 +69,7 @@ const labelOf = ({ props, device }: WidgetProps, channel: number, many: boolean)
 
 export function PressureWidget(p: WidgetProps) {
 	const channel = channelOf(p);
-	const channels = (p.info.state?.channels ?? []) as { pressure: number | null; status: string }[];
+	const channels = (profileState(p.info, 'pressure_sensor').channels ?? []) as { pressure: number | null; status: string }[];
 	const c = channels[channel];
 	const unit = p.info.schema?.units?.['channels.*.pressure'] ?? 'mbar';
 	const bad = c && c.status !== 'ok';
@@ -91,7 +91,7 @@ const POSITION_UNIT: Record<string, string> = { deg: '°', um: 'µm', slot: '', 
 export function PositionerWidget(p: WidgetProps) {
 	const channel = channelOf(p);
 	const { run, error } = useRun(p.device);
-	const channels = (p.info.state?.channels ?? []) as { type: string; unit: string; target_position: number | null; actual_position: number | null; status: string }[];
+	const channels = (profileState(p.info, 'positioner').channels ?? []) as { type: string; unit: string; target_position: number | null; actual_position: number | null; status: string }[];
 	const c = channels[channel];
 	const step = typeof p.props.step === 'number' ? p.props.step : c?.unit === 'um' ? 10 : 1;
 	const position = c?.actual_position ?? c?.target_position ?? null;
@@ -112,7 +112,7 @@ export function PositionerWidget(p: WidgetProps) {
 export function FrequencyWidget(p: WidgetProps) {
 	const channel = channelOf(p);
 	const { run, error } = useRun(p.device);
-	const channels = (p.info.state?.channels ?? []) as { frequency: number; power: number; is_on: boolean }[];
+	const channels = (profileState(p.info, 'frequency_generator').channels ?? []) as { frequency: number; power: number; is_on: boolean }[];
 	const c = channels[channel];
 	return (
 		<Tile label={labelOf(p, channel, channels.length > 1)} testId={`frequency-${p.device}-${channel}`} problem={error ?? (!c ? `no channel ${channel}` : null)}>
@@ -133,7 +133,7 @@ export function FrequencyWidget(p: WidgetProps) {
 }
 
 export function PolarimeterWidget(p: WidgetProps) {
-	const s = p.info.state ?? {};
+	const s = profileState(p.info, 'polarimeter');
 	const deg = (v: unknown) => (typeof v === 'number' ? `${Number(((v * 180) / Math.PI).toFixed(1))}°` : '—');
 	return (
 		<Tile label={labelOf(p, 0, false)} testId={`polarimeter-${p.device}`} problem={s.status && s.status !== 'ok' ? String(s.status) : null}>
@@ -274,7 +274,7 @@ function PumpPanel({ p, channel, c, onClose }: { p: WidgetProps; channel: number
 export function TurboPumpWidget(p: WidgetProps) {
 	const channel = channelOf(p);
 	const [open, setOpen] = useState(false);
-	const channels = (p.info.state?.channels ?? []) as Pump[];
+	const channels = (profileState(p.info, 'turbo_pump').channels ?? []) as Pump[];
 	const c = channels[channel];
 	const mode = c ? pumpMode(c) : null;
 	return (

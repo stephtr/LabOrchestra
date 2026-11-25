@@ -23,6 +23,21 @@ public sealed class ChannelState
 	public string Coupling { get; set; } = "AC";
 }
 
+public sealed class GeneratorChannelState
+{
+	[Unit("Hz")]
+	public double Frequency { get; set; } = 100_000;
+	[Unit("dBm")]
+	public double Power { get; set; }
+	public bool IsOn { get; set; }
+}
+
+/// <summary>The signal generator of an oscilloscope that has one (the <c>frequency_generator</c> profile, mounted at <c>generator</c>).</summary>
+public sealed class GeneratorState
+{
+	public List<GeneratorChannelState> Channels { get; set; } = [];
+}
+
 public sealed class OscilloscopeState
 {
 	public bool Running { get; set; }
@@ -36,8 +51,8 @@ public sealed class OscilloscopeState
 	public string FftAveragingMode { get; set; } = "prefer-data";
 	public int FftAveragingDurationMs { get; set; } = 200;
 	public string FftWindowFunction { get; set; } = "blackman";
-	[Unit("Hz")]
-	public double TestSignalFrequency { get; set; } = 100_000;
+	/// <summary>Only on oscilloscopes with a signal generator (null on the others).</summary>
+	public GeneratorState? Generator { get; set; }
 	[Unit("Hz")]
 	public double SampleRate { get; set; }
 	public bool Recording { get; set; }
@@ -108,7 +123,31 @@ public abstract class OscilloscopeBase<TOptions> : Device<TOptions, Oscilloscope
 	protected virtual void CloseHardware() { }
 	/// <summary>Range, coupling or active flag of a channel changed: program the hardware.</summary>
 	protected virtual void ApplyChannel(int channel) { }
-	protected virtual void ApplyTestSignal() { }
+	/// <summary>The signal generator changed: program the hardware (only called for drivers that <see cref="EnableGenerator"/>).</summary>
+	protected virtual void ApplyGenerator() { }
+	/// <summary>Refuses values the hardware cannot do (throw ArgumentException), before anything changes.</summary>
+	protected virtual void ValidateGenerator(double? frequency, double? power) { }
+
+	/// <summary>A driver with a signal generator calls this when it connects; it also declares the frequency_generator profile and the
+	/// three actions (<see cref="SetGenerator"/> does the work), so that drivers without one do not offer them.</summary>
+	protected void EnableGenerator(double frequency, double power, bool isOn) =>
+		Update(s => s.Generator = new GeneratorState { Channels = [new GeneratorChannelState { Frequency = frequency, Power = power, IsOn = isOn }] });
+
+	protected void SetGenerator(int channel, double? frequency = null, double? power = null, bool? isOn = null)
+	{
+		var count = Read(s => s.Generator?.Channels.Count) ?? throw new NotSupportedException("This oscilloscope has no signal generator");
+		if (channel < 0 || channel >= count) throw new ArgumentException($"There is no generator channel {channel} (0 to {count - 1})");
+		if (frequency is <= 0 or double.NaN) throw new ArgumentException("The frequency must be positive");
+		ValidateGenerator(frequency, power);
+		Update(s =>
+		{
+			var g = s.Generator!.Channels[channel];
+			g.Frequency = frequency ?? g.Frequency;
+			g.Power = power ?? g.Power;
+			g.IsOn = isOn ?? g.IsOn;
+		});
+		ApplyGenerator();
+	}
 
 	// --- lifecycle -----------------------------------------------------------------------------------------------
 	public override async Task ConnectAsync(CancellationToken cancel)
@@ -282,13 +321,6 @@ public abstract class OscilloscopeBase<TOptions> : Device<TOptions, Oscilloscope
 		if (mode is not ("time" or "fft")) throw new ArgumentException($"Invalid mode '{mode}' (time or fft)");
 		Update(s => s.DisplayMode = mode);
 		Interlocked.Increment(ref _version);
-	}
-
-	[Action]
-	public void SetTestSignalFrequency(double frequency)
-	{
-		Update(s => s.TestSignalFrequency = frequency);
-		ApplyTestSignal();
 	}
 
 	[Action]

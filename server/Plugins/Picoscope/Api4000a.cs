@@ -36,5 +36,6 @@ internal sealed class Api4000a : IPicoApi
 	public uint Stop(short handle) => Imports.Stop(handle);
 	public uint Close(short handle) => Imports.CloseUnit(handle);
 
-	public uint? SetTestSignal(short handle, double frequency) => null; // the 4000a series has no built-in signal generator
+	public bool HasSignalGenerator => false; // the 4000a series has no built-in signal generator
+	public uint SetSignal(short handle, double frequency, uint peakToPeakMicrovolts) => throw new NotSupportedException("The 4000a series has no built-in signal generator");
 }

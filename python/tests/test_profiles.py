@@ -135,3 +135,18 @@ def test_every_driver_that_names_a_profile_fits_it(filename, driver):
         assert check_driver(profile, driver) == [], f"{filename}: {driver.__name__} does not fit {profile.name}"
     build_schema("x", driver, action_methods(driver))  # also what the worker does at start
     assert len(drivers()) >= 6  # Elliptec, Smaract, Pfeiffer, polarimeter, SMA100B, the demo gauge and the physics test device
+
+
+def test_a_profile_can_be_mounted_under_a_key_so_that_two_profiles_with_the_same_field_names_fit_one_device():
+    generator = FrequencyGenerator.at("generator")
+    assert generator.name == "frequency_generator" and generator.mount == "generator" and FrequencyGenerator.mount is None
+    assert units(generator) == {"generator.channels.*.frequency": "Hz", "generator.channels.*.power": "dBm"}
+    assert describe(generator)["at"] == "generator" and "at" not in describe(FrequencyGenerator)
+    assert {a["name"] for a in describe(generator)["actions"]} == {"set_frequency", "set_power", "set_on"}  # the actions are inherited
+    good = {"generator": {"channels": [{"frequency": 1e5, "power": 0.0, "is_on": True}]}, "channels": [{"channel_active": True}]}
+    assert check_state(generator, good) == []
+    assert check_state(generator, {"channels": []}) == ["generator is missing"]
+    bad = {"generator": {"channels": [{"frequency": "fast", "power": 0.0, "is_on": True}]}}
+    assert check_state(generator, bad) == ["generator.channels[0].frequency must be float, got str"]
+    with pytest.raises(SchemaError):
+        FrequencyGenerator.at("Not Snake")

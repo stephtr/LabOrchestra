@@ -37,6 +37,7 @@ public abstract class PicoscopeBase : OscilloscopeBase<PicoscopeOptions>
 			throw PicoLibrary.Missing(Api.LibraryName, e);
 		}
 		for (var c = 0; c < Options.ChannelCount; c++) ApplyChannel(c);
+		if (Api.HasSignalGenerator) EnableGenerator(frequency: 100_000, power: Math.Round(ToDbm(0.8), 2), isOn: false); // off until asked: never output a signal unasked
 		return Task.CompletedTask;
 	}
 
@@ -74,14 +75,26 @@ public abstract class PicoscopeBase : OscilloscopeBase<PicoscopeOptions>
 		finally { Interlocked.Exchange(ref _restarting, 0); }
 	}
 
-	protected override void ApplyTestSignal()
+	// The generator's power is given as dBm of a sine into 50 ohm (what the frequency_generator profile says); the unit takes peak-to-peak volts.
+	private const double MaxPeakToPeakVolts = 4.0, MaxGeneratorHz = 20e6;
+	private static double PeakToPeakVolts(double dBm) => 2 * Math.Sqrt(2) * Math.Sqrt(50 * 1e-3 * Math.Pow(10, dBm / 10));
+	private static double ToDbm(double peakToPeakVolts) => 10 * Math.Log10(Math.Pow(peakToPeakVolts / (2 * Math.Sqrt(2)), 2) / 50 / 1e-3);
+
+	protected override void ValidateGenerator(double? frequency, double? power)
 	{
-		var frequency = Read(s => s.TestSignalFrequency);
+		if (frequency > MaxGeneratorHz) throw new ArgumentException($"The signal generator goes up to {MaxGeneratorHz / 1e6:0} MHz");
+		if (power is { } p && PeakToPeakVolts(p) > MaxPeakToPeakVolts + 1e-9) throw new ArgumentException($"The signal generator gives at most {MaxPeakToPeakVolts} V peak to peak ({ToDbm(MaxPeakToPeakVolts):0.0} dBm into 50 ohm)");
+	}
+
+	protected override void ApplyGenerator()
+	{
+		var (frequency, power, isOn) = Read(s => (s.Generator!.Channels[0].Frequency, s.Generator.Channels[0].Power, s.Generator.Channels[0].IsOn));
 		lock (_device)
 		{
 			if (!_open) return;
-			var status = Api.SetTestSignal(_handle, frequency) ?? throw new NotSupportedException("This unit has no built-in signal generator");
-			if (status != PicoOk) throw new InvalidOperationException(Describe("set the test signal", status));
+			var microvolts = isOn ? (uint)Math.Round(PeakToPeakVolts(power) * 1e6) : 0u;
+			var status = Api.SetSignal(_handle, frequency, microvolts);
+			if (status != PicoOk) throw new InvalidOperationException(Describe("set the signal generator", status));
 		}
 	}
 
@@ -156,9 +169,19 @@ public abstract class PicoscopeBase : OscilloscopeBase<PicoscopeOptions>
 }
 
 [Driver("picoscope_5000a", Description = "PicoScope 5000a series (needs the PicoSDK installed).", Widget = "oscilloscope")]
+[Profile("frequency_generator", 1, At = nameof(OscilloscopeState.Generator))]
 public sealed class Picoscope5000a : PicoscopeBase
 {
 	internal override IPicoApi Api { get; } = new Api5000a();
+
+	[Action]
+	public void SetFrequency(int channel, double frequency) => SetGenerator(channel, frequency: frequency);
+
+	[Action]
+	public void SetPower(int channel, double power) => SetGenerator(channel, power: power);
+
+	[Action]
+	public void SetOn(int channel, bool isOn) => SetGenerator(channel, isOn: isOn);
 }
 
 [Driver("picoscope_4000a", Description = "PicoScope 4000a series (needs the PicoSDK installed).", Widget = "oscilloscope")]

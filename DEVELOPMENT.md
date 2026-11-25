@@ -73,7 +73,7 @@ with lab.stream("osc", "display", {"x_min": 90e3, "x_max": 110e3}) as frames:
 
 A client tells the server `received` when a frame arrives (this sizes how many frames may be on their way: a client far away keeps its frame rate) and `ack` when it is done with it (at most two frames wait at a busy client). `lab.stream` does both.
 
-`simulated_oscilloscope` needs no hardware: channel n shows a tone at (n+1) x `test_signal_frequency`, in real time. Recording it (`with lab.recording(...)`) writes `osc_C1.npy`, ... into the recording.
+`simulated_oscilloscope` needs no hardware: channel n shows a tone at (n+1) x the frequency of its signal generator (`generator.channels.0.frequency`, on by default, `set_frequency`, `set_power`, `set_on`), in real time. Recording it (`with lab.recording(...)`) writes `osc_C1.npy`, ... into the recording.
 
 ## Recordings
 

@@ -45,7 +45,7 @@ class Generator(Device):
 ## Profiles (additive to version 1)
 A profile is the common shape of devices of a kind, written once as a Python class (`laborchestra.profiles`): annotations are typed state
 fields, `Annotated[float | None, Unit("mbar")]` fixes the unit (drivers convert; the wire and the recordings have it), public methods are the
-actions (`@optional` marks a capability a driver may leave out). A driver says `profiles = [PressureSensor]`; it may add fields and actions.
+actions (`@optional` marks a capability a driver may leave out). A driver says `profiles = [PressureSensor]`; it may add fields and actions. A device can be several things: `profiles = [Oscilloscope, FrequencyGenerator.at("generator")]` (C#: `[Profile("frequency_generator", 1, At = "generator")]`) puts the second profile's state under the key `generator` (`generator.channels[0].frequency`), because both profiles have `channels`. Actions keep their names, so they must not clash. The schema lists `{name, version, at}`, units carry the prefix (`generator.channels.*.frequency`), and widgets read a profile's state at its mount.
 
 - Shipped: `PressureSensor`, `Polarimeter`, `Positioner` (rotation deg, linear um, slider slot, with `unit` in each channel), `FrequencyGenerator`, `TurboPump` (per channel: running, standby, speed, current, power, voltage, hours, the controller's error code; `start`, `stop`, `set_speed`, optional `set_standby` and `emergency_stop`).
 - The JSON for UIs, MCP and docs is derived from the class (`describe(profile)`), never written by hand; the schema of a device lists its

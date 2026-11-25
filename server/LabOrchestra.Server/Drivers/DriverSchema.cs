@@ -93,7 +93,7 @@ public static class DriverSchema
 			["config"] = config,
 			["actions"] = actions,
 			["persist"] = new List<object?>(),
-			["profiles"] = driver.GetCustomAttributes<ProfileAttribute>(inherit: true).Select(p => (object?)new Dictionary<string, object?> { ["name"] = p.Name, ["version"] = p.Version }).ToList(),
+			["profiles"] = driver.GetCustomAttributes<ProfileAttribute>(inherit: true).Select(p => (object?)new Dictionary<string, object?> { ["name"] = p.Name, ["version"] = p.Version, ["at"] = p.At is null ? null : Wire.Name(p.At) }.Where(kv => kv.Value is not null).ToDictionary(kv => kv.Key, kv => kv.Value)).ToList(),
 			["units"] = Units(TypesOf(driver).State),
 			["streams"] = new List<object?>(),
 		};

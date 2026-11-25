@@ -20,6 +20,9 @@ public sealed class ProfileAttribute(string name, int version = 1) : Attribute
 {
 	public string Name { get; } = name;
 	public int Version { get; } = version;
+	/// <summary>The state property under which the fields of this profile live (snake_case on the wire), for a device that conforms to
+	/// two profiles whose field names clash: an oscilloscope (<c>channels</c>) with a signal generator (<c>generator.channels</c>).</summary>
+	public string? At { get; set; }
 }
 
 /// <summary>The unit of a numeric state property, fixed by the profile (the driver converts): "Hz", "mV", "mbar".</summary>

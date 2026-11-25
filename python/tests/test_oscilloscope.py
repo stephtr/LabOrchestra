@@ -59,7 +59,7 @@ def test_the_spectrum_shows_the_tones_where_they_are(lab):
     assert schema["class"] == "SimulatedOscilloscope" and schema["streams"] == ["display"]
     assert {"start", "stop", "set_range", "set_channel_active", "set_coupling", "set_fft_frequency", "set_fft_bin_count",
             "set_averaging_mode", "set_fft_averaging_duration", "set_fft_window_function", "set_display_mode",
-            "set_test_signal_frequency", "reset_fft_storage", "get_fft"} <= {a["name"] for a in schema["actions"]}
+            "reset_fft_storage", "get_fft"} <= {a["name"] for a in schema["actions"]}
     wait_for(lambda: lab.osc.state["running"] and lab.osc.state["sample_rate"] == 2e6, 20, "running at 2 MS/s")
 
     with lab.stream("osc", "display", NO_DECIMATION) as frames:
@@ -220,12 +220,52 @@ def test_a_picoscope_without_the_sdk_says_what_to_install(tmp_path_factory):
 
 
 def test_the_oscilloscope_fits_its_profile_and_names_the_units_of_its_fields(lab):
-    from laborchestra.profiles import Oscilloscope, check_schema
+    from laborchestra.profiles import FrequencyGenerator, Oscilloscope, check_schema
 
     schema = lab.osc.schema
-    assert schema["profiles"] == [{"name": "oscilloscope", "version": 1}]
-    assert schema["units"] == {"fft_frequency": "Hz", "test_signal_frequency": "Hz", "sample_rate": "Hz", "channels.*.range_in_millivolts": "mV"}
+    # an oscilloscope with a signal generator: two profiles, the second one with its state under "generator" (both have "channels")
+    assert sorted(schema["profiles"], key=lambda p: p["name"]) == [{"name": "frequency_generator", "version": 1, "at": "generator"}, {"name": "oscilloscope", "version": 1}]
+    assert schema["units"] == {"fft_frequency": "Hz", "sample_rate": "Hz", "channels.*.range_in_millivolts": "mV",
+                               "generator.channels.*.frequency": "Hz", "generator.channels.*.power": "dBm"}
     problems = check_schema(Oscilloscope, schema, lab.osc.state)
     assert not problems, "\n".join(problems)  # every action of the profile, with its parameters, and the typed state
+    problems = check_schema(FrequencyGenerator.at("generator"), schema, lab.osc.state)
+    assert not problems, "\n".join(problems)
     broken = {**schema, "actions": [a for a in schema["actions"] if a["name"] != "set_coupling"]}
     assert check_schema(Oscilloscope, broken) == ["the action set_coupling is missing"]
+
+
+def peak(lab, settle=1.0):
+    with lab.stream("osc", "display", NO_DECIMATION) as frames:
+        frame_with(frames, lambda f: f.meta["mode"] == "fft" and f.meta["fft_length"] == 8192)
+        time.sleep(settle)
+        f, values = spectra(frame_with(frames, lambda f: True))
+    return f[np.argmax(values[0])], values[0].max() - np.median(values[0])
+
+
+def test_the_signal_generator_is_a_frequency_generator_next_to_the_oscilloscope(lab):
+    osc = lab.osc
+    try:
+        osc.set_frequency(0, 150e3)
+        assert osc.state["generator"]["channels"][0]["frequency"] == 150e3  # the state shows the effect when the action returns
+        position, height = peak(lab)
+        assert abs(position - 150e3) <= 500 and height > 40
+        osc.set_on(0, False)
+        assert osc.state["generator"]["channels"][0]["is_on"] is False
+        wait_for(lambda: peak(lab, 0.2)[1] < 20, 20, "only noise to be left")  # the averaging forgets the tone within seconds
+    finally:
+        osc.set_frequency(0, 100e3)
+        osc.set_on(0, True)
+    with pytest.raises(RemoteError, match="no generator channel 3"):
+        osc.set_frequency(3, 1e3)
+    with pytest.raises(RemoteError, match="must be positive"):
+        osc.set_frequency(0, 0)
+
+
+def test_only_picoscopes_with_a_signal_generator_offer_one(lab):
+    names = lambda d: sorted(p["name"] for p in d["profiles"])
+    actions = lambda d: {a["name"] for a in d["actions"]}
+    ps5, ps4 = lab.describe_driver("picoscope_5000a"), lab.describe_driver("picoscope_4000a")
+    assert names(ps5) == ["frequency_generator", "oscilloscope"] and {"set_frequency", "set_power", "set_on"} <= actions(ps5)
+    assert names(ps4) == ["oscilloscope"] and not {"set_frequency", "set_power", "set_on"} & actions(ps4)
+    assert {"generator.channels.*.frequency": "Hz", "generator.channels.*.power": "dBm"}.items() <= ps5["units"].items()

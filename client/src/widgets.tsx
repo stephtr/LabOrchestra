@@ -53,18 +53,26 @@ function Summary({ device, info }: WidgetProps) {
 }
 
 const hasProfile = (info: DeviceInfo, name: string) => info.schema?.profiles?.some((p) => p.name === name) ?? false;
-const perChannel = (info: DeviceInfo) => {
-	const channels = info.state?.channels;
+
+/** The part of a device's state that belongs to a profile: at the top, or under the key the profile is mounted at. */
+export function profileState(info: DeviceInfo, name: string): Record<string, unknown> {
+	const at = info.schema?.profiles?.find((p) => p.name === name)?.at;
+	const state = info.state ?? {};
+	return at ? ((state[at] as Record<string, unknown> | null) ?? {}) : state;
+}
+
+const perChannel = (profile: string) => (info: DeviceInfo) => {
+	const channels = profileState(info, profile).channels;
 	return Array.isArray(channels) && channels.length > 0 ? channels.map((_, i) => ({ label: `channel ${i}`, props: { channel: i } })) : [{ label: 'channel 0', props: { channel: 0 } }];
 };
 
 const definitions: WidgetDef[] = [
 	{ type: 'oscilloscope', title: 'Oscilloscope', size: 'main', accepts: (i) => i.schema?.widget === 'oscilloscope', component: ({ device, info }) => <OscilloscopeWidget id={device} info={info} /> },
 	{ type: 'device_card', title: 'Device card', size: 'main', accepts: () => true, component: ({ device, info }) => <DeviceCard id={device} info={info} /> },
-	{ type: 'pressure', title: 'Pressure', size: 'S', accepts: (i) => hasProfile(i, 'pressure_sensor'), variants: perChannel, component: PressureWidget },
-	{ type: 'turbo_pump', title: 'Turbo pump', size: 'S', accepts: (i) => hasProfile(i, 'turbo_pump'), variants: perChannel, component: TurboPumpWidget },
-	{ type: 'positioner', title: 'Stage', size: 'S', accepts: (i) => hasProfile(i, 'positioner'), variants: perChannel, component: PositionerWidget },
-	{ type: 'frequency', title: 'Frequency', size: 'S', accepts: (i) => hasProfile(i, 'frequency_generator'), variants: perChannel, component: FrequencyWidget },
+	{ type: 'pressure', title: 'Pressure', size: 'S', accepts: (i) => hasProfile(i, 'pressure_sensor'), variants: perChannel('pressure_sensor'), component: PressureWidget },
+	{ type: 'turbo_pump', title: 'Turbo pump', size: 'S', accepts: (i) => hasProfile(i, 'turbo_pump'), variants: perChannel('turbo_pump'), component: TurboPumpWidget },
+	{ type: 'positioner', title: 'Stage', size: 'S', accepts: (i) => hasProfile(i, 'positioner'), variants: perChannel('positioner'), component: PositionerWidget },
+	{ type: 'frequency', title: 'Frequency', size: 'S', accepts: (i) => hasProfile(i, 'frequency_generator'), variants: perChannel('frequency_generator'), component: FrequencyWidget },
 	{ type: 'polarimeter', title: 'Polarization', size: 'S', accepts: (i) => hasProfile(i, 'polarimeter'), component: PolarimeterWidget },
 	{ type: 'recording', title: 'Recording', size: 'S', needsDevice: false, accepts: () => false, component: RecordingWidget },
 	{ type: 'value', title: 'Value…', size: 'S', configure: true, accepts: () => true, component: ValueWidget },

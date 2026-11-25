@@ -447,6 +447,18 @@ try {
 	await panel.waitFor({ state: 'detached' });
 	ok('turbo pump widget: details panel starts, sets the speed and stops only its pump');
 
+	// the oscilloscope is also a frequency generator (a second profile, mounted at "generator"): the ordinary frequency widget works on it
+	await page.getByTestId('add-widget').click();
+	await page.getByTestId('add-frequency-scope-0').click();
+	const generator = page.getByTestId('frequency-input-scope-0');
+	await generator.fill('250 kHz');
+	await generator.press('Enter');
+	await page.waitForFunction(() => document.querySelector('[data-testid="frequency-input-scope-0"]')?.value === '250 kHz');
+	assert.equal(Number(script("print(lab.scope.state['generator']['channels'][0]['frequency'])")), 250000);
+	await page.getByTestId('frequency-on-scope-0').click();
+	await page.waitForFunction(() => document.querySelector('[data-testid="frequency-on-scope-0"]')?.getAttribute('aria-pressed') === 'false');
+	ok('oscilloscope with generator: the frequency widget controls its generator channel');
+
 	// generic widgets, configured in the picker: a state field, a number with its action, a button
 	const pick = async (type) => {
 		await page.getByTestId('add-widget').click();
@@ -459,14 +471,14 @@ try {
 	await page.getByTestId('value-text-scope-sample_rate').waitFor();
 	assert.match(await text('value-text-scope-sample_rate'), /MHz/); // a unit of Hz is shown with an SI prefix
 	await pick('number');
-	await page.getByTestId('custom-path').selectOption('test_signal_frequency');
-	await page.getByTestId('custom-action').selectOption('set_test_signal_frequency');
+	await page.getByTestId('custom-path').selectOption('fft_frequency');
+	await page.getByTestId('custom-action').selectOption('set_fft_frequency');
 	await page.getByTestId('custom-create').click();
-	const signal = page.getByTestId('number-input-scope-test_signal_frequency');
-	await signal.fill('250 kHz');
-	await signal.press('Enter');
-	await page.waitForFunction(() => document.querySelector('[data-testid="number-input-scope-test_signal_frequency"]')?.value === '250 kHz');
-	assert.equal(Number(script("print(lab.scope.state['test_signal_frequency'])")), 250000);
+	const top = page.getByTestId('number-input-scope-fft_frequency');
+	await top.fill('500 kHz');
+	await top.press('Enter');
+	await page.waitForFunction(() => document.querySelector('[data-testid="number-input-scope-fft_frequency"]')?.value === '500 kHz');
+	assert.equal(Number(script("print(lab.scope.state['fft_frequency'])")), 500000);
 	await pick('button');
 	await page.getByTestId('custom-action').selectOption('reset_fft_storage');
 	await page.getByTestId('custom-create').click();
@@ -476,7 +488,7 @@ try {
 	const widgetsOfView = readView();
 	assert.deepEqual(widgetsOfView.strip.filter((w) => ['value', 'number', 'button'].includes(w.type)).map((w) => w.props), [
 		{ path: 'sample_rate', label: 'Rate' },
-		{ path: 'test_signal_frequency', action: 'set_test_signal_frequency' },
+		{ path: 'fft_frequency', action: 'set_fft_frequency' },
 		{ action: 'reset_fft_storage' },
 	]);
 	ok('generic widgets: value, number (SI input) and button, configured in the picker');
