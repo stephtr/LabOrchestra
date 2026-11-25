@@ -471,7 +471,7 @@ try {
 	view = await waitView((v) => v.strip.length === 2, 'two summaries');
 	const order = view.strip.map((w) => w.device);
 	const strip = page.locator('[data-testid^="area-"]');
-	await strip.nth(1).dragTo(strip.nth(0), { targetPosition: { x: 5, y: 10 } });
+	await strip.nth(1).dragTo(strip.nth(0), { targetPosition: { x: 30, y: 10 } });
 	view = await waitView((v) => v.strip[0].device === order[1], 'strip reordered');
 	ok('summaries can be reordered in the strip');
 
@@ -764,7 +764,7 @@ export default function BigPressure({ device, props }: { device: string; props: 
 	// drag out of the picker: a preview into the strip, a large widget to the side of a pane, a widget for any device (asks for it, keeps the place)
 	await openPicker();
 	const undragged = readView();
-	await page.getByTestId('add-pressure-pressure-1').dragTo(page.getByTestId('area-' + undragged.strip[0].id), { targetPosition: { x: 4, y: 20 } });
+	await page.getByTestId('add-pressure-pressure-1').dragTo(page.getByTestId('area-' + undragged.strip[0].id), { targetPosition: { x: 30, y: 20 } });
 	view = await waitView((v) => v.strip.length === undragged.strip.length + 1, 'the dragged preview');
 	assert.deepEqual([view.strip[0].type, view.strip[0].props], ['pressure', { channel: 1 }]);
 	const panes = page.locator('[data-testid^="pane-"]');
@@ -772,13 +772,13 @@ export default function BigPressure({ device, props }: { device: string; props: 
 	const paneBox = await panes.first().boundingBox();
 	await page.getByTestId('add-oscilloscope-scope').dragTo(panes.first(), { targetPosition: { x: 80, y: paneBox.height / 2 } });
 	await page.waitForFunction((n) => document.querySelectorAll('[data-testid^="pane-"]').length === n + 1, paneCount);
-	await page.getByTestId('add-summary').dragTo(page.getByTestId('area-' + view.strip[0].id), { targetPosition: { x: 4, y: 20 } });
+	await page.getByTestId('add-summary').dragTo(page.getByTestId('area-' + view.strip[0].id), { targetPosition: { x: 30, y: 20 } });
 	await page.getByTestId('pick-device').selectOption('rf');
 	await page.getByTestId('pick-add').click();
 	view = await waitView((v) => v.strip[0].type === 'summary', 'the summary where it was dropped');
 	assert.equal(view.strip[0].device, 'rf');
 	await page.getByTestId('add-value').click();
-	await page.getByTestId('drag-preview').dragTo(page.getByTestId('area-' + view.strip[0].id), { targetPosition: { x: 4, y: 20 } });
+	await page.getByTestId('drag-preview').dragTo(page.getByTestId('area-' + view.strip[0].id), { targetPosition: { x: 30, y: 20 } });
 	await waitView((v) => v.strip[0].type === 'value' && v.strip[0].device, 'the configured widget');
 	await page.locator('[data-testid^="pane-"]').first().getByLabel('Remove widget').click(); // the second oscilloscope again
 	await page.getByLabel('Close panel').click();
@@ -791,7 +791,8 @@ export default function BigPressure({ device, props }: { device: string; props: 
 	const source = await page.getByTestId('add-pressure-pressure-0').boundingBox();
 	await page.mouse.move(source.x + 8, source.y + 8);
 	await page.mouse.down();
-	await page.mouse.move(stripBox.x + 40, stripBox.y + stripBox.height - 3, { steps: 8 });
+	await page.mouse.move(stripBox.x + stripBox.width / 2, stripBox.y + 3, { steps: 8 }); // the padding above the widgets (not an edge strip of the layout)
+	await page.mouse.move(stripBox.x + stripBox.width / 2 + 5, stripBox.y + 4, { steps: 4 }); // a drag over a place that was just reached is only reported with more movement
 	await page.waitForFunction(() => /outline-accent/.test(document.querySelector('[data-testid=area]').className));
 	await page.mouse.move(source.x + 100, source.y + 300, { steps: 8 }); // back over the panel
 	await page.waitForFunction(() => !/outline-accent/.test(document.querySelector('[data-testid=area]').className));
@@ -814,11 +815,22 @@ export default function BigPressure({ device, props }: { device: string; props: 
 	for (let i = 0; i < 50 && dockOf().length === 0; i++) await new Promise((r) => setTimeout(r, 100));
 	assert.deepEqual(dockOf().map((w) => [w.type, w.props]), [['pressure', { channel: 1 }]]);
 	await page.getByTestId(`dock-item-${dockOf()[0].id}`).waitFor();
+	// the end of the dock can be reached when its widgets fill it: the lower half of the last one means "after it"
+	await openPicker();
+	await page.getByTestId('add-pressure-pressure-0').dragTo(page.getByTestId(`dock-${oscPane.id}`), { targetPosition: { x: 20, y: 20 } });
+	for (let i = 0; i < 50 && dockOf().length < 2; i++) await new Promise((r) => setTimeout(r, 100));
+	const [first, second] = dockOf().map((w) => w.id);
+	await page.getByTestId(`dock-item-${first}`).dragTo(page.getByTestId(`dock-item-${second}`), { targetPosition: { x: 20, y: 50 } });
+	for (let i = 0; i < 50 && dockOf()[0].id === first; i++) await new Promise((r) => setTimeout(r, 100));
+	assert.deepEqual(dockOf().map((w) => w.id), [second, first]);
+	await openPicker();
 	await page.getByTestId('add-trace').dragTo(page.getByTestId(`dock-${oscPane.id}`), { targetPosition: { x: 20, y: 20 } }).catch(() => {}); // M (a trace) is not accepted
 	await new Promise((r) => setTimeout(r, 500));
-	assert.equal(dockOf().length, 1, 'only S widgets go into the dock');
-	await page.getByTestId(`dock-item-${dockOf()[0].id}`).hover();
-	await page.getByTestId(`dock-item-${dockOf()[0].id}`).getByLabel('Remove widget').click();
+	assert.equal(dockOf().length, 2, 'only S widgets go into the dock');
+	for (const id of dockOf().map((w) => w.id)) {
+		await page.getByTestId(`dock-item-${id}`).hover();
+		await page.getByTestId(`dock-item-${id}`).getByLabel('Remove widget').click();
+	}
 	for (let i = 0; i < 50 && dockOf().length > 0; i++) await new Promise((r) => setTimeout(r, 100));
 	assert.equal(dockOf().length, 0);
 	await page.getByLabel('Close panel').click();
@@ -911,6 +923,25 @@ export default function BigPressure({ device, props }: { device: string; props: 
 	assert.equal(tall.root.children[0].kind, 'split'); // the two stacked panes stay together
 	assert.equal(tall.root.children[1].kind, 'main');
 	assert.equal(tall.root.children[1].widget.device, 'rf');
+
+	// with an area on the right, the bottom edge is still the bottom of the whole layout: a new area spanning the full width
+	await openPicker();
+	await dragToEdge(page.getByTestId('add-pressure-pressure-0'), 'right'); // a compact widget: an area along the right side
+	await emptyView((v) => v.strip.length === 1, 'an area on the right');
+	await openPicker();
+	const stripPreview = page.getByTestId('add-pressure-pressure-1');
+	await stripPreview.scrollIntoViewIfNeeded();
+	const sb = await stripPreview.boundingBox();
+	await page.mouse.move(sb.x + 10, sb.y + 10);
+	await page.mouse.down();
+	await page.mouse.move(sb.x - 30, sb.y + 10, { steps: 5 });
+	const rightArea = await page.getByTestId('area').first().boundingBox(); // the area is at the very bottom of the layout, too
+	await page.mouse.move(rightArea.x + rightArea.width / 2, rightArea.y + rightArea.height - 5, { steps: 10 });
+	await page.getByTestId('edge-bottom').waitFor();
+	await page.mouse.up();
+	const spanning = await emptyView((v) => v.root?.kind === 'split' && v.root.dir === 'column' && v.root.children.at(-1).kind === 'area', 'an area below everything');
+	assert.deepEqual(spanning.root.children.at(-1).widgets.map((w) => w.props.channel), [1]);
+	assert.equal(spanning.strip.length, 2); // the one on the right is still there
 	ok('drag to an edge of the layout puts the widget along the whole side (A over B becomes A | C over B | C)');
 	page.once('dialog', (d) => d.accept());
 	await page.getByTestId('view-delete').click();

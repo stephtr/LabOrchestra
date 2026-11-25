@@ -94,6 +94,12 @@ function WidgetView({ instance }: { instance: WidgetInstance }) {
 	return <Component id={instance.id} device={instance.device} info={info} props={instance.props ?? {}} />;
 }
 
+/** Where a widget dropped on item `i` lands: before it on its first half, after it on its second (`vertical`: halves are top and bottom). */
+function halfIndex(e: React.DragEvent, i: number, vertical: boolean): number {
+	const box = e.currentTarget.getBoundingClientRect();
+	return (vertical ? e.clientY > box.top + box.height / 2 : e.clientX > box.left + box.width / 2) ? i + 1 : i;
+}
+
 /** A compact widget (S or M) rather than one that fills a pane: beside a pane or at an edge it gets an area of its own. */
 const isCompact = (w: WidgetInstance) => (widgetDef(w.type)?.size ?? 'main') !== 'main';
 
@@ -179,13 +185,13 @@ function Pane({ instance }: { instance: WidgetInstance }) {
 }
 
 const RAIL: Record<Side, string> = {
-	left: 'left-0 top-0 h-full w-10',
-	right: 'right-0 top-0 h-full w-10',
-	top: 'left-0 top-0 h-10 w-full',
-	bottom: 'bottom-0 left-0 h-10 w-full',
+	left: 'left-0 top-0 h-full w-5',
+	right: 'right-0 top-0 h-full w-5',
+	top: 'left-0 top-0 h-5 w-full',
+	bottom: 'bottom-0 left-0 h-5 w-full',
 };
 
-/** While a widget is dragged, the four edges of the whole layout take drops: the widget then goes along that entire side (next to everything),
+/** While a widget is dragged, the four edges of the whole layout (a thin strip, above areas and panes) take drops: the widget then goes along that entire side (next to everything),
  *  not just next to the pane under the pointer. */
 function EdgeRails() {
 	const ctx = useContext(DashboardContext);
@@ -198,7 +204,7 @@ function EdgeRails() {
 					data-dropzone
 					data-testid={`edge-${side}`}
 					title={`Along the whole ${side} side`}
-					className={`absolute z-30 ${RAIL[side]} ${over === side ? 'bg-accent/40' : 'bg-accent/10'}`}
+					className={`absolute z-50 ${RAIL[side]} ${over === side ? 'bg-accent/40' : 'bg-accent/10'}`}
 					onDragOver={(e) => {
 						e.preventDefault();
 						if (over !== side) ctx.setDrop({ edge: side });
@@ -209,7 +215,7 @@ function EdgeRails() {
 					}}
 				/>
 			))}
-			{over && <div className={`pointer-events-none absolute z-30 rounded-lg bg-accent/20 ring-2 ring-inset ring-accent ${HIGHLIGHT[over]}`} />}
+			{over && <div className={`pointer-events-none absolute z-50 rounded-lg bg-accent/20 ring-2 ring-inset ring-accent ${HIGHLIGHT[over]}`} />}
 		</>
 	);
 }
@@ -343,17 +349,20 @@ function Dock({ paneWidgetId }: { paneWidgetId: string }) {
 	const fits = !!ctx.dragging && widgetDef(ctx.dragging.type)?.size === 'S';
 	const dropAt = ctx.drop && 'dock' in ctx.drop && ctx.drop.dock === paneWidgetId ? ctx.drop.index : null;
 	if (!pane || (widgets.length === 0 && !ctx.editing)) return null;
-	const accept = (index: number) => ({
+	// `item`: the index of the widget under the pointer, whose half decides (so the end of the list can be reached when the widgets fill the dock); without: the end
+	const accept = (item?: number) => ({
 		onDragOver: (e: React.DragEvent) => {
 			if (!fits) return;
 			e.preventDefault();
 			e.stopPropagation();
+			const index = item === undefined ? widgets.length : halfIndex(e, item, true);
 			if (dropAt !== index) ctx.setDrop({ dock: paneWidgetId, index });
 		},
 		onDrop: (e: React.DragEvent) => {
 			if (!fits) return;
 			e.preventDefault();
 			e.stopPropagation();
+			const index = item === undefined ? widgets.length : halfIndex(e, item, true);
 			ctx.dropped((v, w) => placeInDock(v, w, paneWidgetId, index));
 		},
 	});
@@ -361,8 +370,8 @@ function Dock({ paneWidgetId }: { paneWidgetId: string }) {
 		<div
 			data-testid={`dock-${paneWidgetId}`}
 			data-dropzone
-			className={`relative z-40 mt-auto flex min-h-12 flex-none flex-col gap-1 rounded-lg ${ctx.editing ? 'border border-dashed border-line' : ''} ${fits && dropAt === widgets.length ? 'outline-2 -outline-offset-2 outline-accent' : ''}`}
-			{...(ctx.editing ? accept(widgets.length) : {})}
+			className={`relative z-40 mt-auto flex min-h-12 flex-none flex-col gap-1 rounded-lg ${ctx.editing ? 'border border-dashed border-line' : ''}`}
+			{...(ctx.editing ? accept() : {})}
 		>
 			{widgets.length === 0 && <span className="m-auto px-1 text-center text-xs text-faint">Small widgets can go here.</span>}
 			{widgets.map((w, i) => (
@@ -371,7 +380,7 @@ function Dock({ paneWidgetId }: { paneWidgetId: string }) {
 					data-testid={`dock-item-${w.id}`}
 					data-dropzone
 					style={{ height: COMPACT_HEIGHT.S }}
-					className={`group relative w-full flex-none ${ctx.editing ? 'cursor-grab active:cursor-grabbing' : ''} ${dropAt === i ? 'before:absolute before:inset-x-0 before:-top-1 before:h-0.5 before:rounded before:bg-accent' : ''}`}
+					className={`group relative w-full flex-none ${ctx.editing ? 'cursor-grab active:cursor-grabbing' : ''} ${dropAt === i ? 'before:absolute before:inset-x-0 before:-top-1 before:h-0.5 before:rounded before:bg-accent' : ''} ${dropAt === widgets.length && i === widgets.length - 1 ? 'after:absolute after:inset-x-0 after:-bottom-1 after:h-0.5 after:rounded after:bg-accent' : ''}`}
 					{...dragProps(() => w, ctx)}
 					{...(ctx.editing ? accept(i) : {})}
 				>
@@ -422,17 +431,20 @@ function AreaView({ node, onMeasure }: { node: Extract<Node, { kind: 'area' }>; 
 	const fits = !ctx.dragging || isCompact(ctx.dragging);
 	const dropAt = ctx.drop && 'area' in ctx.drop && ctx.drop.area === node.id ? ctx.drop.index : null;
 	const widgets = node.widgets;
-	const acceptDrop = (index: number) => ({
+	// `item`: the index of the widget under the pointer, whose half decides (so the end can be reached when the widgets fill the row); without: the end
+	const acceptDrop = (item?: number) => ({
 		onDragOver: (e: React.DragEvent) => {
 			if (!ctx.dragging || !fits) return;
 			e.preventDefault();
 			e.stopPropagation();
+			const index = item === undefined ? widgets.length : halfIndex(e, item, false);
 			if (dropAt !== index) ctx.setDrop({ area: node.id, index });
 		},
 		onDrop: (e: React.DragEvent) => {
 			if (!ctx.dragging || !fits) return;
 			e.preventDefault();
 			e.stopPropagation();
+			const index = item === undefined ? widgets.length : halfIndex(e, item, false);
 			ctx.dropped((v, w) => placeInArea(v, w, node.id, index));
 		},
 	});
@@ -441,7 +453,7 @@ function AreaView({ node, onMeasure }: { node: Extract<Node, { kind: 'area' }>; 
 			data-testid="area"
 			data-dropzone
 			className={`relative z-40 h-full overflow-y-auto border-t border-line ${ctx.editing ? 'bg-raised' : ''} ${ctx.dragging && fits && dropAt === widgets.length ? 'outline-2 -outline-offset-2 outline-accent' : ''}`}
-			{...(ctx.editing ? acceptDrop(widgets.length) : {})}
+			{...(ctx.editing ? acceptDrop() : {})}
 		>
 			{ctx.editing && ctx.dragging && !fits && (
 				// a pane dragged over an area goes beside it (the area itself holds compact widgets only)
@@ -476,7 +488,7 @@ function AreaView({ node, onMeasure }: { node: Extract<Node, { kind: 'area' }>; 
 							data-width={width}
 							data-dropzone
 							style={{ height, ...(width ? stretch(width) : {}) }}
-							className={`group relative min-w-28 ${width ? '' : 'flex-none'} ${ctx.editing ? 'cursor-grab active:cursor-grabbing' : ''} ${dropAt === i ? 'before:absolute before:inset-y-0 before:-left-1 before:w-0.5 before:rounded before:bg-accent' : ''}`}
+							className={`group relative min-w-28 ${width ? '' : 'flex-none'} ${ctx.editing ? 'cursor-grab active:cursor-grabbing' : ''} ${dropAt === i ? 'before:absolute before:inset-y-0 before:-left-1 before:w-0.5 before:rounded before:bg-accent' : ''} ${dropAt === widgets.length && i === widgets.length - 1 ? 'after:absolute after:inset-y-0 after:-right-1 after:w-0.5 after:rounded after:bg-accent' : ''}`}
 							{...dragProps(() => w, ctx)}
 							{...(ctx.editing ? acceptDrop(i) : {})}
 						>
