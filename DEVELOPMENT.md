@@ -162,3 +162,7 @@ elliptec_stage = "laborchestra_elliptec.widgets"   # the folder of this module h
 ```
 
 Add it on the **Devices** page: **Add existing**, kind **Python package**, type a requirement (`laborchestra-elliptec==1.2`) or the folder of a package, **Look inside** shows what it offers and its options. In `devices.json`: `"elliptec": {"package": "laborchestra-elliptec==1.2", "entry": "elliptec", "config": {...}}`. The widgets of a package show up in **Add widget** like those of the workspace. `python/tests/packages/lab_test_pkg` is a complete small example.
+
+## CI
+
+GitHub Actions (`.github/workflows/ci.yml`: Windows, Linux, macOS; server, client, Python tests, browser test) runs on pull requests and on demand, **not on every push**. Start it for the working branch with `gh workflow run ci --ref next` (or the Actions tab), and look at it with `gh run list --workflow ci`. A newer run of the same branch cancels an older one that is still going.

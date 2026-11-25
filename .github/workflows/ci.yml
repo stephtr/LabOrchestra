@@ -1,9 +1,14 @@
 name: ci
+# Not on every push: pull requests, and on demand (Actions tab, or `gh workflow run ci --ref next`). (A nightly schedule would only run from
+# the default branch, not from `next`.)
 on:
-  push:
-    branches: [next]
+  pull_request:
     paths-ignore: ['spikes/**', 'legacy/**', '**.md', '.github/workflows/spikes.yml']
   workflow_dispatch:
+# a newer run of the same branch makes an older one that is still going pointless
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
