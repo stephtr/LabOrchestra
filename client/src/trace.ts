@@ -31,12 +31,15 @@ export function summarize(points: Point[], log: boolean): Summary | null {
 	return { min, max, last, trend };
 }
 
+/** 10 to the power e, exactly (`10 ** -7` is not exactly 1e-7 on every JavaScript engine). */
+const pow10 = (e: number) => Number(`1e${e}`);
+
 /** Round numbers between min and max for an axis (about `count` of them). */
 export function niceTicks(min: number, max: number, count: number): number[] {
 	const span = max - min;
 	if (!(span > 0)) return [min];
 	const rough = span / count;
-	const base = 10 ** Math.floor(Math.log10(rough));
+	const base = pow10(Math.floor(Math.log10(rough)));
 	const step = [1, 2, 5, 10].map((m) => m * base).find((s) => s >= rough) ?? rough;
 	const ticks: number[] = [];
 	for (let t = Math.ceil(min / step) * step; t <= max + step * 1e-9; t += step) ticks.push(Number(t.toPrecision(12)));
@@ -48,7 +51,7 @@ export function decadeTicks(min: number, max: number): number[] {
 	const lo = Math.floor(Math.log10(min));
 	const hi = Math.ceil(Math.log10(max));
 	const ticks: number[] = [];
-	for (let e = lo; e <= hi; e++) ticks.push(10 ** e);
+	for (let e = lo; e <= hi; e++) ticks.push(pow10(e));
 	return ticks;
 }
 

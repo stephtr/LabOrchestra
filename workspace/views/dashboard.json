@@ -8,13 +8,33 @@
 		"dir": "column",
 		"children": [
 			{
-				"id": "n_acq",
-				"kind": "main",
-				"widget": {
-					"id": "w_acq",
-					"type": "oscilloscope",
-					"device": "acq"
-				}
+				"id": "nmww4bczv8tig",
+				"kind": "split",
+				"dir": "row",
+				"children": [
+					{
+						"id": "n_acq",
+						"kind": "main",
+						"widget": {
+							"id": "w_acq",
+							"type": "oscilloscope",
+							"device": "acq"
+						}
+					},
+					{
+						"id": "nmww4bczv7ei3",
+						"kind": "main",
+						"widget": {
+							"id": "wmww4bcb964rx",
+							"type": "oscilloscope",
+							"device": "acq"
+						}
+					}
+				],
+				"sizes": [
+					50,
+					50
+				]
 			},
 			{
 				"id": "n_acq2",
