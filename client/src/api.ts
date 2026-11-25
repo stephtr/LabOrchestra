@@ -41,6 +41,7 @@ export type PackageContents = {
 };
 
 export const api = {
+	openFile: (path: string, how: 'editor' | 'folder') => invokeHub<string>('open_file', path, how),
 	describePackage: (pkg: string, entry: string | null, python: string | null) => invokeHub<PackageContents>('describe_package', pkg, entry, python),
 	listWidgetTemplates: () => invokeHub<TemplateInfo[]>('list_widget_templates'),
 	scaffoldWidget: (template: string, name: string) => invokeHub<ScaffoldedWidget>('scaffold_widget', template, name),

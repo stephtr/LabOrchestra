@@ -61,6 +61,7 @@ builder.Services.AddSingleton(sp => new WorkerGuard(dataDir, sp.GetRequiredServi
 builder.Services.AddSingleton<WorkerSupervisor>();
 builder.Services.AddSingleton<DeviceCatalog>();
 builder.Services.AddSingleton<LabOrchestra.Server.Devices.Scaffolder>();
+builder.Services.AddSingleton<LabOrchestra.Server.Devices.FileOpener>();
 builder.Services.AddSingleton(new LabOrchestra.Server.Widgets.ClientDirectory(clientDir is null ? null : Path.GetFullPath(clientDir)));
 builder.Services.AddSingleton<LabOrchestra.Server.Widgets.WidgetService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<LabOrchestra.Server.Widgets.WidgetService>());

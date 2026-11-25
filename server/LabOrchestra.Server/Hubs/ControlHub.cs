@@ -54,6 +54,7 @@ public sealed class ControlHub(
 	ViewStore views,
 	Devices.Scaffolder scaffolder,
 	Widgets.WidgetService widgets,
+	Devices.FileOpener opener,
 	TokenStore tokenStore,
 	Supervision.EnvironmentManager environments,
 	IHubContext<DeviceHub> devices) : Hub
@@ -177,6 +178,17 @@ public sealed class ControlHub(
 	public async Task<Dictionary<string, object?>> DescribePackage(string package, string? entry, string? python)
 	{
 		try { return await catalog.DescribePackageAsync(package, entry, python, Context.ConnectionAborted); }
+		catch (Exception e) when (e is ArgumentException or InvalidOperationException) { throw new HubException(Errors.Json("ValueError", e.Message)); }
+	}
+
+	/// <summary>Opens a file of the workspace in the editor, or shows it in the file manager ("editor" / "folder"). Works only for a client on
+	/// the computer that runs the server; the error then names the path.</summary>
+	[Authorize(Roles = Roles.Client)]
+	[HubMethodName("open_file")]
+	public string OpenFile(string path, string how)
+	{
+		var remote = Context.GetHttpContext()?.Connection.RemoteIpAddress is { } ip && !System.Net.IPAddress.IsLoopback(ip);
+		try { return opener.Open(path, how, isLocal: !remote); }
 		catch (Exception e) when (e is ArgumentException or InvalidOperationException) { throw new HubException(Errors.Json("ValueError", e.Message)); }
 	}
 

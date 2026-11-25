@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, DeviceEntry } from './api';
 import { DeviceDialog } from './DeviceDialog';
+import { OpenFileButtons } from './OpenFileButtons';
 import { NewDeviceDialog } from './NewDeviceDialog';
 import { EnvironmentsPanel } from './EnvironmentsPanel';
 import { RemoteWorkersPanel } from './RemoteWorkersPanel';
@@ -73,6 +74,7 @@ export function DevicesPage() {
 									</td>
 									<td className="p-2 font-mono text-xs text-zinc-500">{sourceOf(id)}</td>
 									<td className="flex justify-end gap-3 p-2">
+										{entries[id]?.file && <OpenFileButtons file={entries[id]!.file!} compact />}
 										<button data-testid={`restart-${id}`} className="hover:underline" onClick={() => void run(api.restartDevice(id))}>Restart</button>
 										<button data-testid={`edit-${id}`} className="hover:underline" onClick={() => setDialog({ id })}>Change</button>
 										<button

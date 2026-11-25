@@ -31,6 +31,12 @@ const port = await new Promise((resolve) => {
 });
 const url = `http://127.0.0.1:${port}`;
 
+// "Open in editor" starts a program on the server's computer: a stand-in that writes down what it was asked to open
+const editorLog = path.join(dir, 'editor.log');
+const editor = path.join(dir, win ? 'editor.cmd' : 'editor.sh');
+fs.writeFileSync(editor, win ? `@echo %* > "${editorLog}"\r\n` : `#!/bin/sh\necho "$@" > "${editorLog}"\n`);
+fs.chmodSync(editor, 0o755);
+
 function startServer() {
 	const process_ = spawn('dotnet', [dll, '--urls', url], {
 		env: {
@@ -39,6 +45,7 @@ function startServer() {
 			LABORCHESTRA_PYTHON: python,
 			LABORCHESTRA_PASSPHRASE: PASSPHRASE,
 			LABORCHESTRA_DATA_DIR: path.join(dir, 'data'),
+			LABORCHESTRA_EDITOR: editor,
 		},
 		stdio: ['ignore', 'pipe', 'pipe'],
 	});
@@ -226,6 +233,10 @@ try {
 	const made = path.join(dir, 'workspace/devices/gen_one.py');
 	assert.ok(fs.existsSync(made) && fs.readFileSync(made, 'utf8').includes('class GenOne(Device)') && fs.readFileSync(made, 'utf8').includes('tcp_port'));
 	assert.equal(devicesFile().gen_one.file, 'devices/gen_one.py');
+	await page.getByTestId('new-device-done').getByTestId('open-editor-devices/gen_one.py').click();
+	for (let i = 0; i < 50 && !(fs.existsSync(editorLog) && fs.readFileSync(editorLog, 'utf8').includes('gen_one.py')); i++) await new Promise((r) => setTimeout(r, 100));
+	assert.ok(fs.readFileSync(editorLog, 'utf8').includes('gen_one.py'), 'the editor was asked to open the new file');
+	ok('"Open in editor" starts the configured editor with the new file');
 	await page.getByRole('button', { name: 'Done' }).click();
 	await waitText('row-status-gen_one', 'ready');
 	ok('new device from a template: file written, registered, running simulated');

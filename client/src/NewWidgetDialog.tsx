@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { OpenFileButtons } from './OpenFileButtons';
 import { api, ScaffoldedWidget, TemplateInfo } from './api';
 
 const FIELD = 'rounded border border-zinc-300 bg-transparent px-2 py-1 text-sm dark:border-slate-700';
@@ -37,6 +38,7 @@ export function NewWidgetDialog({ onClose }: { onClose: () => void }) {
 						Open the file in your editor. Every time you save it the page updates by itself, and a mistake is shown in the widget. It is in the picker under “Add widget”, next to the device it should show.
 					</p>
 					<p className="break-all rounded bg-zinc-100 p-2 font-mono text-xs dark:bg-slate-800" data-testid="new-widget-path">{made.path}</p>
+					<OpenFileButtons file={made.file} />
 					<div className="flex justify-end">
 						<button className="rounded bg-brand px-3 py-1 text-sm text-white" onClick={() => dialog.current?.close()}>Done</button>
 					</div>

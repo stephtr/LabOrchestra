@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { OpenFileButtons } from './OpenFileButtons';
 import { api, PythonInfo, Scaffolded, TemplateInfo } from './api';
 
 const FIELD = 'rounded border border-zinc-300 bg-transparent px-2 py-1 text-sm dark:border-slate-700';
@@ -57,6 +58,7 @@ export function NewDeviceDialog({ onClose }: { onClose: () => void }) {
 						<code className="font-mono"> TODO</code>s with the code for your instrument; the Devices page shows “file changed” when you save, and Restart applies it.
 					</p>
 					<p className="break-all rounded bg-zinc-100 p-2 font-mono text-xs dark:bg-slate-800" data-testid="new-device-path">{made.path}</p>
+					<OpenFileButtons file={made.file} />
 					<div className="flex justify-end">
 						<button className="rounded bg-brand px-3 py-1 text-sm text-white" onClick={() => dialog.current?.close()}>Done</button>
 					</div>
