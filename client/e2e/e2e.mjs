@@ -801,6 +801,29 @@ export default function BigPressure({ device, props }: { device: string; props: 
 	await page.getByLabel('Close panel').click();
 	ok('drag: the drop highlight follows the pointer');
 
+	// the oscilloscope has a dock for small widgets (lower left); larger ones are not accepted there
+	const oscPane = readView().panes.find((w) => w.type === 'oscilloscope');
+	const dockOf = () => {
+		let found;
+		const walk = (n) => { if (!n) return; if (n.kind === 'main' && n.widget.id === oscPane.id) found = n.dock ?? []; else if (n.kind === 'split') n.children.forEach(walk); };
+		walk(readView().root);
+		return found;
+	};
+	await openPicker();
+	await page.getByTestId('add-pressure-pressure-1').dragTo(page.getByTestId(`dock-${oscPane.id}`), { targetPosition: { x: 20, y: 20 } });
+	for (let i = 0; i < 50 && dockOf().length === 0; i++) await new Promise((r) => setTimeout(r, 100));
+	assert.deepEqual(dockOf().map((w) => [w.type, w.props]), [['pressure', { channel: 1 }]]);
+	await page.getByTestId(`dock-item-${dockOf()[0].id}`).waitFor();
+	await page.getByTestId('add-trace').dragTo(page.getByTestId(`dock-${oscPane.id}`), { targetPosition: { x: 20, y: 20 } }).catch(() => {}); // M (a trace) is not accepted
+	await new Promise((r) => setTimeout(r, 500));
+	assert.equal(dockOf().length, 1, 'only S widgets go into the dock');
+	await page.getByTestId(`dock-item-${dockOf()[0].id}`).hover();
+	await page.getByTestId(`dock-item-${dockOf()[0].id}`).getByLabel('Remove widget').click();
+	for (let i = 0; i < 50 && dockOf().length > 0; i++) await new Promise((r) => setTimeout(r, 100));
+	assert.equal(dockOf().length, 0);
+	await page.getByLabel('Close panel').click();
+	ok('the oscilloscope has a dock for small widgets');
+
 	// several views: duplicate, rename, reorder
 	await page.getByTestId('view-duplicate').click();
 	await page.getByTestId('view-tab-dashboard_copy').waitFor();

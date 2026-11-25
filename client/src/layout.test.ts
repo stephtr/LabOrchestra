@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { reorderIds, addMain, addToArea, allWidgets, areas, defaultView, emptyView, mains, parseView, placeAtEdge, placeInArea, placeInMain, removeWidget, setSizes, swapMains, widget } from './layout.ts';
+import { placeInDock, reorderIds, addMain, addToArea, allWidgets, areas, defaultView, emptyView, mains, parseView, placeAtEdge, placeInArea, placeInMain, removeWidget, setSizes, swapMains, widget } from './layout.ts';
 
 const inAreas = (v: ReturnType<typeof emptyView>) => areas(v.root).flatMap((a) => a.widgets.map((w) => w.id));
 
@@ -179,4 +179,24 @@ test('views move next to another one, before or after it', () => {
 	assert.deepEqual(reorderIds(ids, 'a', 'c', true), ['b', 'c', 'a', 'd']);
 	assert.deepEqual(reorderIds(ids, 'b', 'b', true), ids);
 	assert.deepEqual(reorderIds(ids, 'x', 'b', true), ids);
+});
+
+test('small widgets sit in the dock of a pane, go with it when swapped, and are removed with it', () => {
+	const [a, b, s1, s2] = [widget('oscilloscope', 'a'), widget('oscilloscope', 'b'), widget('pressure', 'p'), widget('pressure', 'q')] as const;
+	let view = addMain(addMain(emptyView(), a), b);
+	view = placeInDock(view, s1, a.id, 0);
+	view = placeInDock(view, s2, a.id, 0);
+	const dockOf = (v: ReturnType<typeof emptyView>, id: string) => mains(v.root).find((m) => m.widget.id === id)?.dock?.map((w) => w.id);
+	assert.deepEqual(dockOf(view, a.id), [s2.id, s1.id]);
+	assert.deepEqual(allWidgets(view).map((w) => w.id), [a.id, s2.id, s1.id, b.id]);
+	view = placeInDock(view, s2, a.id, 2); // moved inside the dock
+	assert.deepEqual(dockOf(view, a.id), [s1.id, s2.id]);
+	view = placeInDock(view, s1, b.id, 0); // moved to another pane
+	assert.deepEqual([dockOf(view, a.id), dockOf(view, b.id)], [[s2.id], [s1.id]]);
+	const swapped = swapMains(view, a.id, b.id);
+	assert.deepEqual(mains(swapped.root).map((m) => [m.widget.id, m.dock?.map((w) => w.id)]), [[b.id, [s1.id]], [a.id, [s2.id]]]); // each dock stays with its widget
+	assert.equal(removeWidget(view, s2.id).root && mains(removeWidget(view, s2.id).root).every((m) => !('dock' in m && m.widget.id === a.id)), true); // an empty dock is not kept
+	assert.deepEqual(allWidgets(removeWidget(view, a.id)).map((w) => w.id), [b.id, s1.id]); // with its pane
+	assert.ok(typeof parseView(JSON.parse(JSON.stringify(view))) !== 'string');
+	assert.equal(typeof parseView({ version: 2, root: { id: 'n', kind: 'main', widget: { id: 'w', type: 'x' }, dock: [1] } }), 'string');
 });

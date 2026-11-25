@@ -14,6 +14,7 @@ import {
 	placeAtEdge,
 	placeInMain,
 	placeInArea,
+	placeInDock,
 	reorderIds,
 	removeWidget,
 	setProps,
@@ -29,6 +30,7 @@ import { Header } from './Header';
 import { Button, Dialog, DialogBody, DialogFooter, FormRow, Icon, IconButton, Input, Select } from './ui';
 import { NewWidgetDialog } from './NewWidgetDialog';
 import { WidgetSettingsDialog } from './WidgetSettingsDialog';
+import { DockContext } from './dock';
 import { navigate, navigateSliding, usePath } from './router';
 import { DeviceInfo, deleteView, isService, saveView, useStore } from './store';
 import { DeviceCard } from './DeviceCard';
@@ -50,7 +52,7 @@ function editIdleMs(): number {
 }
 const NO_DEVICE: DeviceInfo = { status: 'ready', error: null, schema: null, state: null, revision: 0 };
 
-type DropTarget = { pane: string; side: Side | 'swap' } | { area: string; index: number } | { edge: Side } | null;
+type DropTarget = { pane: string; side: Side | 'swap' } | { area: string; index: number } | { dock: string; index: number } | { edge: Side } | null;
 type Chosen = { type: string; device: string; /** Where it was dropped (without: at the end). */ place?: Place };
 type Place = (view: View, w: WidgetInstance) => View;
 type Ctx = {
@@ -332,6 +334,60 @@ function locked(child: Node, dir: 'row' | 'column', extent: Record<string, Exten
 	if (child.kind !== 'area' || !e) return false;
 	return dir === 'column' ? e.height - e.minHeight < 4 : e.maxWidth - e.minWidth < 4;
 }
+
+/** The small widgets inside a pane (the lower left of an oscilloscope): only widgets of size S are accepted. Stacked, as wide as the column. */
+function Dock({ paneWidgetId }: { paneWidgetId: string }) {
+	const ctx = useContext(DashboardContext);
+	const pane = mains(ctx.view.root).find((m) => m.widget.id === paneWidgetId);
+	const widgets = pane?.dock ?? [];
+	const fits = !!ctx.dragging && widgetDef(ctx.dragging.type)?.size === 'S';
+	const dropAt = ctx.drop && 'dock' in ctx.drop && ctx.drop.dock === paneWidgetId ? ctx.drop.index : null;
+	if (!pane || (widgets.length === 0 && !ctx.editing)) return null;
+	const accept = (index: number) => ({
+		onDragOver: (e: React.DragEvent) => {
+			if (!fits) return;
+			e.preventDefault();
+			e.stopPropagation();
+			if (dropAt !== index) ctx.setDrop({ dock: paneWidgetId, index });
+		},
+		onDrop: (e: React.DragEvent) => {
+			if (!fits) return;
+			e.preventDefault();
+			e.stopPropagation();
+			ctx.dropped((v, w) => placeInDock(v, w, paneWidgetId, index));
+		},
+	});
+	return (
+		<div
+			data-testid={`dock-${paneWidgetId}`}
+			data-dropzone
+			className={`relative z-40 mt-auto flex min-h-12 flex-none flex-col gap-1 rounded-lg ${ctx.editing ? 'border border-dashed border-line' : ''} ${fits && dropAt === widgets.length ? 'outline-2 -outline-offset-2 outline-accent' : ''}`}
+			{...(ctx.editing ? accept(widgets.length) : {})}
+		>
+			{widgets.length === 0 && <span className="m-auto px-1 text-center text-xs text-faint">Small widgets can go here.</span>}
+			{widgets.map((w, i) => (
+				<div
+					key={w.id}
+					data-testid={`dock-item-${w.id}`}
+					data-dropzone
+					style={{ height: COMPACT_HEIGHT.S }}
+					className={`group relative w-full flex-none ${ctx.editing ? 'cursor-grab active:cursor-grabbing' : ''} ${dropAt === i ? 'before:absolute before:inset-x-0 before:-top-1 before:h-0.5 before:rounded before:bg-accent' : ''}`}
+					{...dragProps(() => w, ctx)}
+					{...(ctx.editing ? accept(i) : {})}
+				>
+					<WidgetView instance={w} />
+					{ctx.editing && (
+						<span className="absolute right-px top-px flex rounded-tr-lg bg-panel opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+							<IconButton small icon="settings" label="Widget settings" data-testid={`settings-${w.id}`} onClick={() => ctx.configure(w)} />
+							<IconButton small icon="close" variant="danger" label="Remove widget" onClick={() => ctx.apply((v) => removeWidget(v, w.id))} />
+						</span>
+					)}
+				</div>
+			))}
+		</div>
+	);
+}
+const renderDock = (instanceId: string) => <Dock paneWidgetId={instanceId} />;
 
 function NodeView({ node, onMeasure }: { node: Node; onMeasure?: (id: string, e: Extent) => void }) {
 	return node.kind === 'main' ? <Pane instance={node.widget} /> : node.kind === 'area' ? <AreaView node={node} onMeasure={onMeasure} /> : <SplitView node={node} />;
@@ -854,9 +910,11 @@ export function Dashboard() {
 		};
 	}, [dragging]);
 
+	const dockApi = useMemo(() => ({ render: renderDock, count: (id: string) => mains(view.root).find((m) => m.widget.id === id)?.dock?.length ?? 0 }), [view]);
 	const ctx: Ctx = { editing, devices, dragging, setDragging, drop, setDrop, apply, dropped, view, configure: setConfiguring };
 	const empty = !view.root;
 	return (
+		<DockContext.Provider value={dockApi}>
 		<DashboardContext.Provider value={ctx}>
 			<Header
 				actions={
@@ -1024,5 +1082,6 @@ export function Dashboard() {
 				</div>
 			</div>
 		</DashboardContext.Provider>
+		</DockContext.Provider>
 	);
 }

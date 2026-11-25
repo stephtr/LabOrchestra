@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
+import { DockContext } from './dock';
 import { callAction, DeviceInfo } from './store';
 import { Button, Icon, IconButton, Segmented, Select, StatusBadge } from './ui';
 import { StreamFrame, subscribeStream, StreamSubscription } from './stream';
@@ -100,7 +101,8 @@ function draw(canvas: HTMLCanvasElement, frame: StreamFrame, view: { min: number
 }
 
 /** The oscilloscope: spectrum or time trace from the display stream, with the controls of the instrument. */
-export function OscilloscopeWidget({ id, info }: { id: string; info: DeviceInfo }) {
+export function OscilloscopeWidget({ id, instanceId, info }: { id: string; /** the device */ instanceId?: string; info: DeviceInfo }) {
+	const dock = useContext(DockContext);
 	const state = (info.state ?? {}) as Record<string, any>;
 	const ready = info.status === 'ready' || info.status === 'degraded';
 	const canvas = useRef<HTMLCanvasElement>(null);
@@ -217,7 +219,7 @@ export function OscilloscopeWidget({ id, info }: { id: string; info: DeviceInfo 
 				</span>
 			</div>
 			<div className="flex min-h-0 flex-1 gap-1.5">
-				<div className="flex w-28 flex-none flex-col gap-1 overflow-y-auto">
+				<div className={`flex flex-none flex-col gap-1 overflow-y-auto ${instanceId && dock?.count(instanceId) ? 'w-40' : 'w-28'}`}>
 					{channels.map((ch, i) => {
 						const color = COLORS[i % COLORS.length];
 						const open = expanded.includes(i);
@@ -243,6 +245,7 @@ export function OscilloscopeWidget({ id, info }: { id: string; info: DeviceInfo 
 							</div>
 						);
 					})}
+					{instanceId && dock?.render(instanceId)}
 				</div>
 				<div className="relative min-h-0 min-w-0 flex-1">
 					<canvas

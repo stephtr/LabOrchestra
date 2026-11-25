@@ -16,7 +16,8 @@ export type WidgetInstance = {
 };
 export type Direction = 'row' | 'column';
 export type Split = { id: string; kind: 'split'; dir: Direction; children: Node[]; sizes: number[] };
-export type Main = { id: string; kind: 'main'; widget: WidgetInstance };
+/** `dock`: small widgets that sit inside the pane itself, in a place the widget offers (the lower left of the oscilloscope). */
+export type Main = { id: string; kind: 'main'; widget: WidgetInstance; dock?: WidgetInstance[] };
 /** Compact widgets that wrap like text. `fixed`: the user has dragged its size, so it no longer fits itself to its content. */
 export type Area = { id: string; kind: 'area'; widgets: WidgetInstance[]; fixed?: boolean };
 export type Node = Split | Main | Area;
@@ -96,7 +97,7 @@ export function areas(node: Node | null): Area[] {
 
 /** Every widget of the view in reading order (panes and areas as they come). */
 export function allWidgets(view: View): WidgetInstance[] {
-	const walk = (n: Node | null): WidgetInstance[] => (!n ? [] : n.kind === 'main' ? [n.widget] : n.kind === 'area' ? n.widgets : n.children.flatMap(walk));
+	const walk = (n: Node | null): WidgetInstance[] => (!n ? [] : n.kind === 'main' ? [n.widget, ...(n.dock ?? [])] : n.kind === 'area' ? n.widgets : n.children.flatMap(walk));
 	return walk(view.root);
 }
 
@@ -143,10 +144,16 @@ export function addToArea(view: View, w: WidgetInstance, areaId?: string, index?
 	return { ...view, root };
 }
 
+/** The pane with another dock (none when empty, so that the file stays tidy). */
+function withDock(node: Main, dock: WidgetInstance[]): Main {
+	const { dock: _old, ...rest } = node;
+	return dock.length > 0 ? { ...rest, dock } : rest;
+}
+
 export function removeWidget(view: View, id: string): View {
 	const root = view.root
 		? mapTree(view.root, (node) =>
-				node.kind === 'main' && node.widget.id === id ? null : node.kind === 'area' && node.widgets.some((w) => w.id === id) ? { ...node, widgets: node.widgets.filter((w) => w.id !== id) } : node,
+				node.kind === 'main' && node.widget.id === id ? null : node.kind === 'main' && node.dock?.some((w) => w.id === id) ? withDock(node, node.dock.filter((w) => w.id !== id)) : node.kind === 'area' && node.widgets.some((w) => w.id === id) ? { ...node, widgets: node.widgets.filter((w) => w.id !== id) } : node,
 			)
 		: null;
 	return { ...view, root: normalize(root) };
@@ -192,9 +199,26 @@ export function swapMains(view: View, a: string, b: string): View {
 	const wa = findWidget(view, a);
 	const wb = findWidget(view, b);
 	if (!wa || !wb) return view;
+	const dockOf = (id: string) => mains(view.root).find((m) => m.widget.id === id)?.dock ?? [];
+	const [da, db] = [dockOf(a), dockOf(b)];
 	const root = mapTree(view.root, (node) =>
-		node.kind === 'main' ? (node.widget.id === a ? { ...node, widget: wb } : node.widget.id === b ? { ...node, widget: wa } : node) : node,
-	);
+		node.kind === 'main' ? (node.widget.id === a ? withDock({ ...node, widget: wb }, db) : node.widget.id === b ? withDock({ ...node, widget: wa }, da) : node) : node,
+	); // the small widgets inside a pane go with the pane's widget
+	return { ...view, root };
+}
+
+/** Puts a small widget into the dock of a pane (given by its widget's id) at an index. One that is in the view already is moved. */
+export function placeInDock(view: View, w: WidgetInstance, paneWidgetId: string, index: number): View {
+	const before = mains(view.root).find((m) => m.widget.id === paneWidgetId)?.dock?.findIndex((x) => x.id === w.id) ?? -1;
+	const rest = removeWidget(view, w.id);
+	if (!rest.root) return view;
+	const root = mapTree(rest.root, (node) => {
+		if (node.kind !== 'main' || node.widget.id !== paneWidgetId) return node;
+		const dock = [...(node.dock ?? [])];
+		const at = before >= 0 && before < index ? index - 1 : index;
+		dock.splice(Math.min(Math.max(at, 0), dock.length), 0, w);
+		return withDock(node, dock);
+	});
 	return { ...view, root };
 }
 
@@ -206,7 +230,7 @@ export function setSizes(view: View, splitId: string, sizes: number[]): View {
 
 export function setProps(view: View, id: string, props: Record<string, unknown>): View {
 	const change = (w: WidgetInstance) => (w.id === id ? { ...w, props } : w);
-	const root = view.root ? mapTree(view.root, (node) => (node.kind === 'main' ? { ...node, widget: change(node.widget) } : node.kind === 'area' ? { ...node, widgets: node.widgets.map(change) } : node)) : null;
+	const root = view.root ? mapTree(view.root, (node) => (node.kind === 'main' ? { ...node, widget: change(node.widget), ...(node.dock ? { dock: node.dock.map(change) } : {}) } : node.kind === 'area' ? { ...node, widgets: node.widgets.map(change) } : node)) : null;
 	return { ...view, root };
 }
 
@@ -229,7 +253,7 @@ export function parseView(raw: unknown): View | string {
 	const checkNode = (n: unknown): n is Node => {
 		if (!n || typeof n !== 'object') return false;
 		const node = n as Node;
-		if (node.kind === 'main') return typeof node.id === 'string' && checkWidget(node.widget);
+		if (node.kind === 'main') return typeof node.id === 'string' && checkWidget(node.widget) && (node.dock == null || (Array.isArray(node.dock) && node.dock.every(checkWidget)));
 		if (node.kind === 'area') return typeof node.id === 'string' && Array.isArray(node.widgets) && node.widgets.every(checkWidget);
 		if (node.kind === 'split')
 			return typeof node.id === 'string' && (node.dir === 'row' || node.dir === 'column') && Array.isArray(node.children) && node.children.every(checkNode);

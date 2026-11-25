@@ -78,7 +78,7 @@ const perChannel = (profile: string) => (info: DeviceInfo) => {
 };
 
 const definitions: WidgetDef[] = [
-	{ type: 'oscilloscope', description: 'Spectrum or time trace with the controls of the instrument', title: 'Oscilloscope', size: 'main', accepts: (i) => i.schema?.widget === 'oscilloscope', component: ({ device, info }) => <OscilloscopeWidget id={device} info={info} /> },
+	{ type: 'oscilloscope', description: 'Spectrum or time trace with the controls of the instrument', title: 'Oscilloscope', size: 'main', accepts: (i) => i.schema?.widget === 'oscilloscope', component: ({ id, device, info }) => <OscilloscopeWidget id={device} instanceId={id} info={info} /> },
 	{ type: 'device_card', description: 'Everything a device has: state, actions and log', generic: true, title: 'Device card', size: 'main', accepts: () => true, component: ({ device, info }) => <DeviceCard id={device} info={info} /> },
 	{ type: 'pressure', description: 'Pressure of one gauge', title: 'Pressure', size: 'S', props: [{ name: 'channel', label: 'Channel', type: 'integer', min: 0, default: 0 }], accepts: (i) => hasProfile(i, 'pressure_sensor'), variants: perChannel('pressure_sensor'), component: PressureWidget },
 	{ type: 'turbo_pump', description: 'State and speed of a pump; click for the controls', title: 'Turbo pump', size: 'S', props: [{ name: 'channel', label: 'Channel', type: 'integer', min: 0, default: 0 }], accepts: (i) => hasProfile(i, 'turbo_pump'), variants: perChannel('turbo_pump'), component: TurboPumpWidget },
