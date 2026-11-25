@@ -27,6 +27,8 @@ export type DeviceInfo = {
 	revision: number;
 	/** The device file changed after the device started. */
 	changed?: boolean;
+	/** Counts every change on the server; a snapshot that is older than what we have is ignored. */
+	version?: number;
 };
 export type ConnectionState = 'login' | 'connecting' | 'connected' | 'reconnecting';
 export type LogEntry = {
@@ -128,14 +130,12 @@ async function connect(token: string) {
 		.withHubProtocol(new MessagePackHubProtocol())
 		.withAutomaticReconnect({ nextRetryDelayInMilliseconds: () => 1000 })
 		.build();
-	connection.on('device', (id: string, info: DeviceInfo) =>
-		set({ devices: { ...store.devices, [id]: info } }),
-	);
-	connection.on('device_patch', (id: string, revision: number, patch: Patch) => {
+	connection.on('device', (id: string, info: DeviceInfo) => set({ devices: take(store.devices, id, info) }));
+	connection.on('device_patch', (id: string, revision: number, patch: Patch, version?: number) => {
 		const info = store.devices[id];
 		if (info?.state && info.revision + 1 === revision) {
 			try {
-				set({ devices: { ...store.devices, [id]: { ...info, state: applyPatch(info.state, patch), revision } } });
+				set({ devices: { ...store.devices, [id]: { ...info, state: applyPatch(info.state, patch), revision, version: version ?? info.version } } });
 				return;
 			} catch {
 				/* does not fit: fetch the whole device */
@@ -180,9 +180,19 @@ async function syncUntilItWorks(connection: HubConnection) {
 }
 
 async function sync(connection: HubConnection) {
-	const devices = await connection.invoke<Record<string, DeviceInfo>>('get_devices');
+	const fetched = await connection.invoke<Record<string, DeviceInfo>>('get_devices');
+	let devices: Record<string, DeviceInfo> = {};
+	for (const [id, info] of Object.entries(fetched)) devices = take(devices, id, info);
+	for (const [id, known] of Object.entries(store.devices)) if (id in fetched) devices = take(devices, id, known); // events that came while we asked
 	set({ connection: 'connected', devices, info: await connection.invoke<ServerInfo>('get_info') });
 	await Promise.all([...subscribedLogs].map((source) => loadLogs(connection, source)));
+}
+
+/** Adds a snapshot of a device unless we already have a newer one. */
+function take(devices: Record<string, DeviceInfo>, id: string, info: DeviceInfo): Record<string, DeviceInfo> {
+	const known = devices[id];
+	if (known && (known.version ?? -1) > (info.version ?? -1)) return devices;
+	return { ...devices, [id]: info };
 }
 
 const resyncing = new Set<string>();
@@ -192,7 +202,7 @@ async function resyncDevice(connection: HubConnection, id: string) {
 	resyncing.add(id);
 	try {
 		const info = await connection.invoke<DeviceInfo>('get_device', id);
-		set({ devices: { ...store.devices, [id]: info } });
+		set({ devices: take(store.devices, id, info) });
 	} finally {
 		resyncing.delete(id);
 	}

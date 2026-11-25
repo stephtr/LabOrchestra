@@ -95,6 +95,7 @@ class AsyncLab:
         self._hub.on("device")(self._on_device)
         self._hub.on("device_patch")(self._on_patch)
         self._resyncing: set[str] = set()
+        self._touched: set[str] = set()
         self._waiters: list[asyncio.Future] = []
         self._subscriptions: dict[str, AsyncStream] = {}
         self._streams_hub: Hub | None = None
@@ -150,7 +151,12 @@ class AsyncLab:
         await self.close()
 
     async def _sync(self) -> None:
-        self._devices = dict(await self._hub.invoke("get_devices"))
+        self._touched = set()  # devices that events told us about while we ask
+        fetched = dict(await self._hub.invoke("get_devices"))
+        for device_id, info in fetched.items():  # events that arrived while we were asking are newer than the answer
+            self._take(device_id, info)
+        for device_id in set(self._devices) - set(fetched) - self._touched:
+            self._devices.pop(device_id, None)  # gone while we were away
         self._wake()
         self._synced.set()
 
@@ -178,16 +184,26 @@ class AsyncLab:
             except asyncio.TimeoutError:
                 pass
 
-    def _on_device(self, device_id: str, info: dict) -> None:
+    def _take(self, device_id: str, info: dict) -> None:
+        """Keeps the newer one of what we have and what we are given."""
+        self._touched.add(device_id)
+        known = self._devices.get(device_id)
+        if known is not None and known.get("version", -1) > info.get("version", -1):
+            return
         self._devices[device_id] = info
+
+    def _on_device(self, device_id: str, info: dict) -> None:
+        self._take(device_id, info)
         self._wake()
 
-    def _on_patch(self, device_id: str, revision: int, patch: dict) -> None:
+    def _on_patch(self, device_id: str, revision: int, patch: dict, version: int | None = None) -> None:
         info = self._devices.get(device_id)
         if info and info.get("state") is not None and info.get("revision", -1) + 1 == revision:
             try:
                 apply_patch(info["state"], patch)
                 info["revision"] = revision
+                if version is not None:
+                    info["version"] = version
                 self._wake()
                 return
             except PatchError:
@@ -199,7 +215,7 @@ class AsyncLab:
 
     async def _resync(self, device_id: str) -> None:
         try:
-            self._devices[device_id] = await self._hub.invoke("get_device", device_id)
+            self._take(device_id, await self._hub.invoke("get_device", device_id))
             self._wake()
         except Exception:
             pass  # the next change or reconnect brings it back

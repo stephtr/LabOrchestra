@@ -28,6 +28,9 @@ public sealed class DeviceEntry
 	public string? DegradedBy { get; set; }
 	/// <summary>The device's source file changed after the worker started: what runs is not what is on disk.</summary>
 	public bool Changed { get; set; }
+	/// <summary>Counts every change of anything about the device (status, state, patches). A client that holds a snapshot and gets an
+	/// older one later, because the answer to its request overtook by an event, keeps the newer.</summary>
+	public long Version { get; set; }
 }
 
 /// <summary>All configured devices with their status, schema and last reported state. Changes go to the clients as
@@ -117,7 +120,8 @@ public sealed class DeviceRegistry(IHubContext<ControlHub> control, EventBus bus
 				throw new InvalidOperationException("The device is not registered on this connection");
 			StatePatch.Apply(e.State, patch);
 			e.Revision++;
-			Send("device_patch", id, e.Revision, patch); // inside the lock: updates reach the clients in order
+			e.Version++;
+			Send("device_patch", id, e.Revision, patch, e.Version); // inside the lock: updates reach the clients in order
 			bus.Publish(id, "patch", by, patch);
 		}
 	}
@@ -175,6 +179,7 @@ public sealed class DeviceRegistry(IHubContext<ControlHub> control, EventBus bus
 			}
 			var (status, error) = (entry.Status, entry.Error);
 			if (!change(entry)) return false;
+			entry.Version++;
 			Send("device", id, Snapshot(entry));
 			if (entry.Status != status || entry.Error != error)
 				bus.Publish(id, "status", "supervisor", new() { ["status"] = entry.Status, ["error"] = entry.Error });
@@ -209,5 +214,6 @@ public sealed class DeviceRegistry(IHubContext<ControlHub> control, EventBus bus
 		["state"] = e.State,
 		["revision"] = e.Revision,
 		["changed"] = e.Changed,
+		["version"] = e.Version,
 	};
 }
