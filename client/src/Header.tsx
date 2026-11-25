@@ -2,7 +2,7 @@ import { ReactNode, useEffect, useState } from 'react';
 import logoDark from '../../docs/assets/laborchestra-logo-dark.svg';
 import logoLight from '../../docs/assets/laborchestra-logo-light.svg';
 import { navigate, usePath } from './router';
-import { logout, useStore } from './store';
+import { logout, runIsActive, useStore } from './store';
 import { Icon, IconButton } from './ui';
 
 function NavLink({ to, children }: { to: string; children: string }) {
@@ -42,7 +42,8 @@ export function useRecordingTime(): string | null {
 
 /** The one bar of every page: logo, pages, what the page puts there (the views), and what is always worth knowing (recording, connection). */
 export function Header({ children, actions }: { children?: ReactNode; actions?: ReactNode }) {
-	const { connection, recording } = useStore();
+	const { connection, recording, runs } = useStore();
+	const running = Object.values(runs).filter(runIsActive);
 	const time = useRecordingTime();
 	return (
 		<header className="flex min-h-12 flex-none flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-panel px-3 py-1.5">
@@ -55,10 +56,28 @@ export function Header({ children, actions }: { children?: ReactNode; actions?: 
 					<Icon name="record" size={12} className="animate-pulse" /> {time}
 				</span>
 			)}
+			{running.length > 0 && (
+				<a
+					href="/procedures"
+					data-testid="run-indicator"
+					className="inline-flex items-center gap-1.5 rounded-md bg-accent/15 px-2 py-1 text-sm text-accent hover:bg-accent/25"
+					title={running.map((r) => r.procedure).join(', ')}
+					onClick={(e) => {
+						e.preventDefault();
+						navigate('/procedures');
+					}}
+				>
+					<Icon name={running.some((r) => r.status === 'paused') ? 'stop' : 'play'} size={11} />
+					{running[0]!.procedure.replaceAll('_', ' ')}
+					{running[0]!.progress?.total ? <span className="tabular-nums">{running[0]!.progress!.done}/{running[0]!.progress!.total}</span> : null}
+					{running.length > 1 ? <span>+{running.length - 1}</span> : null}
+				</a>
+			)}
 			{actions}
 			{(children || actions) && <span className="h-5 w-px bg-line" />}
 			<nav className="flex gap-0.5" aria-label="Pages">
 				<NavLink to="/">Dashboard</NavLink>
+				<NavLink to="/procedures">Procedures</NavLink>
 				<NavLink to="/devices">Devices</NavLink>
 			</nav>
 			<span className={`inline-flex items-center gap-1.5 text-xs ${connection === 'connected' ? 'text-faint' : 'rounded-md bg-warn/15 px-2 py-1 text-warn'}`} title={`Server: ${connection}`}>

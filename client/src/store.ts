@@ -46,6 +46,26 @@ export type LogEntry = {
 };
 /** The recording in progress (active: false when none). */
 export type RecordingStatus = { active: boolean; name?: string; start_time?: string; elapsed_s?: number; events?: number };
+/** A run of a procedure. */
+export type RunInfo = {
+	id: string;
+	procedure: string;
+	file: string;
+	source_hash: string;
+	params: Record<string, unknown>;
+	devices: string[];
+	caller: string;
+	started: number;
+	ended: number | null;
+	status: string;
+	progress: { done: number; total: number | null; label: string | null } | null;
+	message: string | null;
+	error: { type: string; message: string; traceback?: string } | null;
+	result: unknown;
+	reason: string | null;
+};
+/** A run that has not reached an outcome yet (its process may still be shutting down for a moment after that). */
+export const runIsActive = (run: RunInfo) => ['preparing', 'starting', 'running', 'paused', 'aborting'].includes(run.status);
 export type ServerInfo = { workspace: string; devices_file: boolean; version: string };
 type Store = {
 	info: ServerInfo | null;
@@ -55,6 +75,8 @@ type Store = {
 	/** The views of the dashboard by id, as the JSON text the server stores. */
 	views: Record<string, string>;
 	recording: RecordingStatus;
+	/** The latest runs of procedures by id (the running ones are kept up to date by events). */
+	runs: Record<string, RunInfo>;
 	loginError: string | null;
 };
 
@@ -62,9 +84,16 @@ type Store = {
 let widgetsHandler: ((listing: unknown) => void) | null = null;
 export const setWidgetsHandler = (handler: (listing: unknown) => void) => void (widgetsHandler = handler);
 
+/** Called when procedure files change on the server. */
+const proceduresListeners = new Set<() => void>();
+export function onProceduresChanged(listener: () => void): () => void {
+	proceduresListeners.add(listener);
+	return () => void proceduresListeners.delete(listener);
+}
+
 const TOKEN_KEY = 'laborchestra.token';
 export const getToken = () => localStorage.getItem(TOKEN_KEY) ?? '';
-let store: Store = { info: null, connection: 'connecting', devices: {}, logs: {}, views: {}, recording: { active: false }, loginError: null };
+let store: Store = { info: null, connection: 'connecting', devices: {}, logs: {}, views: {}, recording: { active: false }, runs: {}, loginError: null };
 const subscribedLogs = new Set<string>();
 const listeners = new Set<() => void>();
 let hub: HubConnection | null = null;
@@ -161,6 +190,8 @@ async function connect(token: string) {
 		set({ devices: rest });
 	});
 	connection.on('widgets', (listing: unknown) => widgetsHandler?.(listing));
+	connection.on('run', (run: RunInfo) => set({ runs: { ...store.runs, [run.id]: run } }));
+	connection.on('procedures', () => proceduresListeners.forEach((l) => l()));
 	connection.on('recording', (recording: RecordingStatus) => set({ recording }));
 	connection.on('views', (views: Record<string, string>) => set({ views }));
 	connection.on('log', (entry: LogEntry) => {
@@ -206,6 +237,7 @@ async function sync(connection: HubConnection) {
 		connection.invoke<RecordingStatus>('get_recording'),
 	]);
 	set({ connection: 'connected', devices, info, views, recording });
+	connection.invoke<RunInfo[]>('list_runs', 50).then((list) => set({ runs: Object.fromEntries(list.map((r) => [r.id, r])) }), () => undefined);
 	connection.invoke('list_widgets').then((listing) => widgetsHandler?.(listing), () => undefined);
 	await Promise.all([...subscribedLogs].map((source) => loadLogs(connection, source)));
 }

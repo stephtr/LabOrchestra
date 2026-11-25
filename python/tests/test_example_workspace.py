@@ -35,3 +35,13 @@ def test_the_example_view_shows_devices_of_the_example_workspace_and_only_those(
     assert len({w["id"] for w in widgets}) == len(widgets)
     for w in widgets:
         assert "device" not in w or w["device"] in devices, w
+
+
+def test_the_example_procedure_is_valid_and_declares_only_devices_of_the_example_workspace():
+    from laborchestra.procedures import describe, load
+
+    found, _ = load(str(WORKSPACE / "procedures" / "detuning_scan.py"))
+    procedure = describe(found[0])
+    devices = json.loads((WORKSPACE / "devices.json").read_text())["devices"]
+    assert set(procedure["devices"]) <= set(devices)
+    assert [p["name"] for p in procedure["params"]][:2] == ["offsets_khz", "duration_s"] and procedure["params"][0]["items"] == "float"

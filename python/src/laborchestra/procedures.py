@@ -25,6 +25,7 @@ from __future__ import annotations
 import asyncio
 import importlib.util
 import inspect
+import logging
 import sys
 import typing
 from pathlib import Path
@@ -320,7 +321,8 @@ class Run:
             self._send({"progress": {"done": done, "total": total, "label": label}})
 
     def status(self, text: str) -> None:
-        """A line that says what the run is doing now, shown next to the progress."""
+        """A line that says what the run is doing now, shown next to the progress (and in the run's log)."""
+        logging.getLogger("procedure").info("%s", text)
         self._send({"message": str(text)})
 
     def recording(self, name: str, tags: dict | None = None) -> _Recording:

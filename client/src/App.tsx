@@ -3,6 +3,7 @@ import logoDark from '../../docs/assets/laborchestra-logo-dark.svg';
 import logoLight from '../../docs/assets/laborchestra-logo-light.svg';
 import { Dashboard } from './Dashboard';
 import { DevicesPage } from './DevicesPage';
+import { ProceduresPage } from './ProceduresPage';
 import { usePath } from './router';
 import { login, useStore } from './store';
 import { Button, ErrorText, FormRow, Input } from './ui';
@@ -34,5 +35,5 @@ export default function App() {
 	const { connection, loginError } = useStore();
 	const path = usePath();
 	if (connection === 'login') return <Login error={loginError} />;
-	return <div className="flex h-screen flex-col">{path.startsWith('/devices') ? <DevicesPage /> : <Dashboard />}</div>;
+	return <div className="flex h-screen flex-col">{path.startsWith('/devices') ? <DevicesPage /> : path.startsWith('/procedures') ? <ProceduresPage /> : <Dashboard />}</div>;
 }

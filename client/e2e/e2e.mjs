@@ -823,6 +823,73 @@ export default function BigPressure({ device, props }: { device: string; props: 
 	ok('a changed view file reaches the page; a missing device shows a placeholder');
 
 	if (process.env.E2E_SCREENSHOT) await page.screenshot({ path: process.env.E2E_SCREENSHOT });
+	// procedures: a form from the signature, progress, pause, abort with cleanup, history
+	fs.mkdirSync(path.join(dir, 'workspace/procedures'), { recursive: true });
+	fs.writeFileSync(
+		path.join(dir, 'workspace/procedures/measure.py'),
+		`from laborchestra import procedure
+
+
+@procedure(devices=["pressure"], title="Measure")
+async def measure(lab, steps: int = 3, pause_s: float = 0.4, levels: list[float] = [0.01]):
+    """Sets the fore-vacuum gauge to a few values.
+
+    Args:
+        steps: how many values
+    """
+    try:
+        for i in lab.progress(steps, "steps"):
+            await lab.pressure.set_pressure(0, 0.01 * (i + 1))
+            await lab.sleep(pause_s)
+        lab.status("all values set")
+        return {"steps": steps, "levels": levels}
+    finally:
+        await lab.pressure.set_pressure(0, 0.037)  # back to what it was
+`,
+	);
+	await page.getByTestId('nav-procedures').click();
+	await page.getByTestId('procedure-measure').waitFor();
+	assert.match(await text('procedure-measure'), /Sets the fore-vacuum gauge/);
+	await page.getByTestId('run-measure').click();
+	const runDialog = page.getByTestId('run-dialog');
+	await runDialog.getByTestId('param-steps').fill('many');
+	await runDialog.getByTestId('start-run').click();
+	await runDialog.getByText(/steps must be a number/).waitFor(); // checked before anything starts
+	await runDialog.getByTestId('param-steps').fill('4');
+	await runDialog.getByTestId('param-levels').fill('0.5, 1.5');
+	await runDialog.getByTestId('start-run').click();
+	await runDialog.waitFor({ state: 'detached' });
+	await page.getByTestId('run-indicator').waitFor(); // the header says that something is running, on every page
+	await page.waitForFunction(() => /\d of 4 steps/.test(document.querySelector('[data-testid="run-progress-text"]')?.textContent ?? ''));
+	await page.getByTestId('pause-run').click();
+	await page.waitForFunction(() => document.querySelector('[data-testid="run-status"]')?.textContent === 'paused');
+	await page.getByTestId('pause-run').click(); // resume
+	await page.waitForFunction(() => document.querySelector('[data-testid="run-status"]')?.textContent === 'finished', null, { timeout: 30000 });
+	assert.match(await text('run-progress-text'), /4 of 4 steps/);
+	assert.match(await text('run-result'), /"steps": 4/);
+	assert.match(await text('run-message'), /all values set/);
+	assert.equal(await page.getByTestId('run-indicator').count(), 0);
+	ok('procedures: form from the signature, progress, pause and resume, result');
+
+	await page.getByTestId('run-measure').click();
+	await runDialog.getByTestId('param-steps').fill('50');
+	await runDialog.getByTestId('start-run').click();
+	await runDialog.waitFor({ state: 'detached' });
+	await page.waitForFunction(() => /[1-9] of 50/.test(document.querySelector('[data-testid="run-progress-text"]')?.textContent ?? ''));
+	assert.notEqual(script("print(lab.pressure.state['channels'][0]['pressure'])"), '0.037'); // the procedure is turning the value
+	await page.getByTestId('run-measure').click(); // a second run needs the same device
+	await runDialog.getByTestId('start-run').click();
+	await runDialog.getByTestId('dialog-error').waitFor();
+	assert.match(await text('dialog-error'), /reserved by the run/);
+	await runDialog.getByRole('button', { name: 'Cancel' }).click();
+	page.once('dialog', (d) => d.accept());
+	await page.getByTestId('abort-run').click();
+	await page.waitForFunction(() => document.querySelector('[data-testid="run-status"]')?.textContent === 'aborted', null, { timeout: 30000 });
+	assert.equal(script("print(lab.pressure.state['channels'][0]['pressure'])"), '0.037'); // its finally block put the value back
+	assert.equal(await page.locator('[data-testid^="history-"]').count(), 2);
+	ok('procedures: a device is reserved while a run goes; an abort runs the cleanup; history');
+	await page.getByTestId('nav-dashboard').click();
+
 	// a trace widget: the history of a state field, from the server's own history
 	await page.getByTestId('edit-toggle').click();
 	await openPicker();

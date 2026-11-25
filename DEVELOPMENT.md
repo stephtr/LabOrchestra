@@ -166,3 +166,25 @@ Add it on the **Devices** page: **Add existing**, kind **Python package**, type 
 ## CI
 
 GitHub Actions (`.github/workflows/ci.yml`: Windows, Linux, macOS; server, client, Python tests, browser test) runs on pull requests and on demand, **not on every push**. Start it for the working branch with `gh workflow run ci --ref next` (or the Actions tab), and look at it with `gh run list --workflow ci`. A newer run of the same branch cancels an older one that is still going.
+
+## Procedures
+
+A procedure is an `async def` marked with `@procedure` in `<workspace>/procedures/`:
+
+```python
+from laborchestra import procedure
+
+@procedure(devices=["rf"])
+async def detuning_scan(lab, offsets_khz: list[float], duration_s: float = 60):
+    """Records at several detunings."""
+    base = lab.rf.state["channels"][0]["frequency"]
+    try:
+        for i, offset in enumerate(lab.progress(offsets_khz)):
+            await lab.rf.set_frequency(0, base + offset * 1e3)
+            async with lab.recording(f"scan_{i:03d}", tags={"offset_khz": offset}):
+                await lab.sleep(duration_s)
+    finally:
+        await lab.rf.set_frequency(0, base)   # runs when the procedure is aborted, too
+```
+
+The **Procedures** page lists them with a form made from the signature; **Run…** starts one. It shows progress, the log, **Pause** (takes effect at the next `lab.sleep`, `async for` step or device call), **Abort** (the function is cancelled, so `finally` blocks run; killed after `abort_grace_s`, 30 s by default) and the result or the error with its traceback. List the devices a procedure uses: they are reserved against other procedures while it runs, and it may call no others. A recording that a run leaves open is stopped by the server and says so in its header, together with the procedure, its source hash and parameters. From a script: `run = lab.start_procedure("detuning_scan", offsets_khz=[-100, 0, 100], duration_s=5); lab.wait_for_run(run["id"])`.

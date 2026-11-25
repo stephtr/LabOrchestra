@@ -75,7 +75,7 @@ export function FormRow({ label, htmlFor, hint, error, children, testId, mono }:
 	);
 }
 
-const TONE: Record<string, string> = { ready: 'text-good', waiting: 'text-muted', preparing: 'text-accent', starting: 'text-warn', reconnecting: 'text-warn', degraded: 'text-warn', error: 'text-bad', stopped: 'text-faint' };
+const TONE: Record<string, string> = { running: 'text-accent', paused: 'text-warn', aborting: 'text-warn', finished: 'text-good', failed: 'text-bad', aborted: 'text-warn', crashed: 'text-bad', ready: 'text-good', waiting: 'text-muted', preparing: 'text-accent', starting: 'text-warn', reconnecting: 'text-warn', degraded: 'text-warn', error: 'text-bad', stopped: 'text-faint' };
 
 /** The status of a device: a dot and the word. */
 export function StatusBadge({ status, testId, title, hidden }: { status: string; testId?: string; title?: string; hidden?: boolean }) {

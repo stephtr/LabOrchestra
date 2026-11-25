@@ -123,9 +123,10 @@ Track B, oscilloscope:
 
 ## Phase 5: procedures
 
-- [ ] `@procedure`, generated form, progress, logs, pause/abort, reservations
+- [x] `@procedure`, generated form, progress, logs, pause/abort, reservations (Procedures page, run history, example `detuning_scan`)
 - [ ] Event bus, `@on("recording.finished")`
-- [ ] Port the detuning scan, ParticleName, PressureUploader, TurboUploader, and the Slack remote control of the pumps (`bot start|stop|status <pump>`; was inside the pump device, now a procedure/trigger script using the `turbo_pump` profile)
+- [x] Port the detuning scan (generic, without the lab's phase-noise socket)
+- [ ] Port ParticleName, PressureUploader, TurboUploader, and the Slack remote control of the pumps (`bot start|stop|status <pump>`; was inside the pump device, now a procedure/trigger script using the `turbo_pump` profile)
 
 **Exit:** aborting or killing a scan leaves the recording closed and devices in a defined state.
 

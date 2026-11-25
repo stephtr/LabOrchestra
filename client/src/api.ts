@@ -1,4 +1,5 @@
-import { invokeHub, Schema } from './store';
+import type { ProcedureListing } from './procedureForm';
+import { invokeHub, RunInfo, Schema } from './store';
 
 export type DeviceFile = { file: string; devices: string[] };
 export type DriverInfo = { driver: string; class: string; doc: string | null };
@@ -41,6 +42,10 @@ export type PackageContents = {
 };
 
 export const api = {
+	listProcedures: () => invokeHub<ProcedureListing[]>('list_procedures'),
+	startProcedure: (name: string, params: Record<string, unknown>) => invokeHub<RunInfo>('start_procedure', name, params),
+	abortRun: (id: string, force = false) => invokeHub('abort_run', id, force),
+	pauseRun: (id: string, pause: boolean) => invokeHub('pause_run', id, pause),
 	/** A numeric state field over time as [unix time, value] pairs (the server keeps one value per ten seconds for 30 days). */
 	history: (device: string, path: string, since: number, until: number, maxPoints: number) => invokeHub<[number, number][]>('get_history', device, path, since, until, maxPoints),
 	openFile: (path: string, how: 'editor' | 'folder') => invokeHub<string>('open_file', path, how),

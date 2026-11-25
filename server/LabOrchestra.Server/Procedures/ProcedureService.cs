@@ -222,6 +222,7 @@ public sealed class ProcedureService(
 			process.ErrorDataReceived += (_, e) => Line(e.Data);
 			run.Process = process;
 			guard.Start(process, source);
+			logs.Add(source, "INFO", "supervisor", $"Started {run.Procedure} (pid {process.Id}), parameters: {JsonSerializer.Serialize(run.Params, Json)}");
 			process.BeginOutputReadLine();
 			process.BeginErrorReadLine();
 			await process.WaitForExitAsync(CancellationToken.None);
@@ -263,6 +264,7 @@ public sealed class ProcedureService(
 			r.Reason ??= reason;
 		});
 		Save(run);
+		logs.Add(by, status is "finished" or "aborted" ? "INFO" : "ERROR", "supervisor", $"Run {status}" + (run.Reason is null ? "" : $": {run.Reason}") + (run.Error is null ? "" : $": {run.Error.GetValueOrDefault("type")}: {run.Error.GetValueOrDefault("message")}"));
 		log.LogInformation("Run {Run} of {Procedure}: {Status}", run.Id, run.Procedure, status);
 	}
 
