@@ -14,6 +14,7 @@ import {
 	placeAtEdge,
 	placeInMain,
 	placeInArea,
+	reorderIds,
 	removeWidget,
 	setProps,
 	Side,
@@ -716,11 +717,17 @@ export function Dashboard() {
 		if (at < 0 || !other) return;
 		const order = parsed.list.map((v) => v.id);
 		[order[at], order[at + by]] = [order[at + by]!, order[at]!];
+		saveOrder(order);
+	}
+	function saveOrder(order: string[]) {
 		order.forEach((viewId, index) => {
 			const entry = parsed.list.find((v) => v.id === viewId)!;
 			if ((entry.view.order ?? -1) !== index) persist(viewId, { ...(viewId === id ? view : entry.view), order: index });
 		});
 	}
+	/** Dragging a tab: which tab it is over and on which half of it (the drop goes before or after that tab). */
+	const [tabDrop, setTabDrop] = useState<{ id: string; after: boolean } | null>(null);
+	const draggedTab = useRef<string | null>(null);
 
 	function removeView() {
 		if (!selected || !window.confirm(`Delete the view "${selected.view.title}"?`)) return;
@@ -849,7 +856,36 @@ export function Dashboard() {
 							href={`/views/${v.id}`}
 							data-testid={`view-tab-${v.id}`}
 							aria-current={v.id === id ? 'page' : undefined}
-							className={`inline-flex h-8 items-center border-b-2 px-2.5 text-sm ${v.id === id ? 'border-accent text-ink' : 'border-transparent text-muted hover:text-ink'}`}
+							className={`relative inline-flex h-8 items-center border-b-2 px-2.5 text-sm ${v.id === id ? 'border-accent text-ink' : 'border-transparent text-muted hover:text-ink'} ${tabDrop?.id === v.id ? (tabDrop.after ? 'after:absolute after:inset-y-1 after:-right-0.5 after:w-0.5 after:rounded after:bg-accent' : 'before:absolute before:inset-y-1 before:-left-0.5 before:w-0.5 before:rounded before:bg-accent') : ''}`}
+							{...(editing
+								? {
+										draggable: true,
+										onDragStart: (e: React.DragEvent) => {
+											draggedTab.current = v.id;
+											e.dataTransfer.setData('application/x-laborchestra-view', v.id);
+											e.dataTransfer.effectAllowed = 'move';
+										},
+										onDragOver: (e: React.DragEvent<HTMLElement>) => {
+											if (!draggedTab.current || draggedTab.current === v.id) return;
+											e.preventDefault();
+											const box = e.currentTarget.getBoundingClientRect();
+											const after = e.clientX > box.left + box.width / 2;
+											if (tabDrop?.id !== v.id || tabDrop.after !== after) setTabDrop({ id: v.id, after });
+										},
+										onDragLeave: () => setTabDrop((t) => (t?.id === v.id ? null : t)),
+										onDrop: (e: React.DragEvent) => {
+											e.preventDefault();
+											const moved = draggedTab.current;
+											if (moved && tabDrop) saveOrder(reorderIds(parsed.list.map((x) => x.id), moved, v.id, tabDrop.after));
+											draggedTab.current = null;
+											setTabDrop(null);
+										},
+										onDragEnd: () => {
+											draggedTab.current = null;
+											setTabDrop(null);
+										},
+									}
+								: {})}
 							onClick={(e) => {
 								e.preventDefault();
 								const to = parsed.list.findIndex((x) => x.id === v.id);

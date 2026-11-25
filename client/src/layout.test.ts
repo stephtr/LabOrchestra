@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { addMain, addToArea, allWidgets, areas, defaultView, emptyView, mains, parseView, placeAtEdge, placeInArea, placeInMain, removeWidget, setSizes, swapMains, widget } from './layout.ts';
+import { reorderIds, addMain, addToArea, allWidgets, areas, defaultView, emptyView, mains, parseView, placeAtEdge, placeInArea, placeInMain, removeWidget, setSizes, swapMains, widget } from './layout.ts';
 
 const inAreas = (v: ReturnType<typeof emptyView>) => areas(v.root).flatMap((a) => a.widgets.map((w) => w.id));
 
@@ -171,4 +171,12 @@ test('a widget placed at an edge spans the whole layout', () => {
 	// an empty view, and a widget that is in the view already
 	assert.deepEqual(ids(placeAtEdge(emptyView(), c, 'left')), [c.id]);
 	assert.deepEqual(ids(placeAtEdge(stacked, a, 'bottom')), [b.id, a.id]);
+});
+
+test('views move next to another one, before or after it', () => {
+	const ids = ['a', 'b', 'c', 'd'];
+	assert.deepEqual(reorderIds(ids, 'd', 'b', false), ['a', 'd', 'b', 'c']);
+	assert.deepEqual(reorderIds(ids, 'a', 'c', true), ['b', 'c', 'a', 'd']);
+	assert.deepEqual(reorderIds(ids, 'b', 'b', true), ids);
+	assert.deepEqual(reorderIds(ids, 'x', 'b', true), ids);
 });

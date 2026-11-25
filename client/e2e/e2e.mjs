@@ -785,6 +785,17 @@ export default function BigPressure({ device, props }: { device: string; props: 
 		await new Promise((r) => setTimeout(r, 100));
 	}
 	await page.waitForFunction(() => [...document.querySelectorAll('[data-testid^="view-tab-"]')].map((e) => e.dataset.testid).join() === 'view-tab-dashboard_copy,view-tab-dashboard');
+	// the tabs can be dragged: onto the left half of another one puts it before, onto the right half after
+	const tabOrder = () => page.evaluate(() => [...document.querySelectorAll('[data-testid^="view-tab-"]')].map((e) => e.dataset.testid.replace('view-tab-', '')).join());
+	assert.equal(await tabOrder(), 'dashboard_copy,dashboard');
+	const copyTab = page.getByTestId('view-tab-dashboard_copy');
+	await page.getByTestId('view-tab-dashboard').dragTo(copyTab, { targetPosition: { x: 4, y: 10 } });
+	await page.waitForFunction(() => document.querySelector('[data-testid^="view-tab-"]').dataset.testid === 'view-tab-dashboard');
+	const dragged = JSON.parse(fs.readFileSync(path.join(dir, 'workspace/views/dashboard.json'), 'utf8')).order;
+	assert.equal(dragged, 0, 'the new order is saved');
+	await copyTab.dragTo(page.getByTestId('view-tab-dashboard'), { targetPosition: { x: 4, y: 10 } }); // and back
+	await page.waitForFunction(() => document.querySelector('[data-testid^="view-tab-"]').dataset.testid === 'view-tab-dashboard_copy');
+	ok('views: the tabs are reordered by dragging');
 	// the content slides when the view changes, from the side of the target (the browser's view transitions, so only where they exist)
 	await page.evaluate(() => { window.__slides = []; new MutationObserver(() => window.__slides.push(document.documentElement.dataset.slide)).observe(document.documentElement, { attributes: true, attributeFilter: ['data-slide'] }); });
 	await page.getByTestId('view-tab-dashboard').click();

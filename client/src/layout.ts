@@ -261,3 +261,11 @@ export function defaultView(devices: Record<string, { schema?: { widget?: string
 	}
 	return view;
 }
+
+/** The order of view ids after moving one next to another: before the target, or after it. */
+export function reorderIds(ids: string[], moved: string, target: string, after: boolean): string[] {
+	if (moved === target || !ids.includes(moved) || !ids.includes(target)) return ids;
+	const rest = ids.filter((id) => id !== moved);
+	rest.splice(rest.indexOf(target) + (after ? 1 : 0), 0, moved);
+	return rest;
+}
