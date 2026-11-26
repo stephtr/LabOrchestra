@@ -27,7 +27,7 @@ class Device:
     widget: str | None = None  # name of a built-in widget of the client; without one the generated card is used
     profiles: list = []  # the profiles this device conforms to, e.g. [PressureSensor] (laborchestra.profiles)
     units: dict = {}  # units of fields that no profile names: {"channels.*.temperature": "K"}
-    channel_names: list = []  # the names of the channels in order (an option of every device with `channels` in its state, set in devices.json); see _name_channels
+    channel_names: list | dict = []  # the names of the channels (an option of every device with `channels` in its state, set in devices.json); the framework puts them into the state, see _channels.name_channels
     kind: str = "device"  # "service" for a Service: the same thing, shown as a background task (see below)
 
     # set by the worker -----------------------------------------------------------------------
@@ -55,28 +55,7 @@ class Device:
         else:
             object.__setattr__(self, name, value)
 
-    def _name_channels(self) -> None:
-        """Every channel in ``state["channels"]`` gets a ``name``, without the driver doing anything: the option ``channel_names`` wins, then a name
-        the driver set itself, else ``Channel <index>``. So dashboards, scripts, recordings and MCP can all say which channel is which."""
-        channels = self.state.get("channels") if isinstance(self.state, dict) else None
-        if not isinstance(channels, list) or getattr(self, "_naming", False):
-            return
-        object.__setattr__(self, "_naming", True)
-        try:
-            names = getattr(self, "channel_names", None) or []
-            for i, channel in enumerate(channels):
-                if not isinstance(channel, dict):
-                    return  # not the channels of a profile (a list of numbers, say)
-                wanted = str(names[i]) if i < len(names) and names[i] else None
-                if wanted is not None and channel.get("name") != wanted:
-                    channel["name"] = wanted
-                elif wanted is None and not channel.get("name"):
-                    channel["name"] = f"Channel {i}"
-        finally:
-            object.__setattr__(self, "_naming", False)
-
     def _state_changed(self) -> None:
-        self._name_channels()
         hook = getattr(self, "_state_hook", None)
         if hook:
             hook()

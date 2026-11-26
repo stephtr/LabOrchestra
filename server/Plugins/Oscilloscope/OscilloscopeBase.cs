@@ -25,8 +25,6 @@ public sealed class ChannelState
 
 public sealed class GeneratorChannelState
 {
-	/// <summary>What the output is called (the frequency_generator profile has a name for every channel).</summary>
-	public string Name { get; set; } = "Signal generator";
 	[Unit("Hz")]
 	public double Frequency { get; set; } = 100_000;
 	[Unit("dBm")]

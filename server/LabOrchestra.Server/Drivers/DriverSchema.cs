@@ -71,6 +71,9 @@ public static class DriverSchema
 				["required"] = required,
 			};
 		}).ToList();
+		// a device with channels can name them (the host puts the names into the state): offered as an option, nothing to declare in a driver
+		if (TypesOf(driver).State.GetProperty("Channels") is { } channelsProperty && typeof(System.Collections.IList).IsAssignableFrom(channelsProperty.PropertyType))
+			config.Add(new Dictionary<string, object?> { ["name"] = ChannelNames.Option, ["type"] = "json", ["default"] = new List<object?>(), ["required"] = false });
 		var actions = Actions(driver).Values.OrderBy(a => a.Name).Select(a => (object?)new Dictionary<string, object?>
 		{
 			["name"] = a.Name,

@@ -19,7 +19,7 @@ NO_DECIMATION = {"max_points": 100000}
 def osc_server(tmp_path_factory):
     build_server()
     workspace, data = tmp_path_factory.mktemp("workspace"), tmp_path_factory.mktemp("data")
-    (workspace / "devices.json").write_text(json.dumps({"devices": {"osc": {"driver": "simulated_oscilloscope"}}}))
+    (workspace / "devices.json").write_text(json.dumps({"devices": {"osc": {"driver": "simulated_oscilloscope"}, "named": {"driver": "simulated_oscilloscope", "config": {"channel_names": {"channels": ["Probe A", "Probe B"], "generator.channels": ["Test tone"]}}}}}))
     url = f"http://127.0.0.1:{free_port()}"
     process, log = launch(workspace, data, url)
     try:
@@ -232,6 +232,11 @@ def test_the_oscilloscope_fits_its_profile_and_names_the_units_of_its_fields(lab
     assert not problems, "\n".join(problems)  # every action of the profile, with its parameters, and the typed state
     problems = check_schema(FrequencyGenerator.at("generator"), schema, lab.osc.state)
     assert not problems, "\n".join(problems)
+    # the host names the channels, the driver does not: a default, or what the option channel_names says (a list, or a list per path)
+    assert [c["name"] for c in lab.osc.state["channels"]] == ["Channel 0", "Channel 1", "Channel 2", "Channel 3"] and lab.osc.state["generator"]["channels"][0]["name"] == "Channel 0"
+    lab.named.wait_ready(30)
+    assert [c["name"] for c in lab.named.state["channels"]][:3] == ["Probe A", "Probe B", "Channel 2"] and lab.named.state["generator"]["channels"][0]["name"] == "Test tone"
+    assert "channel_names" in [o["name"] for o in lab.osc.schema["config"]]  # offered as an option, nothing declared in the driver
     broken = {**schema, "actions": [a for a in schema["actions"] if a["name"] != "set_coupling"]}
     assert check_schema(Oscilloscope, broken) == ["the action set_coupling is missing"]
 

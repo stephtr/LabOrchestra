@@ -47,7 +47,7 @@ def test_a_csharp_device_registers_with_the_same_schema_as_a_python_one(lab):
     assert [(p["name"], p["type"], p["required"]) for p in actions["set_channel"]["params"]] == [("channel", "int", True), ("value", "float", True)]
     assert [p["name"] for p in actions["wait"]["params"]] == ["seconds"]  # the cancellation token is not a parameter
     assert actions["fail"]["params"][0]["default"] == "failed on purpose"
-    assert lab.demo.state["channels"] == [{"value": 1.5, "status": "ok"}, {"value": 0.0, "status": "ok"}]
+    assert lab.demo.state["channels"] == [{"name": "Channel 0", "value": 1.5, "status": "ok"}, {"name": "Channel 1", "value": 0.0, "status": "ok"}]  # named by the host
 
 
 def test_state_changes_of_the_run_loop_and_of_actions_arrive_as_patches(cs_server, lab):

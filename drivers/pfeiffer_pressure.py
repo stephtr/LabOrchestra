@@ -126,7 +126,7 @@ class PfeifferPressure(Device):
                     self.log.warning("The controller is silent; starting it again")
                     complained = True
                     self.state["status"] = "no data"
-                    self.state["channels"] = [{"name": c["name"], "pressure": None, "status": "error"} for c in self.state["channels"]]
+                    self.state["channels"] = [{"pressure": None, "status": "error"} for _ in self.state["channels"]]
                 try:
                     self._start_controller()
                 except OSError as e:

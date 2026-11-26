@@ -75,7 +75,8 @@ public sealed class InProcessDevice(string id, DeviceConfig config, Type driver,
 		var (optionsType, _) = DriverSchema.TypesOf(driver);
 		try
 		{
-			var json = config.Config is null ? "{}" : JsonSerializer.Serialize(config.Config);
+			// channel_names is the host's (it names the channels in the state for every device), not an option of the driver
+			var json = config.Config is null ? "{}" : JsonSerializer.Serialize(config.Config.Where(kv => kv.Key != ChannelNames.Option).ToDictionary(kv => kv.Key, kv => kv.Value));
 			return JsonSerializer.Deserialize(json, optionsType, Wire.Json)!;
 		}
 		catch (JsonException e)
@@ -88,7 +89,9 @@ public sealed class InProcessDevice(string id, DeviceConfig config, Type driver,
 	{
 		JsonElement element;
 		lock (_device.StateLock) element = JsonSerializer.SerializeToElement(_device.StateObject, Wire.Json);
-		return (Dictionary<string, object?>)Plain.FromJson(element)!;
+		var state = (Dictionary<string, object?>)Plain.FromJson(element)!;
+		ChannelNames.Apply(state, config.Config is not null && config.Config.TryGetValue(ChannelNames.Option, out var names) ? names : null);
+		return state;
 	}
 
 	private void OnChanged()

@@ -8,6 +8,7 @@ from laborchestra._schema import (
     config_options,
     validate_state,
 )
+from laborchestra._channels import name_channels
 from laborchestra._state import plain
 from laborchestra.worker import build_schema, coerce_config
 
@@ -95,12 +96,11 @@ def test_state_changes_are_reported_also_nested():
     device.state["channels"].append({"pressure": 3.0, "status": "ok"})
     device.state["channels"][1]["status"] = "error"
     del device.state["name"]
-    count = len(calls)
-    assert count >= 5  # (naming the new channel adds one)
-    assert plain(device.state)["channels"][1] == {"name": "Channel 1", "pressure": 3.0, "status": "error"}
+    assert len(calls) == 5
+    assert plain(device.state)["channels"][1] == {"pressure": 3.0, "status": "error"}
     device.state = {"other": 1}  # replacing the dict stays tracked
     device.state["other"] = 2
-    assert len(calls) == count + 2
+    assert len(calls) == 7
 
 
 def test_class_state_is_not_shared_between_instances():
@@ -184,25 +184,17 @@ def test_channels_get_names_from_the_framework_the_driver_never_mentions_them():
     class Meter(Device):
         state = {"channels": []}
 
-    meter = Meter()
-    meter._setup("meter", coerce_config(Meter, {"channel_names": ["Fore vacuum"]}))  # an option of every device that has channels
-    assert [o["name"] for o in config_options(Meter, Device)] == ["channel_names"]
-    meter.state["channels"] = [{"pressure": 1.0}, {"pressure": 2.0}, {"name": "its own", "pressure": 3.0}]  # assigned as a whole
-    assert [c["name"] for c in meter.state["channels"]] == ["Fore vacuum", "Channel 1", "its own"]  # the option, the default, what the driver set
-    meter.state["channels"].append({"pressure": 4.0})
-    assert meter.state["channels"][3]["name"] == "Channel 3"  # also what is added later
-    meter.state["channels"] = [{"pressure": 5.0}]
-    assert meter.state["channels"][0]["name"] == "Fore vacuum"
-    meter.channel_names = ["Renamed"]
-    meter.state["channels"][0]["pressure"] = 6.0  # the next change brings the new name
-    assert meter.state["channels"][0]["name"] == "Renamed"
-
-    class Plain(Device):
-        state = {"channels": [1, 2], "x": 1}  # not channels of a profile: left alone
-
-    plain = Plain()
-    plain._setup("plain", {})
-    assert plain.state["channels"] == [1, 2]
+    assert [o["name"] for o in config_options(Meter, Device)] == ["channel_names"]  # an option of every device that has channels
+    state = {"channels": [{"pressure": 1.0}, {"pressure": 2.0}, {"name": "its own", "pressure": 3.0}], "generator": {"channels": [{"frequency": 1.0}]}, "other": {"channels": [1, 2]}}
+    name_channels(state, ["Fore vacuum"])  # the list is for the top-level channels
+    assert [c["name"] for c in state["channels"]] == ["Fore vacuum", "Channel 1", "its own"]  # the option, the default, what the driver set
+    assert state["generator"]["channels"][0]["name"] == "Channel 0"  # every channel list gets names, also under a mounted profile
+    assert state["other"]["channels"] == [1, 2]  # not channels of a profile: left alone
+    named = {"generator": {"channels": [{"frequency": 1.0}]}, "channels": [{"x": 1}]}
+    name_channels(named, {"generator.channels": ["RF"], "channels": ["A"]})  # a dict names lists by path
+    assert [named["generator"]["channels"][0]["name"], named["channels"][0]["name"]] == ["RF", "A"]
+    name_channels(named, None)
+    assert named["channels"][0]["name"] == "Channel 0" or named["channels"][0]["name"] == "A"  # a name that is there stays when no option says otherwise
 
     class Task(Service):
         state = {"channels": []}

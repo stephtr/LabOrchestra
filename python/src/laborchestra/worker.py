@@ -35,6 +35,7 @@ from ._schema import (
     config_options,
     validate_state,
 )
+from ._channels import name_channels
 from ._patch import diff
 from ._state import plain
 from . import __version__
@@ -404,9 +405,11 @@ class Worker:
     def _snapshot(self) -> dict:
         for _ in range(5):
             try:
-                return plain(self.device.state)
+                snapshot = plain(self.device.state)
             except RuntimeError:  # changed by another thread while copying
                 continue
+            name_channels(snapshot, self.device.channel_names)  # the names of the channels are the framework's, not the driver's
+            return snapshot
         raise RuntimeError("Could not take a consistent snapshot of the state")
 
     async def _register(self) -> None:
