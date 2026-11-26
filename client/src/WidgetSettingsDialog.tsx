@@ -5,7 +5,9 @@ import { Button, Dialog, DialogBody, DialogFooter, FormRow, Input, Select } from
 
 /** The settings of one widget instance: the label every widget has, and what the widget declares (`props` of its definition or `meta`). */
 export function WidgetSettingsDialog({ instance, title, specs, onSave, onClose }: { instance: WidgetInstance; title: string; specs: PropSpec[]; onSave: (props: Record<string, unknown>) => void; onClose: () => void }) {
-	const all = [LABEL, ...specs];
+	// a widget of a channel takes the channel's name from the device (rename it there); the label stays for the others, and for a view that has one
+	const named = specs.some((s) => s.name === 'channel') && !instance.props?.label;
+	const all = named ? specs : [LABEL, ...specs];
 	const [values, setValues] = useState<Values>(() => initialValues(all, instance.props));
 	const [errors, setErrors] = useState<Record<string, string>>({});
 

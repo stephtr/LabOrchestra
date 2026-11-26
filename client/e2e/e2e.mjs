@@ -531,14 +531,13 @@ try {
 	await settings.getByTestId('settings-save').click();
 	assert.match(await settings.getByRole('alert').textContent(), /whole number/); // checked against the widget's declared props
 	await settings.getByTestId('prop-channel').fill('0');
-	await settings.getByTestId('prop-label').fill('Vorvakuum');
+	assert.equal(await settings.getByTestId('prop-label').count(), 0); // the name comes from the channel of the device: no label to type here
 	await settings.getByTestId('settings-save').click();
 	await settings.waitFor({ state: 'detached' });
-	assert.deepEqual((await waitView((v) => v.strip.find((w) => w.id === pressureId)?.props?.label === 'Vorvakuum', 'label')).strip.find((w) => w.id === pressureId).props, { label: 'Vorvakuum' }); // channel 0 is the default: not stored
-	await page.getByTestId('pressure-pressure-0').getByText('Vorvakuum').waitFor();
+	await page.getByTestId('pressure-pressure-0').getByText('Fore vacuum').waitFor(); // the channel's own name
 	script('lab.pressure.set_pressure(0, 0.0789)');
 	await waitText('pressure-value-pressure-0', '0.0789');
-	ok('pressure widget shows the profile\'s channel, follows it and takes a label');
+	ok('pressure widget shows the profile\'s channel, follows it and is named by its channel');
 
 	await page.getByTestId('edit-toggle').click(); // Done
 	await page.getByTestId('record-start').isDisabled().then((d) => assert.ok(d, 'no recording without a name'));
@@ -1104,6 +1103,10 @@ async def measure(lab, steps: int = 3, pause_s: float = 0.4, levels: list[float]
 	page.once('dialog', (d) => d.accept());
 	await page.getByTestId(connection).getByLabel(/^Revoke/).first().click();
 	await page.getByTestId(connection).waitFor({ state: 'detached' });
+	await page.getByTestId('nav-logo').click(); // the logo leads to the first dashboard, from any page
+	await page.getByTestId('edit-toggle').waitFor();
+	assert.equal(new URL(page.url()).pathname, '/');
+	await page.getByTestId('nav-devices').click();
 	ok('AI access: off by default, set up on this computer with one click, a command for another computer, revoke');
 	await page.getByTestId('nav-dashboard').click();
 

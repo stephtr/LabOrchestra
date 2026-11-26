@@ -166,6 +166,9 @@ Layered, so a Python-only device author gets a UI without touching JavaScript:
 - Validation is always on: invalid arguments -> error to the caller; invalid state update -> rejected, logged, device marked degraded. Streams are not validated per frame.
 - Ship a conformance test and a simulator per profile.
 
+### Channel names *(implemented)*
+- **A channel's name belongs to the channel of the device, not to the widget.** The `name` of a channel is part of its state in the profiles `PressureSensor`, `Positioner` and `FrequencyGenerator` (`TurboPump` had it already; C# generator channels too): it comes from the option `channel_names` (a list in channel order; Elliptec also takes `"name"` in each `channels` entry) or from the driver's default (`Gauge 2`, `Rotation 1`, `Stage 3`, `RF output`). It is in the state, so the dashboard, scripts, recordings, the event log and MCP all say the same thing (the MCP instructions tell the model to use `channels.1.name`, not the order). Compact widgets show it as their title; the per-instance `label` is an override that only exists for generic widgets (value, number, button, trace, recording) and for views that already have one (the settings dialog of a channel widget has no label field). `list_devices` / `describe_device` of MCP also return the `description` that `devices.json` has for the device.
+
 ### Units
 - **Fixed unit per profile field** (pressure: mbar), stored as metadata: `Annotated[float, Unit("mbar")]`. Wire and recordings always use it; drivers convert on input.
 - Conversion is display-only (UI preference) plus an optional Python helper, so it can be added later.

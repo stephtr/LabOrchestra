@@ -149,6 +149,7 @@ class Smaract(Device):
 
     locator: str = ""  # e.g. "usb:ix:0" or "network:sn:MCS2-00001234"; not needed when simulating
     simulate = False  # no hardware: stages that move at their velocity
+    channel_names: list = []  # what the stages are called, in order
     channel_count = 2  # with `simulate`: how many channels
     poll_s = 0.1  # how often the positions are read
     move_timeout_s = 120.0  # a move that lasts longer is stopped and fails
@@ -164,7 +165,7 @@ class Smaract(Device):
             info = self._hardware.info(i)
             known = info["mode"] in MODES
             channels.append({
-                "type": info["type"], "unit": unit_of(info["type"], info["mode"]), "mode": info["mode"], "supported_modes": MODES if known else [],  # todo: ask the device
+                "name": self.channel_name(i, f"Stage {i + 1}"), "type": info["type"], "unit": unit_of(info["type"], info["mode"]), "mode": info["mode"], "supported_modes": MODES if known else [],  # todo: ask the device
                 "target_position": info["target"] if known else None, "actual_position": info["position"] if known else None,
                 "velocity": info["velocity"], "moving": False, "status": "ok" if known else "unsupported",
             })

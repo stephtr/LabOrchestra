@@ -55,16 +55,18 @@ class RohdeSchwarzSma100b(Device):
     profiles = [FrequencyGenerator]
 
     address: str = ""  # IP address or host name, e.g. "192.168.0.10"; not needed when simulating
+    channel_names: list = []  # the name of the output (a list of one), e.g. ["Cavity detuning"]
     simulate = False  # no hardware: a generator that remembers what it is told
     poll_s = 2.0  # how often the instrument is read back
 
-    state = {"simulated": False, "status": "starting", "channels": [{"frequency": 0.0, "power": 0.0, "is_on": False}]}
+    state = {"simulated": False, "status": "starting", "channels": [{"name": "RF output", "frequency": 0.0, "power": 0.0, "is_on": False}]}
 
     def _open(self):
         return _Instrument(self.address)
 
     def connect(self):
         self.state["simulated"] = self.simulate
+        self.state["channels"][0]["name"] = self.channel_name(0, "RF output")
         if self.simulate:
             self._instrument = _Simulated()
         else:

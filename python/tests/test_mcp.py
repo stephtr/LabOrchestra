@@ -24,7 +24,7 @@ def server(tmp_path_factory):
     (workspace / "procedures").mkdir()
     shutil.copy(DEVICES / "knob.py", workspace / "devices" / "knob.py")
     (workspace / "procedures" / "tiny.py").write_text('from laborchestra import procedure\n\n\n@procedure(devices=["knob"])\nasync def turn(lab, value: float = 3.0):\n    await lab.knob.set_value(value)\n    return {"value": value}\n')
-    (workspace / "devices.json").write_text(json.dumps({"devices": {"knob": {"file": "devices/knob.py"}}}))
+    (workspace / "devices.json").write_text(json.dumps({"devices": {"knob": {"file": "devices/knob.py", "description": "A value that a procedure can turn"}}}))
     url = f"http://127.0.0.1:{free_port()}"
     desktop = root / "claude_desktop_config.json"
     claude = root / ("claude.cmd" if os.name == "nt" else "claude")  # a stand-in for Claude Code that writes down what it was asked
@@ -122,6 +122,7 @@ def test_control_acts_and_the_event_log_says_who(server):
     assert result["isError"] and "does not exist" in text
     _, text = call(url, token, "list_devices")
     assert [d["id"] for d in json.loads(text)["devices"]] == ["knob"]
+    assert json.loads(text)["devices"][0]["description"] == "A value that a procedure can turn"  # what devices.json says about it
     _, text = call(url, token, "get_problems")
     assert json.loads(text)["ok"] is True
 

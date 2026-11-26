@@ -5,6 +5,7 @@ from typing import Annotated, Literal, TypedDict
 from ._machinery import Profile, Unit, optional
 
 class PressureChannel(TypedDict):
+    name: str  # what the gauge is called ("Chamber"): the device's option channel_names, else the driver's default
     pressure: Annotated[float | None, Unit("mbar")]  # None unless the status is ok, never 0
     status: str  # "ok", "underrange", "overrange", "error", ...
 
@@ -30,6 +31,7 @@ class Polarimeter(Profile):
 
 
 class PositionerChannel(TypedDict):
+    name: str  # what the stage is called ("QWP")
     type: Literal["rotation", "linear", "slider", "unknown"]  # unknown: the controller has a channel that this driver cannot move
     unit: Literal["deg", "um", "slot", "percent", "steps", "none"]  # follows the type (and the mode of a stage that has modes)
     target_position: float | None
@@ -64,6 +66,7 @@ class Positioner(Profile):
 
 
 class FrequencyChannel(TypedDict):
+    name: str  # what the output is called ("Cavity detuning")
     frequency: Annotated[float, Unit("Hz")]
     power: Annotated[float, Unit("dBm")]
     is_on: bool

@@ -34,6 +34,12 @@ class Device:
     log: logging.Logger
     lock: threading.RLock  # for hardware that must not be used by two threads at once (actions run in parallel)
 
+    def channel_name(self, index: int, default: str) -> str:
+        """The name of a channel of a device with several: from the option ``channel_names`` (a list, in the order of the channels; a driver with
+        channels offers it), else the driver's own default. The name is part of the channel's state, so everything sees it."""
+        names = getattr(self, "channel_names", None) or []
+        return str(names[index]) if index < len(names) and names[index] else default
+
     def _setup(self, device_id: str, config: dict, lab_factory: Callable[[], Any] | None = None) -> None:
         object.__setattr__(self, "_state_hook", None)
         self.id = device_id

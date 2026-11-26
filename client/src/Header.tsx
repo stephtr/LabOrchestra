@@ -48,8 +48,10 @@ export function Header({ children, actions }: { children?: ReactNode; actions?: 
 	const time = useRecordingTime();
 	return (
 		<header className="flex min-h-12 flex-none flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-panel px-3 py-1.5">
-			<img src={logoLight} alt="LabOrchestra" className="h-7 dark:hidden" />
-			<img src={logoDark} alt="LabOrchestra" className="hidden h-7 dark:block" />
+			<a href="/" data-testid="nav-logo" title="The first dashboard" className="flex-none rounded-md" onClick={(e) => { e.preventDefault(); navigate('/'); }}>
+				<img src={logoLight} alt="LabOrchestra" className="h-7 dark:hidden" />
+				<img src={logoDark} alt="LabOrchestra" className="hidden h-7 dark:block" />
+			</a>
 			{children}
 			<span className="flex-1" />
 			{time && (

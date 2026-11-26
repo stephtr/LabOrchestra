@@ -69,17 +69,18 @@ export function Field({ value, format, parse, onCommit, testId, label, suffix, c
 }
 
 const channelOf = (props: WidgetProps) => (typeof props.props.channel === 'number' ? props.props.channel : 0);
-const labelOf = ({ props, device }: WidgetProps, channel: number, many: boolean) =>
-	typeof props.label === 'string' && props.label ? props.label : many ? `${device} ${channel}` : device;
+/** What a compact widget calls itself: a label of the instance if it has one (older views), else the name of the channel (the device's), else the device. */
+const labelOf = ({ props, device }: WidgetProps, name: unknown, channel: number, many: boolean) =>
+	typeof props.label === 'string' && props.label ? props.label : typeof name === 'string' && name ? name : many ? `${device} ${channel}` : device;
 
 export function PressureWidget(p: WidgetProps) {
 	const channel = channelOf(p);
-	const channels = (profileState(p.info, 'pressure_sensor').channels ?? []) as { pressure: number | null; status: string }[];
+	const channels = (profileState(p.info, 'pressure_sensor').channels ?? []) as { name?: string; pressure: number | null; status: string }[];
 	const c = channels[channel];
 	const unit = p.info.schema?.units?.['channels.*.pressure'] ?? 'mbar';
 	const bad = c && c.status !== 'ok';
 	return (
-		<Tile label={labelOf(p, channel, channels.length > 1)} testId={`pressure-${p.device}-${channel}`} problem={!c ? `no channel ${channel}` : bad ? c.status : null}>
+		<Tile label={labelOf(p, c?.name, channel, channels.length > 1)} testId={`pressure-${p.device}-${channel}`} problem={!c ? `no channel ${channel}` : bad ? c.status : null}>
 			<div className="flex items-baseline gap-1.5 whitespace-nowrap">
 				<span data-testid={`pressure-value-${p.device}-${channel}`} className="text-lg leading-7 tabular-nums">
 					{c && typeof c.pressure === 'number' ? formatNumber(c.pressure) : '—'}
@@ -96,14 +97,14 @@ const POSITION_UNIT: Record<string, string> = { deg: '°', um: 'µm', slot: '', 
 export function PositionerWidget(p: WidgetProps) {
 	const channel = channelOf(p);
 	const { run, error } = useRun(p.device);
-	const channels = (profileState(p.info, 'positioner').channels ?? []) as { type: string; unit: string; target_position: number | null; actual_position: number | null; status: string }[];
+	const channels = (profileState(p.info, 'positioner').channels ?? []) as { name?: string; type: string; unit: string; target_position: number | null; actual_position: number | null; status: string }[];
 	const c = channels[channel];
 	const step = typeof p.props.step === 'number' ? p.props.step : c?.unit === 'um' ? 10 : 1;
 	const position = c?.actual_position ?? c?.target_position ?? null;
 	const move = (to: number) => run('set_position', channel, to);
 	const problem = error ?? (!c ? `no channel ${channel}` : c.status !== 'ok' ? c.status : null);
 	return (
-		<Tile label={labelOf(p, channel, channels.length > 1)} testId={`positioner-${p.device}-${channel}`} problem={problem}>
+		<Tile label={labelOf(p, c?.name, channel, channels.length > 1)} testId={`positioner-${p.device}-${channel}`} problem={problem}>
 			<div className="flex items-center">
 				<IconButton icon="minus" label="Step down" small variant="default" className="!h-7 rounded-r-none" disabled={!c} onClick={() => move((c?.target_position ?? position ?? 0) - step)} />
 				<Field value={position} format={(v) => String(Number(v.toFixed(3)))} parse={Number} onCommit={move} testId={`positioner-input-${p.device}-${channel}`} label="Position" suffix={POSITION_UNIT[c?.unit ?? 'none']} className="w-20 border-x-0" />
@@ -116,10 +117,10 @@ export function PositionerWidget(p: WidgetProps) {
 export function FrequencyWidget(p: WidgetProps) {
 	const channel = channelOf(p);
 	const { run, error } = useRun(p.device);
-	const channels = (profileState(p.info, 'frequency_generator').channels ?? []) as { frequency: number; power: number; is_on: boolean }[];
+	const channels = (profileState(p.info, 'frequency_generator').channels ?? []) as { name?: string; frequency: number; power: number; is_on: boolean }[];
 	const c = channels[channel];
 	return (
-		<Tile label={labelOf(p, channel, channels.length > 1)} testId={`frequency-${p.device}-${channel}`} problem={error ?? (!c ? `no channel ${channel}` : null)}>
+		<Tile label={labelOf(p, c?.name, channel, channels.length > 1)} testId={`frequency-${p.device}-${channel}`} problem={error ?? (!c ? `no channel ${channel}` : null)}>
 			<div className="flex items-center gap-1">
 				<Field value={c?.frequency} format={(v) => formatSI(v, 'Hz')} parse={parseFrequency} onCommit={(v) => run('set_frequency', channel, v)} testId={`frequency-input-${p.device}-${channel}`} label="Frequency" />
 				<Button
@@ -141,7 +142,7 @@ export function PolarimeterWidget(p: WidgetProps) {
 	const s = profileState(p.info, 'polarimeter');
 	const deg = (v: unknown) => (typeof v === 'number' ? `${Number(((v * 180) / Math.PI).toFixed(1))}°` : '—');
 	return (
-		<Tile label={labelOf(p, 0, false)} testId={`polarimeter-${p.device}`} problem={s.status && s.status !== 'ok' ? String(s.status) : null}>
+		<Tile label={labelOf(p, undefined, 0, false)} testId={`polarimeter-${p.device}`} problem={s.status && s.status !== 'ok' ? String(s.status) : null}>
 			<div className="flex gap-3 whitespace-nowrap text-sm tabular-nums">
 				<span title="azimuth">θ {deg(s.theta)}</span>
 				<span title="ellipticity">η {deg(s.eta)}</span>
@@ -286,7 +287,7 @@ export function TurboPumpWidget(p: WidgetProps) {
 	return (
 		<>
 			<div role="button" tabIndex={0} onClick={() => setOpen(true)} onKeyDown={(e) => e.key === 'Enter' && setOpen(true)} className="h-full rounded-lg" title="Details and controls">
-				<Tile label={typeof p.props.label === 'string' && p.props.label ? p.props.label : (c?.name ?? labelOf(p, channel, channels.length > 1))} testId={`turbo-${p.device}-${channel}`} problem={!c ? `no pump ${channel}` : c.status !== 'ok' ? c.status : null}>
+				<Tile label={typeof p.props.label === 'string' && p.props.label ? p.props.label : labelOf(p, c?.name, channel, channels.length > 1)} testId={`turbo-${p.device}-${channel}`} problem={!c ? `no pump ${channel}` : c.status !== 'ok' ? c.status : null}>
 					{c && (
 						<div className="flex items-center gap-3 whitespace-nowrap text-sm tabular-nums">
 							<Mode c={c} testId={`turbo-mode-${p.device}-${channel}`} />

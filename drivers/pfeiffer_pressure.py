@@ -25,6 +25,7 @@ class PfeifferPressure(Device):
 
     port: str = ""  # e.g. "COM4"; not needed when simulating
     simulate = False  # no hardware: pressures that drift and wiggle
+    channel_names: list = []  # what the gauges are called, in order: ["Fore vacuum", "Chamber"]
     channel_count = 2  # with `simulate`: how many gauges; with hardware the controller says
     silence_s = 5.0  # no line for this long: the controller is started again
     simulate_fault = False  # with `simulate`: gauge 2 reports an error, to see how the dashboard copes
@@ -98,7 +99,7 @@ class PfeifferPressure(Device):
 
     def _publish(self, readings):
         """readings: [(status, pressure)]; a pressure only counts when the status is ok."""
-        self.state["channels"] = [{"pressure": p if s == "ok" else None, "status": s} for s, p in readings]
+        self.state["channels"] = [{"name": self.channel_name(i, f"Gauge {i + 1}"), "pressure": p if s == "ok" else None, "status": s} for i, (s, p) in enumerate(readings)]
         self.state["status"] = "ok" if all(s == "ok" for s, _ in readings) else "check gauges"
 
     def _parse(self, line: str):
@@ -126,7 +127,7 @@ class PfeifferPressure(Device):
                     self.log.warning("The controller is silent; starting it again")
                     complained = True
                     self.state["status"] = "no data"
-                    self.state["channels"] = [{"pressure": None, "status": "error"} for _ in self.state["channels"]]
+                    self.state["channels"] = [{"name": c["name"], "pressure": None, "status": "error"} for c in self.state["channels"]]
                 try:
                     self._start_controller()
                 except OSError as e:

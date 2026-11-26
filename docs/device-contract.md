@@ -50,6 +50,7 @@ actions (`@optional` marks a capability a driver may leave out). A driver says `
 - Shipped: `PressureSensor`, `Polarimeter`, `Positioner` (rotation deg, linear um, slider slot, with `unit` in each channel), `FrequencyGenerator`, `TurboPump` (per channel: running, standby, speed, current, power, voltage, hours, the controller's error code; `start`, `stop`, `set_speed`, optional `set_standby` and `emergency_stop`).
 - The JSON for UIs, MCP and docs is derived from the class (`describe(profile)`), never written by hand; the schema of a device lists its
   `profiles` and the `units` of its fields (`channels.*.pressure`: `mbar`), and the generated card shows them.
+  Every channel of a profile has a `name` (what it is called in the lab: `Chamber`, `QWP`); a driver with channels offers the option `channel_names` and sets `name` in each channel of its state (`self.channel_name(i, "Gauge 1")` gives the option's name or the default). It is state, so everyone sees it; widgets use it as their title.
 - A driver whose actions do not fit its profile is refused at start with what is wrong. State that does not fit is logged once per problem
   (the update is still sent, so that a slightly wrong device stays visible).
 - Conformance: `check_driver(profile, DriverClass)` (actions) and `check_state(profile, state)`; the tests run both on every driver of

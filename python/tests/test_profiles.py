@@ -42,13 +42,13 @@ def test_the_standard_profiles_export_json_derived_from_the_code():
 
 
 def test_state_is_checked_against_a_profile_and_the_problems_are_named():
-    good = {"channels": [{"pressure": 1e-3, "status": "ok"}, {"pressure": None, "status": "error"}], "extra": 1}  # None for an invalid reading; more fields are fine
+    good = {"channels": [{"name": "A", "pressure": 1e-3, "status": "ok"}, {"name": "B", "pressure": None, "status": "error"}], "extra": 1}  # None for an invalid reading; more fields are fine
     assert check_state(PressureSensor, good) == []
     bad = {"channels": [{"pressure": "high"}, {"status": 3, "pressure": 0.0}]}
     assert check_state(PressureSensor, bad) == [
-        "channels[0].status is missing", "channels[0].pressure must be float, got str", "channels[1].status must be str, got int"]
+        "channels[0].name is missing", "channels[0].status is missing", "channels[0].pressure must be float, got str", "channels[1].name is missing", "channels[1].status must be str, got int"]
     assert check_state(PressureSensor, {}) == ["channels is missing"]
-    unit_wrong = {"channels": [{"type": "linear", "unit": "deg", "target_position": 1.0, "actual_position": None, "status": "ok"}]}
+    unit_wrong = {"channels": [{"name": "X", "type": "linear", "unit": "deg", "target_position": 1.0, "actual_position": None, "status": "ok"}]}
     assert "its unit must be one of" in check_state(Positioner, unit_wrong)[0]  # a rule that a type cannot say
     assert check_state(Positioner, {"channels": [{**unit_wrong["channels"][0], "unit": "um"}]}) == []
 
@@ -143,10 +143,10 @@ def test_a_profile_can_be_mounted_under_a_key_so_that_two_profiles_with_the_same
     assert units(generator) == {"generator.channels.*.frequency": "Hz", "generator.channels.*.power": "dBm"}
     assert describe(generator)["at"] == "generator" and "at" not in describe(FrequencyGenerator)
     assert {a["name"] for a in describe(generator)["actions"]} == {"set_frequency", "set_power", "set_on"}  # the actions are inherited
-    good = {"generator": {"channels": [{"frequency": 1e5, "power": 0.0, "is_on": True}]}, "channels": [{"channel_active": True}]}
+    good = {"generator": {"channels": [{"name": "RF", "frequency": 1e5, "power": 0.0, "is_on": True}]}, "channels": [{"channel_active": True}]}
     assert check_state(generator, good) == []
     assert check_state(generator, {"channels": []}) == ["generator is missing"]
-    bad = {"generator": {"channels": [{"frequency": "fast", "power": 0.0, "is_on": True}]}}
+    bad = {"generator": {"channels": [{"name": "RF", "frequency": "fast", "power": 0.0, "is_on": True}]}}
     assert check_state(generator, bad) == ["generator.channels[0].frequency must be float, got str"]
     with pytest.raises(SchemaError):
         FrequencyGenerator.at("Not Snake")

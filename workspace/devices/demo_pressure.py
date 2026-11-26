@@ -10,18 +10,21 @@ class DemoPressure(Device):
 
     profiles = [PressureSensor]
     noise = 0.02  # relative noise of the chamber reading
+    channel_names: list = []  # what the gauges are called, in order
 
     state = {
         "simulated": True,
         "process_id": 0,
         "channels": [
-            {"pressure": 3.7e-2, "status": "ok"},  # mbar
-            {"pressure": 1.7e-8, "status": "ok"},
+            {"name": "Fore vacuum", "pressure": 3.7e-2, "status": "ok"},  # mbar
+            {"name": "Chamber", "pressure": 1.7e-8, "status": "ok"},
         ],
     }
 
     def connect(self):
         self.state["process_id"] = os.getpid()
+        for i, channel in enumerate(self.state["channels"]):
+            channel["name"] = self.channel_name(i, channel["name"])
         self.log.info("Demo gauge ready (noise %.1f %%)", 100 * self.noise)
 
     @action

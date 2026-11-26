@@ -74,7 +74,7 @@ export function profileState(info: DeviceInfo, name: string): Record<string, unk
 
 const perChannel = (profile: string) => (info: DeviceInfo) => {
 	const channels = profileState(info, profile).channels;
-	return Array.isArray(channels) && channels.length > 0 ? channels.map((_, i) => ({ label: `channel ${i}`, props: { channel: i } })) : [{ label: 'channel 0', props: { channel: 0 } }];
+	return Array.isArray(channels) && channels.length > 0 ? channels.map((c, i) => ({ label: typeof (c as { name?: unknown })?.name === 'string' && (c as { name: string }).name ? (c as { name: string }).name : `channel ${i}`, props: { channel: i } })) : [{ label: 'channel 0', props: { channel: 0 } }];
 };
 
 const definitions: WidgetDef[] = [
