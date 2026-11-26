@@ -90,7 +90,7 @@ class FrequencyGenerator(Profile):
 
 
 class TurboPumpChannel(TypedDict):
-    name: str  # what the controller is called ("Turbo 1")
+    name: str  # what the pump is called ("Turbo 1"): from the option channel_names, put there by the host
     status: str  # "ok", or why the values are not valid (not connected, no answer, ...)
     is_running: bool | None  # None unless the status is ok
     is_standby: bool | None  # the reduced speed some controllers offer

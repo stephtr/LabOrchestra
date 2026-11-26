@@ -2,7 +2,7 @@
 	"version": 1,
 	"devices": {
 		"acq": {
-			"description": "Simulated oscilloscope (tones and noise). With a real PicoScope: \u0022driver\u0022: \u0022picoscope_5000a\u0022.",
+			"description": "Simulated oscilloscope (tones and noise). With a real PicoScope: \"driver\": \"picoscope_5000a\".",
 			"driver": "simulated_oscilloscope"
 		},
 		"acq2": {
@@ -41,12 +41,12 @@
 			"config": {
 				"simulate": true,
 				"pumps": [
-					{
-						"name": "Turbo 1"
-					},
-					{
-						"name": "Turbo 2"
-					}
+					{},
+					{}
+				],
+				"channel_names": [
+					"Turbo 1",
+					"Turbo 2"
 				]
 			}
 		},

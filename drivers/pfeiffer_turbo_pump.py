@@ -102,9 +102,9 @@ class _DriveUnit:
             transport.close()
 
 
-def _blank(name):
+def _blank():
     return {
-        "name": name, "status": "connecting", "is_running": None, "is_standby": None, "actual_speed": None, "target_speed": None,
+        "status": "connecting", "is_running": None, "is_standby": None, "actual_speed": None, "target_speed": None,
         "current": None, "power": None, "voltage": None, "operating_hours": None, "error_code": None,
     }
 
@@ -114,7 +114,7 @@ class PfeifferTurboPump(Device):
 
     profiles = [TurboPump]
 
-    pumps = [{"name": "Turbo", "port": "", "address": 1}]  # one entry per pump: name, serial port (e.g. "COM7"), drive unit address
+    pumps = [{"port": "", "address": 1}]  # one entry per pump: serial port (e.g. "COM7"), drive unit address; the names of the pumps are the option channel_names
     simulate = False  # no hardware: pumps that run up and down
     max_speed = 1500  # Hz, the highest speed set_speed accepts
     poll_s = 0.5
@@ -125,16 +125,16 @@ class PfeifferTurboPump(Device):
     state = {"simulated": False, "channels": []}
 
     def connect(self):
-        bad = [p for p in self.pumps if not isinstance(p, dict) or "name" not in p or (not self.simulate and not p.get("port"))]
+        bad = [p for p in self.pumps if not isinstance(p, dict) or (not self.simulate and not p.get("port"))]
         if bad:
-            raise ValueError(f"Every pump needs a name and a port (or set 'simulate'): {bad}")
+            raise ValueError(f"Every pump needs a port (or set 'simulate'): {bad}")
         self.state["simulated"] = self.simulate
         self._units = [None] * len(self.pumps)
         self._failures = [0] * len(self.pumps)
         self._polls = [0] * len(self.pumps)
         self._next_try = [0.0] * len(self.pumps)
         self._complained = set()  # channels whose problem is in the log already
-        self.state["channels"] = [_blank(p["name"]) for p in self.pumps]
+        self.state["channels"] = [_blank() for _ in self.pumps]
         for channel in range(len(self.pumps)):
             self._open(channel)
 
@@ -153,7 +153,7 @@ class PfeifferTurboPump(Device):
         state = self.state["channels"][channel]
         if channel not in self._complained:
             self._complained.add(channel)
-            self.log.warning("%s: %s", state["name"], status)
+            self.log.warning("Pump %d: %s", channel, status)
         state["status"] = status
         for key in ("is_running", "is_standby", "actual_speed", "target_speed", "current", "power", "voltage", "operating_hours", "error_code"):
             state[key] = None
@@ -169,7 +169,7 @@ class PfeifferTurboPump(Device):
         state["actual_speed"], state["current"], state["power"], state["is_running"] = speed, current, power, running
         if channel in self._complained:
             self._complained.discard(channel)
-            self.log.info("%s: reading again", state["name"])
+            self.log.info("Pump %d: reading again", channel)
         state["status"] = "ok"
         self._failures[channel] = 0
 
@@ -185,7 +185,7 @@ class PfeifferTurboPump(Device):
                         self._poll(channel)
                     except Exception as e:
                         self._failures[channel] += 1
-                        self.log.debug("%s: reading failed (%d of %d): %s", self.state["channels"][channel]["name"], self._failures[channel], self.attempts, e)
+                        self.log.debug("Pump %d: reading failed (%d of %d): %s", channel, self._failures[channel], self.attempts, e)
                         if self._failures[channel] >= self.attempts:
                             self._fail(channel, f"error: {e}")
             if self.sleep(self.poll_s):
@@ -204,7 +204,7 @@ class PfeifferTurboPump(Device):
         if not 0 <= channel < len(self.pumps):
             raise ValueError(f"There is no pump {channel} (0 to {len(self.pumps) - 1})")
         if self._units[channel] is None:
-            raise RuntimeError(f"{self.pumps[channel]['name']} is not connected: {self.state['channels'][channel]['status']}")
+            raise RuntimeError(f"Pump {channel} is not connected: {self.state['channels'][channel]['status']}")
         return self._units[channel]
 
     def _command(self, channel: int, change):

@@ -557,7 +557,7 @@ try {
 	const devicesJson = path.join(dir, 'workspace/devices.json');
 	const current = JSON.parse(fs.readFileSync(devicesJson, 'utf8'));
 	current.devices.stages = { file: 'devices/elliptec.py', config: { simulate: true, channels: [{ type: 'rotation', address: '0' }, { type: 'rotation', address: '1' }] } };
-	current.devices.turbo = { file: 'devices/pfeiffer_turbo_pump.py', config: { simulate: true, poll_s: 0.2, pumps: [{ name: 'Turbo 1' }, { name: 'Turbo 2' }] } };
+	current.devices.turbo = { file: 'devices/pfeiffer_turbo_pump.py', config: { simulate: true, poll_s: 0.2, pumps: [{}, {}], channel_names: ['Turbo 1', 'Turbo 2'] } };
 	current.devices.rf = { file: 'devices/rs_sma100b.py', config: { simulate: true } };
 	fs.writeFileSync(devicesJson, JSON.stringify(current));
 	await page.getByTestId('edit-toggle').click();

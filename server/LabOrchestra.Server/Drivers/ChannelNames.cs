@@ -4,7 +4,7 @@ namespace LabOrchestra.Server.Drivers;
 
 /// <summary>Names for the channels of a device, filled in by the server's host for in-process devices (the Python worker does the same for its devices):
 /// a driver does nothing for them. The option <c>channel_names</c> of the device in devices.json is a list for the top-level <c>channels</c>, or an
-/// object from the path of a channel list to its list; then comes a name the driver set itself, else "Channel &lt;index&gt;".</summary>
+/// object from the path of a channel list to its list; without a name the channel is "Channel &lt;index&gt;".</summary>
 public static class ChannelNames
 {
 	public const string Option = "channel_names";
@@ -30,8 +30,7 @@ public static class ChannelNames
 				for (var i = 0; i < channels.Count; i++)
 				{
 					var channel = (Dictionary<string, object?>)channels[i]!;
-					if (given is not null && i < given.Count && given[i].Length > 0) channel["name"] = given[i];
-					else if (channel.GetValueOrDefault("name") is not string { Length: > 0 }) channel["name"] = $"Channel {i}";
+					channel["name"] = given is not null && i < given.Count && given[i].Length > 0 ? given[i] : $"Channel {i}";
 				}
 			}
 			else if (value is Dictionary<string, object?> child) Walk(child, here, wanted);

@@ -36,7 +36,7 @@ def drivers_server(tmp_path_factory):
         "pressure_faulty": {"file": "devices/pfeiffer_pressure.py", "config": {"simulate": True, "simulate_fault": True}},
         "stage": {"file": "devices/smaract.py", "config": {"simulate": True}},
         "rf": {"file": "devices/rs_sma100b.py", "config": {"simulate": True, "poll_s": 0.2}},
-        "turbo": {"file": "devices/pfeiffer_turbo_pump.py", "config": {"simulate": True, "poll_s": 0.1, "pumps": [{"name": "Turbo 1"}, {"name": "Turbo 2"}]}},
+        "turbo": {"file": "devices/pfeiffer_turbo_pump.py", "config": {"simulate": True, "poll_s": 0.1, "pumps": [{}, {}], "channel_names": ["Turbo 1", "Turbo 2"]}},
         "no_hardware": {"file": "devices/elliptec.py"},  # neither a port nor simulate
     }
     (workspace / "devices.json").write_text(json.dumps({"devices": devices}))

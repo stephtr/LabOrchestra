@@ -185,16 +185,16 @@ def test_channels_get_names_from_the_framework_the_driver_never_mentions_them():
         state = {"channels": []}
 
     assert [o["name"] for o in config_options(Meter, Device)] == ["channel_names"]  # an option of every device that has channels
-    state = {"channels": [{"pressure": 1.0}, {"pressure": 2.0}, {"name": "its own", "pressure": 3.0}], "generator": {"channels": [{"frequency": 1.0}]}, "other": {"channels": [1, 2]}}
+    state = {"channels": [{"pressure": 1.0}, {"pressure": 2.0}, {"name": "driver's", "pressure": 3.0}], "generator": {"channels": [{"frequency": 1.0}]}, "other": {"channels": [1, 2]}}
     name_channels(state, ["Fore vacuum"])  # the list is for the top-level channels
-    assert [c["name"] for c in state["channels"]] == ["Fore vacuum", "Channel 1", "its own"]  # the option, the default, what the driver set
+    assert [c["name"] for c in state["channels"]] == ["Fore vacuum", "Channel 1", "Channel 2"]  # the option, else the default: a driver does not name its channels
     assert state["generator"]["channels"][0]["name"] == "Channel 0"  # every channel list gets names, also under a mounted profile
     assert state["other"]["channels"] == [1, 2]  # not channels of a profile: left alone
     named = {"generator": {"channels": [{"frequency": 1.0}]}, "channels": [{"x": 1}]}
     name_channels(named, {"generator.channels": ["RF"], "channels": ["A"]})  # a dict names lists by path
     assert [named["generator"]["channels"][0]["name"], named["channels"][0]["name"]] == ["RF", "A"]
     name_channels(named, None)
-    assert named["channels"][0]["name"] == "Channel 0" or named["channels"][0]["name"] == "A"  # a name that is there stays when no option says otherwise
+    assert named["channels"][0]["name"] == "Channel 0"  # no option: the default
 
     class Task(Service):
         state = {"channels": []}
