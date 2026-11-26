@@ -12,7 +12,7 @@ from typing import Any, Callable
 from .errors import SchemaError
 
 _SNAKE = re.compile(r"^[a-z][a-z0-9]*(_[a-z0-9]+)*$")
-RESERVED = frozenset({"state", "persist", "id", "lab", "log", "running", "lock", "widget", "profiles", "units", "kind"})
+RESERVED = frozenset({"state", "persist", "id", "lab", "log", "running", "lock", "widget", "profiles", "units", "kind", "channel_names"})
 MISSING = object()
 
 
@@ -78,6 +78,10 @@ def config_options(cls: type, base: type) -> list[dict]:
                 "required": default is MISSING,
             }
         )
+    # a device with channels can name them (the framework puts the names into the state, see Device.channel_names): no driver has to say so
+    state = getattr(cls, "state", None)
+    if isinstance(state, dict) and "channels" in state and getattr(cls, "kind", "device") != "service" and not any(o["name"] == "channel_names" for o in options):
+        options.append({"name": "channel_names", "type": "json", "default": _json_default(list(getattr(cls, "channel_names", []) or [])), "required": False})
     return options
 
 

@@ -57,8 +57,7 @@ class Elliptec(Device):
     profiles = [Positioner]
 
     port: str = ""  # e.g. "COM3"; not needed when simulating
-    channels = [{"type": "rotation", "address": "0"}]  # one entry per stage, in the order of the channels below; an entry may have a "name" ("QWP")
-    channel_names: list = []  # or the names in order, when the entries have none
+    channels = [{"type": "rotation", "address": "0"}]  # one entry per stage, in the order of the channels below; an entry may have a "name" ("QWP"), or use channel_names
     simulate = False  # no hardware: the stages move instantly
     poll_seconds = 20.0  # how often the actual positions are read; the bus times out when it is asked too often
     read_after_move = False  # also read the position right after a move: one more access each time, see above
@@ -84,7 +83,7 @@ class Elliptec(Device):
         self.state["simulated"] = self.simulate
         positions = [self._attempt(f"Channel {i}: reading the position", axis.read) * SCALE[c["type"]] for i, (c, axis) in enumerate(zip(self.channels, self._axes))]
         self.state["channels"] = [
-            {"name": c.get("name") or self.channel_name(i, f"{c['type'].capitalize()} {i + 1}"), "type": c["type"], "unit": UNIT[c["type"]], "target_position": p, "actual_position": p, "status": "ok"} for i, (c, p) in enumerate(zip(self.channels, positions))
+            {**({"name": c["name"]} if c.get("name") else {}), "type": c["type"], "unit": UNIT[c["type"]], "target_position": p, "actual_position": p, "status": "ok"} for c, p in zip(self.channels, positions)
         ]
 
     def _attempt(self, what, access):

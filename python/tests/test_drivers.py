@@ -60,7 +60,7 @@ def test_elliptec_moves_channels_and_keeps_its_state_honest(lab):
     state = lab.elliptec.state
     assert state["simulated"] is True and [c["type"] for c in state["channels"]] == ["rotation", "rotation", "slider"]
     assert set(state["channels"][0]) == {"name", "type", "unit", "target_position", "actual_position", "status"}
-    assert [c["name"] for c in state["channels"]] == ["Rotation 1", "Rotation 2", "Slider 3"]  # the default names, from the type and the place
+    assert [c["name"] for c in state["channels"]] == ["Channel 0", "Channel 1", "Channel 2"]  # the framework's default: the driver does not have to say anything
 
     assert lab.elliptec.set_position(0, 12.5) is None  # returns when the stage got there
     assert lab.elliptec.state["channels"][0]["target_position"] == 12.5 and lab.elliptec.state["channels"][0]["status"] == "ok"
@@ -231,7 +231,7 @@ def test_pfeiffer_reads_the_continuous_lines_and_never_reports_zero_for_a_bad_ga
     device.connect()
     assert controller.written[:1] == [b"RES\r\n"] and b"COM,1\r\n" in controller.written
     run_until(device, lambda: device.state["channels"] and device.state["channels"][1]["status"] == "error")
-    assert device.state["channels"] == [{"name": "Gauge 1", "pressure": 1.6e-07, "status": "ok"}, {"name": "Gauge 2", "pressure": None, "status": "error"}]
+    assert device.state["channels"] == [{"name": "Channel 0", "pressure": 1.6e-07, "status": "ok"}, {"name": "Channel 1", "pressure": None, "status": "error"}]
     assert device.state["status"] == "check gauges"
 
 
@@ -259,7 +259,7 @@ def test_pfeiffer_restarts_a_silent_controller_and_says_so_once():
     device.log = type("Log", (), {"warning": lambda self, *a: warnings.append(a[0]), "debug": lambda self, *a: None})()
     controller.written.clear()
     run_until(device, lambda: device.state["status"] == "no data" and controller.written.count(b"COM,1\r\n") >= 2)  # restarted more than once
-    assert device.state["channels"] == [{"name": "Gauge 1", "pressure": None, "status": "error"}]  # not the last value, which would be a lie
+    assert device.state["channels"] == [{"name": "Channel 0", "pressure": None, "status": "error"}]  # not the last value, which would be a lie
     assert [w for w in warnings if "silent" in w] == ["The controller is silent; starting it again"]
 
 
@@ -274,7 +274,7 @@ def test_pfeiffer_simulated_runs_in_the_server_and_a_fault_is_none(lab):
     wait_for(lambda: len(lab.pressure.state["channels"]) == 2, 10, "readings")
     assert all(c["status"] == "ok" and c["pressure"] > 0 for c in lab.pressure.state["channels"])
     wait_for(lambda: len(lab.pressure_faulty.state["channels"]) == 2, 10, "readings")
-    assert lab.pressure_faulty.state["channels"][1] == {"name": "Gauge 2", "pressure": None, "status": "error"}
+    assert lab.pressure_faulty.state["channels"][1] == {"name": "Channel 1", "pressure": None, "status": "error"}
     assert lab.pressure_faulty.state["status"] == "check gauges"
 
 
@@ -539,7 +539,7 @@ def test_reading_errors_become_a_channel_status_with_no_old_values_and_are_logge
     assert device.state["channels"][0]["actual_speed"] == 0.0
 
 
-def test_channels_are_named_by_the_option_the_default_or_their_own_entry():
+def test_channels_are_named_by_the_framework_from_the_option_or_a_default_and_the_driver_knows_nothing_about_it():
     controller = FakeController(["0,1.5e-07,2,1.0e+03", "0,1.6e-07,3,0.0e+00"])
     device = pfeiffer(controller, channel_names=["Fore vacuum", "Chamber"])
     device.connect()
@@ -548,4 +548,4 @@ def test_channels_are_named_by_the_option_the_default_or_their_own_entry():
     partial = pfeiffer(FakeController(["0,1.5e-07,2,1.0e+03", "0,1.6e-07,3,0.0e+00"]), channel_names=["Fore vacuum"])
     partial.connect()
     run_until(partial, lambda: len(partial.state["channels"]) == 2)
-    assert [c["name"] for c in partial.state["channels"]] == ["Fore vacuum", "Gauge 2"]  # a missing name is the driver's default
+    assert [c["name"] for c in partial.state["channels"]] == ["Fore vacuum", "Channel 1"]  # a missing name is the default

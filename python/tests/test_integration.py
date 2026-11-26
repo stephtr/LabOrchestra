@@ -221,7 +221,7 @@ def test_devices_can_be_managed_through_the_api(server, lab, reset_devices):
 
     described = lab.describe_device_file("devices/demo_pressure.py")
     assert described["class"] == "DemoPressure" and described["doc"].startswith("Simulated")
-    assert [(o["name"], o["type"], o["required"]) for o in described["config"]] == [("channel_names", "json", False), ("noise", "float", False)]
+    assert [(o["name"], o["type"], o["required"]) for o in described["config"]] == [("noise", "float", False), ("channel_names", "json", False)]
     assert [a["name"] for a in described["actions"]] == ["set_pressure"]
 
     entry = "devices/demo_pressure.py"
